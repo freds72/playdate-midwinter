@@ -1,0 +1,11 @@
+tools/__pycache__
+*.bak
+*.egg-info
+_label.png
+*.blend1
+/.env/
+/*.pdx
+
+
+
+
