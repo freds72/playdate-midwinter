@@ -5,14 +5,16 @@
 import 'CoreLibs/graphics'
 local gfx = playdate.graphics
 local font = gfx.font.new('font/whiteglove-stroked')
+local _dither={}
+local _angle=0
 
 -- some "pico-like" helpers
-function cls()
-  gfx.setColor(gfx.kColorBlack)
+function cls(c)
+  gfx.setColor(c or gfx.kColorBlack)
   gfx.fillRect(0, 0, 400, 240)
 end
 local sin = function(a)
-  return math.sin(2*a*math.pi)
+  return -math.sin(2*a*math.pi)
 end
 local cos = function(a)
   return math.cos(2*a*math.pi)
@@ -29,7 +31,7 @@ local srand = function(s)
   math.randomseed(flr(s))
 end
 local atan2 = function(x,y)
-  return math.atan2(y,x)
+  return math.atan2(y,x)/math.pi
 end
 -- 
 local function nop() end
@@ -269,7 +271,7 @@ function make_cam()
 		end,
 		project2d=function(self,v)
 			local w=119.5/v[3]
-			return 199.5+w*v[1],119.6-w*v[2],w
+			return 199.5+w*v[1],119.5-w*v[2],w
 		end,
 		project_poly=function(self,p,c0)
       local verts={}
@@ -279,13 +281,14 @@ function make_cam()
         verts[#verts+1]=y
       end
       -- gfx.setPolygonFillRule(gfx.kPolygonFillNonZero)
-      gfx.setColor(gfx.kColorBlack)
+      --gfx.setColor(gfx.kColorBlack)
+			-- gfx.setColor(gfx.kColorWhite)
       gfx.fillPolygon(table.unpack(verts))
-      gfx.setColor(gfx.kColorWhite)
-      gfx.drawPolygon(table.unpack(verts))
+      --gfx.setColor(gfx.kColorWhite)
+      --gfx.drawPolygon(table.unpack(verts))
 		end,
 		draw_horizon=function(self,ground_color,sky_color)
-			cls(sky_color)
+			cls(gfx.kColorWhite)
 			
 			-- cam up in world space
 			local n=m_up(self.m)
@@ -302,30 +305,27 @@ function make_cam()
 			v_scale(n,16)
 			local u,v=n[1],n[2]
 			
-			fillp(0xf0f0)
-			circfill(x0-3*u+2*v,y0+3*v+2*u,8,0xc7)
-			fillp()
-			circfill(x0-3*u+2*v,y0+3*v+2*u,5,7)
+			-- sun
+			_sun:draw(x0-3*u+2*v-16,y0+3*v+2*u-16)
 
-			-- horizon intersections
-			local xl,yl,xr,yr=0,y0-u*x0/v,128,y0+u*(128-x0)/v			
+			-- horizon intersections (clouds)
+			local xl,yl,xr,yr=0,y0-u*x0/v,400,y0+u*(400-x0)/v			
 			-- yl: min
 			-- yr: max
 			if yl>yr then xl,yl,xr,yr=xr,yr,xl,yl end
 			
-			fillp(0xa5a5.f)
+			gfx.setPattern(_dither[6])
 			for _,c in pairs(clouds2) do
-				circfill(x0+c.i*v,y0+c.i*u,c.r,6)
-				-- alternative?
-				--circ(x0+c.i*v,y0+c.i*u,c.r,7)
+				gfx.fillCircleAtPoint(x0+c.i*v,y0+c.i*u,c.r,6)
 			end
-			fillp()
+			gfx.setColor(gfx.kColorBlack)
 			for _,c in pairs(clouds) do
-				circfill(x0+c.i*v,y0+c.i*u,c.r,ground_color)
+				gfx.fillCircleAtPoint(x0+c.i*v,y0+c.i*u,c.r)
 			end
 
-			rectfill(0,128,128,yr,ground_color)
-			trifill(xl,yl,xr,yr,xl,yr,ground_color)
+			gfx.setColor(gfx.kColorBlack)
+			gfx.fillRect(0,yr,400,240-yr)
+			gfx.fillTriangle(xl,yl,xr,yr,xl,yr)
 		end
 	}
 end
@@ -765,9 +765,9 @@ function menu_state()
 			if (time()%1)<0.5 then printb("❎/🅾️ go!",50,120,10,5) end
 			print("▤@freds72 - ♪@gruber",20,2,1)
 
-			-- title
-			spr(64,28,8,10,3)	
-
+			-- ski mask
+			_mask:draw(0,0)
+			
 			-- todo: snow particles
       
 		end,
@@ -1068,7 +1068,7 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 				pop_state()
 				push_state(menu_state)
 			end
-		end
+		end		
 	}
 end
 
@@ -1077,6 +1077,18 @@ function _init()
 
 	-- todo: remove (only for benchmarks)
 	-- srand(12)
+	for i=0,15 do
+		local img=gfx.image.new("images/noise"..i)
+		assert(img)
+		_dither[i]=img
+	end
+
+	-- https://opengameart.org/content/pine-tree-pack
+	_tree=gfx.image.new("images/pine_snow_0")
+	assert(_tree)
+
+	_mask = gfx.image.new("images/mask")
+	_sun = gfx.image.new("images/sun")
 
 	-- init state machine
 	push_state(menu_state)
@@ -1121,6 +1133,8 @@ function draw_sprite(actor,x,y,w,dist)
 	--end
 	--sspr(sx,sy,16,16,x-w/2,actor.y or y-w,w,w)
 	--pal()
+	w*=0.01
+	_tree:drawRotated(x-44-w/2,actor.y or y-w,_angle,w,w)
 end
 
 function draw_drawables(objects)	
@@ -1140,7 +1154,10 @@ function draw_drawables(objects)
 				if d.dist>7 then c0=0x6d end
 				if d.dist>8 then c0=0xd5 end
 			end
-			fillp(d.f.cf)
+			--fillp(d.f.cf)
+			local idx=flr(16*(d.dist/13)*d.f.cf)
+			assert(idx>=0 and idx<16,d.f.cf)
+			gfx.setPattern(_dither[idx])
 			cam:project_poly(d.v,c0)
 			-- face 'details' sprites
 			if d.fa then
@@ -1149,13 +1166,14 @@ function draw_drawables(objects)
 				local az=m[3]*x+m[7]*y+m[11]*z+m[15]
 				if az>z_near then	
 					-- sprite
-					local w=199.5/az
+					local w=119.5/az
 					draw_sprite(d.fa,199.5+w*(m[1]*x+m[5]*y+m[9]*z+m[13]),119.5-w*(m[2]*x+m[6]*y+m[10]*z+m[14]),4*w,d.dist)
 				end
 			end
 		end
 	end
-	fillp()
+	-- gfx.setPattern()
+	-- fillp()
 end
 
 -->8
@@ -1359,7 +1377,7 @@ function make_ground(params)
 			local c=5*f.n[2]
       -- todo: dither pattern
 			--local cf=(#dither_pat-1)*(1-c%1)
-			f.cf=0--dither_pat[flr(cf)+1]
+			f.cf=f.n[2]--0--dither_pat[flr(cf)+1]
 
 			if i==0 or i==nx-2 then f.m=1 return f end
 			f.m=v_dot(sn,f.n)<0.8 and 0 or 1
@@ -1446,8 +1464,8 @@ function make_ground(params)
 			local x,y,z=v0[1]+u[1],v0[2]+u[2],v0[3]+u[3]
 			local az=m[3]*x+m[7]*y+m[11]*z+m[15]
 			if az>z_near then	
-				local ay,w=m[2]*x+m[6]*y+m[10]*z+m[14],63.5/az
-				out[#out+1]={key=1/(ay*ay+az*az),a=actor,x=63.5+w*(m[1]*x+m[5]*y+m[9]*z+m[13]),y=63.5-w*ay,w=4*w,dist=dist}
+				local ay,w=m[2]*x+m[6]*y+m[10]*z+m[14],119.5/az
+				out[#out+1]={key=1/(ay*ay+az*az),a=actor,x=199.5+w*(m[1]*x+m[5]*y+m[9]*z+m[13]),y=119.5-w*ay,w=4*w,dist=dist}
 			end
 		end
 	end
@@ -1638,6 +1656,7 @@ function make_rspr(sx,sy,n,tc)
 	-- update spritesheet with rotated version
 	return function(angle)
 		-- 
+		_angle=90*angle
 	end
 end
 
@@ -1662,20 +1681,6 @@ function printb(s,x,y,cf,cs,cb)
 end
 
 -->8
--- trifill & clipping
-function trifill(x0,y0,x1,y1,x2,y2,col)
-  gfx.setColor(gfx.kColorBlack)
-  playdate.graphics.fillTriangle(x0,y0,x1,y1,x2,y2)
-  gfx.setColor(gfx.kColorWhite)
-  playdate.graphics.drawTriangle(x0,y0,x1,y1,x2,y2)
-end
-
-function circfill(x,y,r)
-  gfx.setColor(gfx.kColorBlack)
-  playdate.graphics.fillCircleAtPoint(x,y,r)
-  gfx.setColor(gfx.kColorWhite)
-  playdate.graphics.drawCircleAtPoint(x,y,r)
-end
 
 function print(s,x,y)
   gfx.setFont(font)
