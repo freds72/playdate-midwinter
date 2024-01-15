@@ -5,6 +5,8 @@
 import 'CoreLibs/graphics'
 local gfx = playdate.graphics
 local font = gfx.font.new('font/whiteglove-stroked')
+local panelFont = gfx.font.new('font/Roobert-10-Bold')
+local panelFontFigures = gfx.font.new('font/Roobert-24-Medium-Numerals-White')
 local _dither={}
 local _angle=0
 
@@ -224,9 +226,9 @@ function make_cam()
 	camera()
 
 	local clouds,clouds2={},{}
-	for i=-16,16 do
-		add(clouds,{i=i,r=max(8,rnd(16))})
-		add(clouds2,{i=i,r=max(12,rnd(24))})
+	for i=-8,8 do
+		add(clouds,{i=i,r=max(16,rnd(32))})
+		add(clouds2,{i=i,r=max(24,rnd(38))})
 	end
 
 	return {
@@ -280,12 +282,7 @@ function make_cam()
         verts[#verts+1]=x
         verts[#verts+1]=y
       end
-      -- gfx.setPolygonFillRule(gfx.kPolygonFillNonZero)
-      --gfx.setColor(gfx.kColorBlack)
-			-- gfx.setColor(gfx.kColorWhite)
       gfx.fillPolygon(table.unpack(verts))
-      --gfx.setColor(gfx.kColorWhite)
-      --gfx.drawPolygon(table.unpack(verts))
 		end,
 		draw_horizon=function(self,ground_color,sky_color)
 			cls(gfx.kColorWhite)
@@ -302,7 +299,7 @@ function make_cam()
 			n[3]=0
 			v_normz(n)
 			-- spread clouds
-			v_scale(n,16)
+			v_scale(n,32)
 			local u,v=n[1],n[2]
 			
 			-- sun
@@ -747,29 +744,20 @@ function menu_state()
 				a+=da
 			end
 
-			-- mask
-			rectfill(0,0,127,27,0)
-			rectfill(0,92,127,127,0)
-			palt(14,true)
-			palt(0,false)
-			spr(128,64,28,8,9)
-			spr(128,0,28,8,9,true)
-			palt()
-
-			if sel==sel_tgt then
-				local s="best⧗: "..time_tostr(panels[sel+1].params.record_t)
-				print(s,nil,97)
-			end
-
-			printb("⬅️➡️ select track",31,110,7,5)
-			if (time()%1)<0.5 then printb("❎/🅾️ go!",50,120,10,5) end
-			print("▤@freds72 - ♪@gruber",20,2,1)
+			_panel:draw(240,70)
 
 			-- ski mask
 			_mask:draw(0,0)
 			
+			print("select track: 🎣",4,4)
+			if (time()%1)<0.5 then printb("❎/🅾️ go!",50,120,10,5) end
+
+			if sel==sel_tgt then
+				local s="best: "..time_tostr(panels[sel+1].params.record_t)
+				print(s,nil,4)
+			end
+
 			-- todo: snow particles
-      
 		end,
 		-- update
 		update=function()
@@ -1090,6 +1078,68 @@ function _init()
 	_mask = gfx.image.new("images/mask")
 	_sun = gfx.image.new("images/sun")
 
+	local glyphs={}
+	local text="CHAMOIS - PISTE NOIRE"
+	local draw_glyphs=function(text,flipped)
+		local angleSign,angleBase,radiusScale=1,0,0.80
+		-- draw bottom of panel
+		if flipped then
+			angleSign,angleBase=-1,180
+			radiusScale=0.72
+		end
+		local angle1,angle0=0
+		-- find angle extents
+		for i=1,#text do
+			local s = string.sub(text,i,i)
+			local w = gfx.getTextSize(s)
+			angle1 += angleSign*math.max(4,w)*2
+			if not angle0 then angle0 = angle1 end
+		end				
+		local angle=angleBase+90-(angle1-angle0)/2
+		--angle = 90
+
+		gfx.setFont(panelFont)
+		for i=1,#text do
+			local s=string.sub(text,i,i)
+			local w = gfx.getTextSize(s)
+			w = math.max(4,w)
+			local tmp = gfx.image.new(24,24,gfx.kColorClear)
+			local dst = gfx.image.new(24,24,gfx.kColorClear)
+			gfx.lockFocus(tmp)
+			gfx.drawTextAligned(s,11.5-w/2,6)	
+			gfx.unlockFocus()
+			gfx.lockFocus(dst)
+			gfx.setColor(gfx.kColorWhite)
+			tmp:drawRotated(12,12,angleBase+angle-90)
+			gfx.unlockFocus()
+			add(glyphs,{
+				img=dst,
+				radiusScale=radiusScale,
+				angle=angle})
+			angle += math.floor(angleSign*w*2)
+		end
+	end
+	draw_glyphs("CHAMOIS")	
+	draw_glyphs("Hard Track",true)	
+	-- create a ski slope sign
+	local w=96
+	_panel = gfx.image.new(w,w,gfx.kColorClear)
+	gfx.lockFocus(_panel)
+	gfx.setColor(gfx.kColorWhite)
+	gfx.fillCircleInRect(0, 0, w, w)
+	gfx.setLineWidth(2)
+	gfx.setColor(gfx.kColorBlack)
+	gfx.drawCircleInRect(1, 1, w-2, w-2)
+	gfx.setLineWidth(1)
+	gfx.fillCircleInRect(4, 4, w-8, w-8)
+	for _,glyph in pairs(glyphs) do
+		local angle = (math.pi*glyph.angle)/180
+		local r = w*glyph.radiusScale/2
+		glyph.img:draw(47.5-math.cos(angle)*r-12,47.5-math.sin(angle)*r-12)
+	end
+	gfx.setFont(panelFontFigures)
+	gfx.drawTextAligned("21",47.5,47.5-18,kTextAlignment.center)
+	gfx.unlockFocus()
 	-- init state machine
 	push_state(menu_state)
 end
@@ -1684,8 +1734,7 @@ end
 
 function print(s,x,y)
   gfx.setFont(font)
-  gfx.setColor(gfx.kColorWhite)
-  gfx.drawTextAligned(s,x or 200,y,x and kTextAlignment.center)
+  gfx.drawTextAligned(s,x or 200,y,x and kTextAlignment.left or kTextAlignment.center)
 end
 
 function z_poly_clip(znear,v)
@@ -1713,6 +1762,6 @@ _init()
 
 function playdate.update()
   _update()
-  _draw()
+  _draw()	
   playdate.drawFPS(0,0)
 end
