@@ -3,6 +3,7 @@
 
 -- game globals
 import 'CoreLibs/graphics'
+import 'CoreLibs/nineslice'
 local gfx = playdate.graphics
 local font = gfx.font.new('font/whiteglove-stroked')
 local panelFont = gfx.font.new('font/Roobert-10-Bold')
@@ -272,7 +273,7 @@ function make_cam()
 			self.pos=pos
 		end,
 		project2d=function(self,v)
-			local w=119.5/v[3]
+			local w=199.5/v[3]
 			return 199.5+w*v[1],119.5-w*v[2],w
 		end,
 		project_poly=function(self,p,c0)
@@ -744,6 +745,13 @@ function menu_state()
 				a+=da
 			end
 
+			_panel_pole:draw(170,140)
+			_panel_slices:drawInRect(135,100,100,40)
+
+			gfx.setFont(panelFont)
+			gfx.drawText("Le village",150,112)
+
+			_panel_pole:draw(280,160)
 			_panel:draw(240,70)
 
 			-- ski mask
@@ -893,16 +901,16 @@ function play_state(params)
 				local pos,a,steering=plyr:get_pos()
 				local dy=plyr.height*24
 				-- ski
-				spr(9,34+3*cos(time()/4),128+dy-steering*14,4,4)
-				spr(9,74-2*cos(time()/5),128+dy+steering*14,4,4,true)
+				_ski:draw(180+6*cos(time()/4),220+dy-steering*14)
+				_ski:draw(240-6*cos(time()/4),220+dy+steering*14)
+
+				--spr(9,34+3*cos(time()/4),128+dy-steering*14,4,4)
+				--spr(9,74-2*cos(time()/5),128+dy+steering*14,4,4,true)
 			
 				-- hands
-				palt(0,false)
-				palt(7,true)
 				spr(140,abs(steering)*16-24,90-dy/3,4,4)
 				spr(140,96-abs(steering)*16+24,90-dy/3,4,4,true)
-				palt()
-
+			
 				-- 
 				local t,bonus,total_t=plyr:score()
 				-- warning sound under 5s
@@ -1077,6 +1085,9 @@ function _init()
 
 	_mask = gfx.image.new("images/mask")
 	_sun = gfx.image.new("images/sun")
+	_ski = gfx.image.new("images/ski")
+	_panel_pole = gfx.image.new("images/panel_pole")
+	_panel_slices = gfx.nineSlice.new("images/panel",6,5,10,30)
 
 	local glyphs={}
 	local text="CHAMOIS - PISTE NOIRE"
@@ -1205,9 +1216,8 @@ function draw_drawables(objects)
 				if d.dist>8 then c0=0xd5 end
 			end
 			--fillp(d.f.cf)
-			local idx=flr(16*(d.dist/13)*d.f.cf)
-			assert(idx>=0 and idx<16,d.f.cf)
-			gfx.setPattern(_dither[idx])
+			local ratio=(d.dist/13)*d.f.cf
+			gfx.setPattern(_dither[flr(16*ratio)])
 			cam:project_poly(d.v,c0)
 			-- face 'details' sprites
 			if d.fa then
@@ -1216,7 +1226,7 @@ function draw_drawables(objects)
 				local az=m[3]*x+m[7]*y+m[11]*z+m[15]
 				if az>z_near then	
 					-- sprite
-					local w=119.5/az
+					local w=199.5/az
 					draw_sprite(d.fa,199.5+w*(m[1]*x+m[5]*y+m[9]*z+m[13]),119.5-w*(m[2]*x+m[6]*y+m[10]*z+m[14]),4*w,d.dist)
 				end
 			end
@@ -1514,7 +1524,7 @@ function make_ground(params)
 			local x,y,z=v0[1]+u[1],v0[2]+u[2],v0[3]+u[3]
 			local az=m[3]*x+m[7]*y+m[11]*z+m[15]
 			if az>z_near then	
-				local ay,w=m[2]*x+m[6]*y+m[10]*z+m[14],119.5/az
+				local ay,w=m[2]*x+m[6]*y+m[10]*z+m[14],199.5/az
 				out[#out+1]={key=1/(ay*ay+az*az),a=actor,x=199.5+w*(m[1]*x+m[5]*y+m[9]*z+m[13]),y=119.5-w*ay,w=4*w,dist=dist}
 			end
 		end
@@ -1529,8 +1539,8 @@ function make_ground(params)
 	end
 	]]
 	local angles={}
-	for i=-16,16 do
-		add(angles,atan2(8,i))
+	for i=-32,32 do
+		add(angles,atan2(16,i))
 	end
 
 	local function visible_tiles(pos,angle)
