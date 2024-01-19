@@ -6,6 +6,7 @@ import 'CoreLibs/graphics'
 import 'CoreLibs/nineslice'
 local gfx = playdate.graphics
 local font = gfx.font.new('font/whiteglove-stroked')
+local memoFont = gfx.font.new('font/Memo')
 local panelFont = gfx.font.new('font/Roobert-10-Bold')
 local panelFontFigures = gfx.font.new('font/Roobert-24-Medium-Numerals-White')
 local _dither={}
@@ -707,9 +708,10 @@ function menu_state()
 
 	local tree_prop,bush_prop,cow_prop={sx=112,sy=16,r=1.4,sfx={9,10}},{sx=96,sy=32,r=1,sfx={9,10}},{sx=112,sy=48,r=1,sfx={4}}
 	local panels={
-		{text="marmottes",c=1,params={dslot=0,slope=1.5,tracks=1,bonus_t=2,total_t=30*30,record_t=records[1],props={tree_prop},props_rate=0.85}},
-		{text="biquettes★",c=8,params={dslot=1,slope=2,tracks=2,bonus_t=1.5,total_t=20*30,record_t=records[2],props={tree_prop,bush_prop},props_rate=0.87,}},
-		{text="chamois★★",c=0,params={dslot=2,slope=3,tracks=3,bonus_t=1.5,total_t=15*30,record_t=records[3],props={tree_prop,tree_prop,tree_prop,cow_prop},props_rate=0.92,}}
+		{panel=make_panel("MARMOTTES","piste verte",12),c=1,params={dslot=0,slope=1.5,tracks=1,bonus_t=2,total_t=30*30,record_t=records[1],props={tree_prop},props_rate=0.85}},
+		{panel=make_panel("BIQUETTES","piste rouge",18),c=8,params={dslot=1,slope=2,tracks=2,bonus_t=1.5,total_t=20*30,record_t=records[2],props={tree_prop,bush_prop},props_rate=0.87,}},
+		{panel=make_panel("CHAMOIS","piste noire",21),c=0,params={dslot=2,slope=3,tracks=3,bonus_t=1.5,total_t=15*30,record_t=records[3],props={tree_prop,tree_prop,tree_prop,cow_prop},props_rate=0.92,}},
+		{panel=make_direction("Le village")}
 	}
 	local sel,sel_tgt,blink=0,0,false
 
@@ -732,35 +734,30 @@ function menu_state()
       table.sort(out,function(a,b) return a.key<b.key end)
 			draw_drawables(out)
 
-			local a,da=1/3,-1/3
+			local a,da=00,-1/#panels
 			for i=1,#panels do
-				local v={8*cos(a),0.8,-8*sin(a)}
+				local v={8*cos(a+0.1),0.8,-8*sin(a+0.1)}
 				v_add(v,cam.pos)
 				v=m_x_v(cam.m,v)
 				if v[3]>0 then
 					local x0,y0=cam:project2d(v)
 					local p=panels[i]
-					draw_box(p.text,x0+32,y0,p.c,blink,p.params.tracks>1)
+					_panel_pole:draw(x0+40,y0+25)
+					p.panel:draw(x0,y0-16)
 				end
 				a+=da
 			end
-
-			_panel_pole:draw(170,140)
-			_panel_slices:drawInRect(135,100,100,40)
-
-			gfx.setFont(panelFont)
-			gfx.drawText("Le village",150,112)
-
-			_panel_pole:draw(280,160)
-			_panel:draw(240,70)
-
+			
 			-- ski mask
 			_mask:draw(0,0)
 			
-			print("select track: 🎣",4,4)
-			if (time()%1)<0.5 then printb("❎/🅾️ go!",50,120,10,5) end
+			print("select: crank",4,4)
+			if (time()%1)<0.5 then 
+				local s="go: A B"
+				print(s,396-gfx.getTextSize(s),4)
+			end
 
-			if sel==sel_tgt then
+			if sel==sel_tgt and panels[sel+1].params then
 				local s="best: "..time_tostr(panels[sel+1].params.record_t)
 				print(s,nil,4)
 			end
@@ -769,8 +766,8 @@ function menu_state()
 		end,
 		-- update
 		update=function()
-			if playdate.buttonIsPressed(playdate.kButtonLeft) then sel-=1 end
-			if playdate.buttonIsPressed(playdate.kButtonRight) then sel+=1 end
+			if playdate.buttonJustReleased(playdate.kButtonLeft) then sel-=1 end
+			if playdate.buttonJustReleased(playdate.kButtonRight) then sel+=1 end
 			sel=mid(sel,0,#panels-1)
 
   		sel_tgt=lerp(sel_tgt,sel,0.18)
@@ -798,7 +795,7 @@ function menu_state()
 			end
 
 			--
-			cam:track({64,0,64},sel_tgt/3,v_up)
+			cam:track({64,0,64},sel_tgt/#panels,v_up)
 		end
 	}
 end
@@ -886,9 +883,9 @@ function play_state(params)
 			end
 
 			-- sprite cache
-			local angle=atan2(cam.m[5],cam.m[6])+0.25
+			local angle=atan2(cam.m[5],cam.m[6])--+0.25
 			for _,f in pairs(rot_sprites) do
-				f(-angle)
+				f(angle)
 			end
 
       table.sort(out,function(a,b) return a.key<b.key end)
@@ -1068,29 +1065,23 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 	}
 end
 
-function _init()
-	-- todo: save
+-- helper to create a direction panel
+function make_direction(text)
+	gfx.setFont(panelFont)
+	local w,h = gfx.getTextSize(text)
 
-	-- todo: remove (only for benchmarks)
-	-- srand(12)
-	for i=0,15 do
-		local img=gfx.image.new("images/noise"..i)
-		assert(img)
-		_dither[i]=img
-	end
+	local panel = gfx.image.new(w+32,40,gfx.kColorClear)
+	gfx.lockFocus(panel)
+	_panel_slices:drawInRect(0,0,w+32,40)
 
-	-- https://opengameart.org/content/pine-tree-pack
-	_tree=gfx.image.new("images/pine_snow_0")
-	assert(_tree)
+	gfx.drawText(text,12,20-h/2)
+	gfx.unlockFocus()
+	return panel
+end
 
-	_mask = gfx.image.new("images/mask")
-	_sun = gfx.image.new("images/sun")
-	_ski = gfx.image.new("images/ski")
-	_panel_pole = gfx.image.new("images/panel_pole")
-	_panel_slices = gfx.nineSlice.new("images/panel",6,5,10,30)
-
+-- helper to create a slope panel
+function make_panel(text_up,text_low,figure)
 	local glyphs={}
-	local text="CHAMOIS - PISTE NOIRE"
 	local draw_glyphs=function(text,flipped)
 		local angleSign,angleBase,radiusScale=1,0,0.80
 		-- draw bottom of panel
@@ -1130,12 +1121,12 @@ function _init()
 			angle += math.floor(angleSign*w*2)
 		end
 	end
-	draw_glyphs("CHAMOIS")	
-	draw_glyphs("Hard Track",true)	
-	-- create a ski slope sign
+	if text_up then draw_glyphs(text_up) end
+	if text_low then draw_glyphs(text_low,true)	end
+
 	local w=96
-	_panel = gfx.image.new(w,w,gfx.kColorClear)
-	gfx.lockFocus(_panel)
+	local panel = gfx.image.new(w,w,gfx.kColorClear)
+	gfx.lockFocus(panel)
 	gfx.setColor(gfx.kColorWhite)
 	gfx.fillCircleInRect(0, 0, w, w)
 	gfx.setLineWidth(2)
@@ -1148,9 +1139,35 @@ function _init()
 		local r = w*glyph.radiusScale/2
 		glyph.img:draw(47.5-math.cos(angle)*r-12,47.5-math.sin(angle)*r-12)
 	end
-	gfx.setFont(panelFontFigures)
-	gfx.drawTextAligned("21",47.5,47.5-18,kTextAlignment.center)
+	if figure then
+		gfx.setFont(panelFontFigures)
+		gfx.drawTextAligned(figure,47.5,47.5-18,kTextAlignment.center)
+	end
 	gfx.unlockFocus()
+	return panel
+end
+
+function _init()
+	-- todo: save
+
+	-- todo: remove (only for benchmarks)
+	-- srand(12)
+	for i=0,15 do
+		local img=gfx.image.new("images/noise"..i)
+		assert(img)
+		_dither[i]=img
+	end
+
+	-- https://opengameart.org/content/pine-tree-pack
+	_tree=gfx.image.new("images/pine_snow_0")
+	assert(_tree)
+
+	_mask = gfx.image.new("images/mask")
+	_sun = gfx.image.new("images/sun")
+	_ski = gfx.image.new("images/ski")
+	_panel_pole = gfx.image.new("images/panel_pole")
+	_panel_slices = gfx.nineSlice.new("images/panel",6,5,10,30)
+
 	-- init state machine
 	push_state(menu_state)
 end
@@ -1215,7 +1232,6 @@ function draw_drawables(objects)
 				if d.dist>7 then c0=0x6d end
 				if d.dist>8 then c0=0xd5 end
 			end
-			--fillp(d.f.cf)
 			local ratio=(d.dist/13)*d.f.cf
 			gfx.setPattern(_dither[flr(16*ratio)])
 			cam:project_poly(d.v,c0)
@@ -1540,7 +1556,7 @@ function make_ground(params)
 	]]
 	local angles={}
 	for i=-32,32 do
-		add(angles,atan2(16,i))
+		add(angles,atan2(32,i))
 	end
 
 	local function visible_tiles(pos,angle)
@@ -1716,7 +1732,7 @@ function make_rspr(sx,sy,n,tc)
 	-- update spritesheet with rotated version
 	return function(angle)
 		-- 
-		_angle=90*angle
+		_angle=-180*angle+90
 	end
 end
 
@@ -1743,7 +1759,7 @@ end
 -->8
 
 function print(s,x,y)
-  gfx.setFont(font)
+  gfx.setFont(memoFont)
   gfx.drawTextAligned(s,x or 200,y,x and kTextAlignment.left or kTextAlignment.center)
 end
 
@@ -1773,5 +1789,5 @@ _init()
 function playdate.update()
   _update()
   _draw()	
-  playdate.drawFPS(0,0)
+  playdate.drawFPS(0,228)
 end
