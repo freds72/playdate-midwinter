@@ -438,16 +438,17 @@ if(__name__=="__main__"):
     # PlotBinaryPatterns(Texture,3,5);
     # pyplot.show();
 
+    N = 32
     for i in range(16):
-      pattern = GetVoidAndClusterBlueNoise((8,8),1.9)
+      pattern = GetVoidAndClusterBlueNoise((N,N),1)
       print(f"Noise #{i}")
-      G = np.zeros((8,8,1))
+      G = np.zeros((N,N,1))
       # Where we set the RGB for each pixel
-      t = (i/16)*64
+      t = (i/16)*(N*N)
       G[pattern>=t] = 1
       G[pattern<t] = 0
 
-      img = Image.new("1",(8,8))
+      img = Image.new("1",(N,N))
       for index, values in np.ndenumerate(G):
         img.putpixel((index[0],index[1]), int(values))
-      img.save(f'../source/images/noise{i}.png',bits=1,optimize=False)      
+      img.save(f'../source/images/noise{N}x{N}-{i}.png',bits=1,optimize=False)      
