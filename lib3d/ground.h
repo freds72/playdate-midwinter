@@ -1,7 +1,7 @@
 #ifndef _ground_h
 #define _ground_h
 
-#include "math.h"
+#include "3dmath.h"
 
 typedef struct {
   Point3d n;  
@@ -27,13 +27,13 @@ void make_ground(GroundParams params);
 void get_start_pos(Point3d* out);
 
 // return face details at given position
-GroundFace* get_face_at_pos(Point3d pos);
+void get_face(Point3d pos, Point3d* n, float* y);
 
 // update ground, create new slice as necessary and adjust position
 void update_ground(Point3d* pos);
 
 // render ground
-void render_ground(float*m, uint32_t* bitmap);
+void render_ground(Point3d pos, float*m, uint32_t* bitmap);
 
 // load stuff
 void ground_load_assets(PlaydateAPI* playdate);

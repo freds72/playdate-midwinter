@@ -6,6 +6,7 @@
 #include "ground.h"
 #include "perlin.h"
 #include "gfx.h"
+#include "3dmath.h"
 
 #define GROUND_SIZE 32
 #define GROUND_CELL_SIZE 4
@@ -27,12 +28,13 @@ typedef struct {
 
 } GroundSlice;
 
+// active slices
 typedef struct {
   GroundSlice* slices[GROUND_SIZE];
 } Ground;
 
 // global buffer to store slices
-static GroundSlice _slices[GROUND_SIZE];
+static GroundSlice _slices_buffer[GROUND_SIZE];
 // active ground
 static Ground _ground;
 
@@ -55,105 +57,137 @@ static float randf() {
 
 // compute normal and assign material for faces
 static void mesh_slice(int j) {
-  GroundSlice* s0 = &_slices[j];
-  GroundSlice* s1 = &_slices[j+1];
+    GroundSlice* s0 = _ground.slices[j];
+    GroundSlice* s1 = _ground.slices[j + 1];
 
-  // base slope normal
-  Point3d sn = {.x = 0, .y = GROUND_CELL_SIZE, .z = s0->y - s1->y};
-  v_normz(&sn);
+    // base slope normal
+    Point3d sn = { .x = 0, .y = GROUND_CELL_SIZE, .z = s0->y - s1->y };
+    v_normz(&sn);
 
-  for(int i=0;i<GROUND_SIZE-2;++i) {
-    Point3d v0 = {.v = {i*GROUND_CELL_SIZE,s0->h[i]+s0->y,j*GROUND_CELL_SIZE}};
-		// v1-v0
-		Point3d u1={.v = {GROUND_CELL_SIZE,s0->h[i+1]-s0->h[i],0}};
-		// v2-v0
-		Point3d u2={.v = {GROUND_CELL_SIZE,s1->h[i+1]+s1->y-v0.y,GROUND_CELL_SIZE}};
-		// v3-v0
-		Point3d u3={.v = {0,s1->h[i]+s1->y-v0.y,GROUND_CELL_SIZE}};
+    for (int i = 0; i < GROUND_SIZE - 1; ++i) {
+        Point3d v0 = { .v = {i * GROUND_CELL_SIZE,s0->h[i] + s0->y,j * GROUND_CELL_SIZE} };
+        // v1-v0
+        Point3d u1 = { .v = {GROUND_CELL_SIZE,s0->h[i + 1] - s0->h[i],0} };
+        // v2-v0
+        Point3d u2 = { .v = {GROUND_CELL_SIZE,s1->h[i + 1] + s1->y - v0.y,GROUND_CELL_SIZE} };
+        // v3-v0
+        Point3d u3 = { .v = {0,s1->h[i] + s1->y - v0.y,GROUND_CELL_SIZE} };
 
-    Point3d n0,n1;
-    v_cross(&u3,&u2,&n0);
-    v_cross(&u2,&u1,&n1);
-    if (v_dot(&n0,&n1)>0.995f) {
-      GroundFace* f0 = &s0->faces[2*i];
-      f0->n = n0;
-      f0->quad = 1;
-    } else {
-      GroundFace* f0 = &s0->faces[2*i];
-      f0->n = n0;
-      f0->quad = 0;
-      GroundFace* f1 = &s0->faces[2*i+1];
-      f1->n = n1;
-      f1->quad = 0;
+        Point3d n0, n1;
+        v_cross(&u3, &u2, &n0);
+        v_cross(&u2, &u1, &n1);
+        v_normz(&n0);
+        v_normz(&n1);
+        if (v_dot(&n0, &n1) > 0.995f) {
+            GroundFace* f0 = &s0->faces[2 * i];
+            f0->n = n0;
+            f0->quad = 1;
+        }
+        else {
+            GroundFace* f0 = &s0->faces[2 * i];
+            f0->n = n0;
+            f0->quad = 0;
+            GroundFace* f1 = &s0->faces[2 * i + 1];
+            f1->n = n1;
+            f1->quad = 0;
+        }
     }
-  }
 }
 
-static void make_slice(int slice_index,float y) {
-		// smooth altitude changes
-		slice_y = lerpf(slice_y,y,0.2f);
-		y = slice_y;    
-    GroundSlice* slice = &_slices[slice_index];
+static void make_slice(GroundSlice* slice, float y) {
+    // smooth altitude changes
+    slice_y = lerpf(slice_y, y, 0.2f);
+    y = slice_y;
     // capture height
     slice->y = y;
-    for(int i=0;i<GROUND_SIZE;++i) {
-       slice->h[i] = perlin2d((float)i/GROUND_SIZE, noise_y_offset, 0.1f, 4) * active_params.slope;
-       slice->props[i] = 0;
+    for (int i = 0; i < GROUND_SIZE; ++i) {
+        slice->h[i] = 32.0f * perlin2d((16.f * i) / GROUND_SIZE, noise_y_offset, 0.1f, 4) * active_params.slope;
+        slice->props[i] = 0;
     }
+    noise_y_offset += 0.5f;
     // side walls
     slice->h[0] = 15.f + 5.f * randf();
-    slice->h[GROUND_SIZE-1] = 15.f + 5.f * randf();
+    slice->h[GROUND_SIZE - 1] = 15.f + 5.f * randf();
 
-    slice->extents[0] = 0;
-    slice->extents[1] = (GROUND_SIZE-1) * GROUND_CELL_SIZE;
+    slice->extents[0] = GROUND_CELL_SIZE;
+    slice->extents[1] = (GROUND_SIZE - 2) * GROUND_CELL_SIZE;
 
     slice->is_checkpoint = 0;
 }
 
 void make_ground(GroundParams params) {
-  active_params = params;
-  // reset global params
-  slice_y = 0;
-  noise_y_offset = 16.f * randf();
-  plyr_z_index = GROUND_SIZE/2 - 1;
-  max_pz = INT_MIN;
+    active_params = params;
+    // reset global params
+    slice_y = 0;
+    noise_y_offset = 16.f * randf();
+    plyr_z_index = GROUND_SIZE / 2 - 1;
+    max_pz = INT_MIN;
 
-  for(int i=0;i<GROUND_SIZE;++i) {
-    make_slice(i,-i*params.slope);
-  }
-  for(int i=0;i<GROUND_SIZE-1;++i) {
-    mesh_slice(i);
-  }
+    for (int i = 0; i < GROUND_SIZE; ++i) {
+        // reset slices
+        _ground.slices[i] = &_slices_buffer[i];
+        make_slice(_ground.slices[i], -i * params.slope);
+    }
+    for (int i = 0; i < GROUND_SIZE - 1; ++i) {
+        mesh_slice(i);
+    }
 }
 
 void update_ground(Point3d* p) {
-	// prevent out of bounds
-  p->z = max(p->z,8*GROUND_CELL_SIZE);
-	float pz=p->z/GROUND_CELL_SIZE;
-  if (pz>plyr_z_index) {
-    // shift back
-    p->z -= GROUND_CELL_SIZE;
-    max_pz -= GROUND_CELL_SIZE;
-    float old_y=_slices[0].y;
-    // drop slice 0
-    for(int i=1;i<GROUND_SIZE;++i) {
-      _slices[i-1] = _slices[i];
-      _slices[i-1].y -= old_y;
+    // prevent out of bounds
+    if (p->z < 8 * GROUND_CELL_SIZE) p->z = 8 * GROUND_CELL_SIZE;
+    float pz = p->z / GROUND_CELL_SIZE;
+    if (pz > plyr_z_index) {
+        // shift back
+        p->z -= GROUND_CELL_SIZE;
+        max_pz -= GROUND_CELL_SIZE;
+        GroundSlice* old_slice = _ground.slices[0];
+        float old_y = old_slice->y;
+        // drop slice 0
+        for (int i = 1; i < GROUND_SIZE; ++i) {
+            _ground.slices[i - 1] = _ground.slices[i];
+            _ground.slices[i - 1]->y -= old_y;
+        }
+        // move shifted slices back to top
+        _ground.slices[GROUND_SIZE - 1] = old_slice;
+
+        // use previous baseline
+        make_slice(old_slice, _ground.slices[GROUND_SIZE - 2]->y - active_params.slope * (randf() + 0.5f));
+        mesh_slice(GROUND_SIZE - 2);
     }
-    // use previous baseline
-    make_slice(GROUND_SIZE-1,_slices[GROUND_SIZE-2].y-active_params.slope*(randf()+0.5f));
-  }
-  // update y offset
-  if(p->z>max_pz) {
-    _y_offset = lerpf(_slices[0].y,_slices[1].y,pz-(int)pz);
-    max_pz=p->z;
-  }
+    // update y offset
+    if (p->z > max_pz) {
+        _y_offset = lerpf(_ground.slices[0]->y, _ground.slices[1]->y, pz - (int)pz);
+        max_pz = p->z;
+    }
 }
 
 void get_start_pos(Point3d* out) {
-  out->x = GROUND_SIZE * GROUND_CELL_SIZE/2;
-  out->y = 0;
-  out->z = plyr_z_index * GROUND_CELL_SIZE;
+    out->x = GROUND_SIZE * GROUND_CELL_SIZE / 2;
+    out->y = 0;
+    out->z = plyr_z_index * GROUND_CELL_SIZE;
+}
+
+void get_face(Point3d pos, Point3d* nout, float* yout) {
+    // z slice
+    int i = (int)(pos.x / GROUND_CELL_SIZE), j = (int)(pos.z / GROUND_CELL_SIZE);
+    
+    GroundSlice* s0 = _ground.slices[j];
+    GroundFace* f0 = &s0->faces[2 * i];
+    GroundFace* f1 = &s0->faces[2 * i + 1];
+    GroundFace* f = f0;
+    // select face
+    if (!f0->quad && (pos.z - GROUND_CELL_SIZE * j < pos.x - GROUND_CELL_SIZE * i)) f = f1;
+
+    // intersection point
+    Point3d ptOnFace;
+    make_v((Point3d) { .v = {i * GROUND_CELL_SIZE, s0->h[i] + s0->y - _y_offset, j * GROUND_CELL_SIZE} }, pos, & ptOnFace);
+    float t = -v_dot(&ptOnFace, &f->n) / f->n.y;
+         
+    // 
+    *yout = pos.y + t;
+    *nout = f->n;
+    //         return f, p, atan2(slices[j + 2].x - p[1], 2 * dz)
 }
 
 void ground_load_assets(PlaydateAPI* playdate) {
@@ -240,6 +274,8 @@ static struct {
   int n;
 } _drawables;
 
+static Face* _sortables[GROUND_SIZE * GROUND_SIZE * 2];
+
 static int cmp_face(const void * a, const void * b) {
   float x = ((Face*)a)->key;
   float y = ((Face*)b)->key;
@@ -278,10 +314,7 @@ static void add_drawable_face(float* m,Point3d* p,int* indices, int n) {
   }  
 }
 
-void render_ground(float* m, uint32_t* bitmap) {
-    // camera pos in world space
-    Point3d cam_pos = { .x = -m[12],.y = -m[13],.z = -m[14] };
-
+void render_ground(Point3d cam_pos, float* m, uint32_t* bitmap) {
     // todo: collect visible tiles
     _visible_tiles.n = (GROUND_SIZE-1) * GROUND_SIZE;
     for (int i = 0; i < _visible_tiles.n; ++i) {
@@ -293,8 +326,8 @@ void render_ground(float* m, uint32_t* bitmap) {
     for (int k = 0; k < _visible_tiles.n; ++k) {
         int tileid = _visible_tiles.tiles[k];
         int i = tileid % GROUND_SIZE, j = tileid / GROUND_SIZE;
-        GroundSlice* s0 = &_slices[j];
-        GroundSlice* s1 = &_slices[j + 1];
+        GroundSlice* s0 = _ground.slices[j];
+        GroundSlice* s1 = _ground.slices[j + 1];
         Point3d verts[4] = {
           {.v = {i * GROUND_CELL_SIZE,s0->h[i] + s0->y - _y_offset,j * GROUND_CELL_SIZE}},
           {.v = {(i + 1) * GROUND_CELL_SIZE,s0->h[i + 1] + s0->y - _y_offset,j * GROUND_CELL_SIZE}},
@@ -305,18 +338,18 @@ void render_ground(float* m, uint32_t* bitmap) {
         // camera to face point
         Point3d cv = { .x = verts[0].x - cam_pos.x,.y = verts[0].y - cam_pos.y,.z = verts[0].z - cam_pos.z };
         if (f0->quad) {
-            // if (v_dot(&f0->n, &cv) < 0) 
+            if (v_dot(&f0->n, &cv) < 0.f) 
             {
                 add_drawable_face(m, verts, (int[]) { 0, 1, 2, 3 }, 4);
             }
         }
         else {
             GroundFace* f1 = &s0->faces[2 * i + 1];
-            //if (v_dot(&f0->n, &cv) < 0) 
+            if (v_dot(&f0->n, &cv) < 0.f) 
             {
                 add_drawable_face(m, verts, (int[]) { 0, 1, 2 }, 3);
             }
-            //if (v_dot(&f1->n, &cv) < 0) 
+            if (v_dot(&f1->n, &cv) < 0.f) 
             {
                 add_drawable_face(m, verts, (int[]) { 0, 2, 3 }, 3);
             }
@@ -325,11 +358,14 @@ void render_ground(float* m, uint32_t* bitmap) {
 
     // sort
     if (_drawables.n > 0) {
-        // qsort(_drawables.faces, sizeof(Face), _drawables.n, &cmp_face);
+        for (int i = 0; i < _drawables.n; ++i) {
+            _sortables[i] = &_drawables.faces[i];
+        }
+        qsort(_sortables, _drawables.n, sizeof(Face*), &cmp_face);
 
         // rendering
-        for (int k = 0; k < _drawables.n; ++k) {
-            Face* face = &_drawables.faces[k];
+        for (int k = _drawables.n - 1; k >= 0;--k) {
+            Face* face = _sortables[k];
             Point3d* pts = face->pts;
             for (int i = 0; i < face->n; ++i) {
                 // project 

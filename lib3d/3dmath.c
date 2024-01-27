@@ -1,15 +1,14 @@
-#include "math.h"
+#include <math.h>
+#include "3dmath.h"
 
-#define SQR(a) a*a
-
-void make_v(Point3d* a, Point3d* b, Point3d* out) {
-    out->x = b->x - a->x;
-    out->y = b->y - a->y;
-    out->z = b->z - a->z;
+void make_v(Point3d a, Point3d b, Point3d* out) {
+    out->x = b.x - a.x;
+    out->y = b.y - a.y;
+    out->z = b.z - a.z;
 }
 
 void v_normz(Point3d* a) {
-    float d = sqrtf(SQR(a->x) + SQR(a->y) + SQR(a->z));
+    float d = sqrtf(a->x*a->x + a->y*a->y + a->z*a->z);
     if (fabs(d) < 0.0001f) return;
     a->x /= d;
     a->y /= d;

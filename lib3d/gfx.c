@@ -106,7 +106,7 @@ void polyfill(Point3d* verts, int n, uint32_t* dither, uint32_t* bitmap) {
 	}
     // out of screen?
     if (miny > LCD_ROWS) return;
-    if (maxy >= LCD_ROWS) maxy = LCD_ROWS - 1;
+    if (maxy > LCD_ROWS) maxy = LCD_ROWS;
     if (miny < 0) miny = 0;
 
 	// data for left& right edges :

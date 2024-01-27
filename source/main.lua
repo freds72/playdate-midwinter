@@ -207,16 +207,21 @@ function _update()
 	local cc,ss = sin(_angle),-cos(_angle)
 	_pos[1] += _vel * cc
 	_pos[3] += _vel * ss
-	local up = {_vel * cc,8,_vel * ss}
-	v_normz(up)
-  _cam:track(_pos,_angle,up)
+	
+	local y,nx,ny,nz=lib3d.get_face(table.unpack(_cam.pos))
+
+	_pos[2] = y + 2 
+	_pos[3] = lib3d.update_ground(table.unpack(_pos))
+	
+  _cam:track(_pos,_angle,{nx,ny,nz})
+
 end
 
 function _draw()
-  gfx.setColor(gfx.kColorWhite)
+  gfx.setColor(gfx.kColorBlack)
   gfx.fillRect(0, 0, 400, 240)  
 
-	lib3d.render_ground(table.unpack(_cam.m))
+	lib3d.render_ground(_cam.pos[1],_cam.pos[2],_cam.pos[3],table.unpack(_cam.m))
 end
 
 -- *********** playdate entry point ******************

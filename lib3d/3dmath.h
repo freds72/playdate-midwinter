@@ -29,7 +29,7 @@ inline float lerpf(float a,float b,float t) {
   return a*(1.f-t)+b*t;
 }
 
-void make_v(Point3d* a, Point3d* b, Point3d* out);
+void make_v(Point3d a, Point3d b, Point3d* out);
 float v_dot(Point3d* a,Point3d* b);
 void v_normz(Point3d* a);
 void v_cross(Point3d* a, Point3d* b, Point3d* out);

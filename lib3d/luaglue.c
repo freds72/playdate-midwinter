@@ -94,28 +94,30 @@ static const lua_reg lib3D_GroundParams[] =
 // 
 static int lib3d_render_ground(lua_State* L)
 {
-    // get param count
-    int len = pd->lua->getArgCount();
-    if (len!=16)  {
-        pd->system->logToConsole("%s:%i: render requires a 4x4 matrix - got %d", __FILE__, __LINE__, len);
-        return 0;
-    }
+	int argc = 1;
+	// cam pos
+	Point3d pos;
+	for (int i = 0; i < 3; ++i) {
+		// Get it's value.        
+		pos.v[i] = pd->lua->getArgFloat(argc++);
+	}
+
     // camera matrix
     float m[16];
 
-    for (int i = 0; i < len; ++i) {
+    for (int i = 0; i < 16; ++i) {
         // Get it's value.        
-        m[i] = pd->lua->getArgFloat(i + 1);
+        m[i] = pd->lua->getArgFloat(argc++);
     }
 
     // draw_polygon(verts, len / 2, (uint32_t*)pd->graphics->getFrame());
     uint32_t* bitmap = (uint32_t*)pd->graphics->getFrame();
 
-    render_ground(m,bitmap);
+	render_ground(pos, m, bitmap);
 
     pd->graphics->markUpdatedRows(0, LCD_ROWS - 1);
 
-    return 1;
+	return 0;
 }
 
 static int lib3d_get_start_pos(lua_State* L) {
@@ -132,6 +134,38 @@ static int lib3d_make_ground(lua_State* L) {
 
 	make_ground(*p);
 
+	return 0;
+}
+
+static int lib3d_get_face(lua_State* L) {
+	Point3d pos;
+	for (int i = 0; i < 3; ++i) {
+		pos.v[i] = pd->lua->getArgFloat(i+1);
+	}
+
+	Point3d n;
+	float y;
+	get_face(pos, &n, &y);
+
+	pd->lua->pushFloat(y);
+	
+	pd->lua->pushFloat(n.x);
+	pd->lua->pushFloat(n.y);
+	pd->lua->pushFloat(n.z);
+
+	// arg count
+	return 4;
+}
+
+static int lib3d_update_ground(lua_State* L) {
+	Point3d pos;
+	for (int i = 0; i < 3; ++i) {
+		pos.v[i] = pd->lua->getArgFloat(i + 1);
+	}
+
+	update_ground(&pos);
+
+	pd->lua->pushFloat(pos.z);
 	return 1;
 }
 
@@ -148,6 +182,12 @@ void lib3d_register(PlaydateAPI* playdate)
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
 	if ( !pd->lua->addFunction(lib3d_get_start_pos, "lib3d.get_start_pos", &err) )
+		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
+
+	if (!pd->lua->addFunction(lib3d_get_face, "lib3d.get_face", &err))
+		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
+
+	if (!pd->lua->addFunction(lib3d_update_ground, "lib3d.update_ground", &err))
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
 	if (!pd->lua->registerClass("lib3d.GroundParams", lib3D_GroundParams, NULL, 0, &err))
