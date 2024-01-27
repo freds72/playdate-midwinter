@@ -1156,7 +1156,7 @@ function _init()
 	-- todo: remove (only for benchmarks)
 	-- srand(12)
 	for i=0,15 do
-		local img=gfx.image.new("images/noise"..i)
+		local img=gfx.image.new("images/generated/noise8x8-"..i)
 		assert(img)
 		_dither[i]=img
 	end
@@ -1172,7 +1172,7 @@ function _init()
 	_panel_slices = gfx.nineSlice.new("images/panel",6,5,10,30)
 	_gps_sprites = {}
 	for i=0,359 do
-		_gps_sprites[i] =  gfx.image.new("images/arrow_"..i)
+		_gps_sprites[i] =  gfx.image.new("images/generated/arrow_"..i)
 	end
 
 	-- init state machine
@@ -1218,8 +1218,9 @@ function draw_sprite(actor,x,y,w,dist)
 	--end
 	--sspr(sx,sy,16,16,x-w/2,actor.y or y-w,w,w)
 	--pal()
+	
 	w*=0.01
-	_tree:drawRotated(x-44-w/2,actor.y or y-w,_angle,w,w)
+	--_tree:drawRotated(x-44-w/2,actor.y or y-w,_angle,w,w)
 end
 
 function draw_drawables(objects)	
@@ -1516,8 +1517,7 @@ function make_ground(params)
 	end
 
 	local function collect_face(v0,face,actor,vertices,v_cache,cam_pos,out,dist)
-		-- removed cp check - produces too much artifacts
-		if true then -- v_dot(face.n,cam_pos)>v_dot(face.n,v0) then
+		if v_dot(face.n,cam_pos)>v_dot(face.n,v0) then
 			local z,y,outcode,verts,is_clipped=0,0,0xffff,{},0
 			-- project vertices (indices)
 			for ki,vi in pairs(vertices) do

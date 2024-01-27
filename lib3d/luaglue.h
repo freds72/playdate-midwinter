@@ -1,16 +1,8 @@
-//
-//  3d-glue.h
-//  Extension
-//
-//  Created by Dave Hayden on 9/19/15.
-//  Copyright © 2015 Panic, Inc. All rights reserved.
-//
-
-#ifndef _d_glue_h
-#define _d_glue_h
+#ifndef lib3d_glue_h
+#define lib3d_glue_h
 
 #include "pd_api.h"
 
 void lib3d_register(PlaydateAPI* playdate);
 
-#endif /* _d_glue_h */
+#endif
