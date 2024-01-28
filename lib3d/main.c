@@ -17,8 +17,14 @@ __declspec(dllexport)
 #endif
 int eventHandler(PlaydateAPI* playdate, PDSystemEvent event, uint32_t arg)
 {
-	if ( event == kEventInitLua )
+	switch (event) {
+	case kEventInitLua:
 		lib3d_register(playdate);
+		break;
+	case kEventTerminate:
+		lib3d_unregister(playdate);
+		break;
+	}
 
 	return 0;
 }

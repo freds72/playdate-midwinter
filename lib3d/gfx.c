@@ -95,7 +95,7 @@ static void drawFragment(uint32_t* row, int x1, int x2, uint32_t color)
     }
 }
 
-void polyfill(Point3d* verts, int n, uint32_t* dither, uint32_t* bitmap) {
+void polyfill(const Point3d* verts, const int n, uint32_t* dither, uint32_t* bitmap) {
 	float miny = FLT_MAX, maxy = FLT_MIN;
 	int mini = -1;
 	// find extent

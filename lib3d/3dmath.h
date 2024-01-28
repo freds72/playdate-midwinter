@@ -25,14 +25,14 @@ typedef struct {
     };
 } Point2d;
 
-inline float lerpf(float a,float b,float t) {
+inline float lerpf(const float a, const float b, const float t) {
   return a*(1.f-t)+b*t;
 }
 
-void make_v(Point3d a, Point3d b, Point3d* out);
-float v_dot(Point3d* a,Point3d* b);
+void make_v(const Point3d a, Point3d b, Point3d* out);
+float v_dot(const Point3d* a, const Point3d* b);
 void v_normz(Point3d* a);
-void v_cross(Point3d* a, Point3d* b, Point3d* out);
-void m_x_v(float* m,Point3d v,Point3d *out);
+void v_cross(const Point3d* a, const Point3d* b, Point3d* out);
+void m_x_v(const float* m, const Point3d v,Point3d *out);
 
 #endif

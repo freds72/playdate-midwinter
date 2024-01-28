@@ -126,7 +126,7 @@ static int lib3d_get_start_pos(lua_State* L) {
     for(int i=0;i<3;++i) {
         pd->lua->pushFloat(out.v[i]);
     }
-    return 1;
+    return 3;
 }
 
 static int lib3d_make_ground(lua_State* L) {
@@ -197,4 +197,8 @@ void lib3d_register(PlaydateAPI* playdate)
 
     // 
     ground_load_assets(playdate);
+}
+
+void lib3d_unregister(PlaydateAPI* playdate) {
+
 }
