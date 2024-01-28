@@ -9,7 +9,9 @@
 #include "3dmath.h"
 
 #define GROUND_SIZE 32
-#define GROUND_CELL_SIZE 4
+#define GROUND_CELL_SIZE 8
+
+static PlaydateAPI* pd;
 
 typedef struct {
   float y;
@@ -67,7 +69,7 @@ static void mesh_slice(int j) {
     for (int i = 0; i < GROUND_SIZE - 1; ++i) {
         Point3d v0 = { .v = {i * GROUND_CELL_SIZE,s0->h[i] + s0->y,j * GROUND_CELL_SIZE} };
         // v1-v0
-        Point3d u1 = { .v = {GROUND_CELL_SIZE,s0->h[i + 1] - s0->h[i],0} };
+        Point3d u1 = { .v = {GROUND_CELL_SIZE,s0->h[i + 1] + s0->y - v0.y,0} };
         // v2-v0
         Point3d u2 = { .v = {GROUND_CELL_SIZE,s1->h[i + 1] + s1->y - v0.y,GROUND_CELL_SIZE} };
         // v3-v0
@@ -78,14 +80,12 @@ static void mesh_slice(int j) {
         v_cross(&u2, &u1, &n1);
         v_normz(&n0);
         v_normz(&n1);
-        if (v_dot(&n0, &n1) > 0.995f) {
-            GroundFace* f0 = &s0->faces[2 * i];
-            f0->n = n0;
+        GroundFace* f0 = &s0->faces[2 * i];
+        f0->n = n0;
+        if (v_dot(&n0, &n1) > 0.999f) {
             f0->quad = 1;
         }
         else {
-            GroundFace* f0 = &s0->faces[2 * i];
-            f0->n = n0;
             f0->quad = 0;
             GroundFace* f1 = &s0->faces[2 * i + 1];
             f1->n = n1;
@@ -101,13 +101,13 @@ static void make_slice(GroundSlice* slice, float y) {
     // capture height
     slice->y = y;
     for (int i = 0; i < GROUND_SIZE; ++i) {
-        slice->h[i] = 32.0f * perlin2d((16.f * i) / GROUND_SIZE, noise_y_offset, 0.1f, 4) * active_params.slope;
+        slice->h[i] = 96.0f * perlin2d((16.f * i) / GROUND_SIZE, noise_y_offset, 0.1f, 4) * active_params.slope;
         slice->props[i] = 0;
     }
     noise_y_offset += 0.5f;
     // side walls
-    slice->h[0] = 15.f + 5.f * randf();
-    slice->h[GROUND_SIZE - 1] = 15.f + 5.f * randf();
+    slice->h[0] = 150.f + 5.f * randf();
+    slice->h[GROUND_SIZE - 1] = 150.f + 5.f * randf();
 
     slice->extents[0] = GROUND_CELL_SIZE;
     slice->extents[1] = (GROUND_SIZE - 2) * GROUND_CELL_SIZE;
@@ -134,7 +134,7 @@ void make_ground(GroundParams params) {
 }
 
 void update_ground(Point3d* p) {
-    // prevent out of bounds
+    // prevent going up slope!
     if (p->z < 8 * GROUND_CELL_SIZE) p->z = 8 * GROUND_CELL_SIZE;
     float pz = p->z / GROUND_CELL_SIZE;
     if (pz > plyr_z_index) {
@@ -181,7 +181,7 @@ void get_face(Point3d pos, Point3d* nout, float* yout) {
 
     // intersection point
     Point3d ptOnFace;
-    make_v((Point3d) { .v = {i * GROUND_CELL_SIZE, s0->h[i] + s0->y - _y_offset, j * GROUND_CELL_SIZE} }, pos, & ptOnFace);
+    make_v((Point3d) { .v = {i * GROUND_CELL_SIZE, s0->h[i] + s0->y - _y_offset, j * GROUND_CELL_SIZE} }, pos, &ptOnFace);
     float t = -v_dot(&ptOnFace, &f->n) / f->n.y;
          
     // 
@@ -191,9 +191,9 @@ void get_face(Point3d pos, Point3d* nout, float* yout) {
 }
 
 void ground_load_assets(PlaydateAPI* playdate) {
-  PlaydateAPI* pd = playdate;
+  pd = playdate;
 
-	const char* err;  
+    const char* err;  
   // read dither table
   for (int i = 0; i < 16; ++i) {
     char* path = NULL;
@@ -240,28 +240,28 @@ typedef struct {
 } Face;
 
 // clip incomping polygon
-static int z_poly_clip(float znear, Point3d* in, int n, Point3d* out) {	
-  Point3d v0 = in[n-1];
-	float d0 = v0.z - znear;
-  int nout = 0;
-  for(int i=0;i<n;i++) {
-    Point3d v1 = in[i];
-    int side = d0>0;
-    if (side) out[nout++] = (Point3d){v0.x, v0.y, v0.z};
-    float d1 = v1.z - znear;
-    if((d1>0)!=side) {
-    // clip!
-      float t = d0/(d0-d1);
-      out[nout++] = (Point3d){
-          lerpf(v0.x,v1.x,t),
-          lerpf(v0.y,v1.y,t),
-          znear
-      };
+static int z_poly_clip(float znear, Point3d* in, int n, Point3d* out) {
+    Point3d v0 = in[n - 1];
+    float d0 = v0.z - znear;
+    int nout = 0;
+    for (int i = 0; i < n; i++) {
+        Point3d v1 = in[i];
+        int side = d0 > 0;
+        if (side) out[nout++] = (Point3d){ v0.x, v0.y, v0.z };
+        float d1 = v1.z - znear;
+        if ((d1 > 0) != side) {
+            // clip!
+            float t = d0 / (d0 - d1);
+            out[nout++] = (Point3d){
+                lerpf(v0.x,v1.x,t),
+                lerpf(v0.y,v1.y,t),
+                znear
+            };
+        }
+        v0 = v1;
+        d0 = d1;
     }
-    v0 = v1;
-    d0 = d1;        
-  }
-  return nout;
+    return nout;
 }
 
 static struct {
@@ -316,9 +316,11 @@ static void add_drawable_face(float* m,Point3d* p,int* indices, int n) {
 
 void render_ground(Point3d cam_pos, float* m, uint32_t* bitmap) {
     // todo: collect visible tiles
-    _visible_tiles.n = (GROUND_SIZE-1) * GROUND_SIZE;
-    for (int i = 0; i < _visible_tiles.n; ++i) {
-        _visible_tiles.tiles[i] = i;
+    _visible_tiles.n = 0;
+    for (int j = 0; j < GROUND_SIZE - 1; ++j) {
+        for (int i = 0; i < GROUND_SIZE - 1; ++i) {
+            _visible_tiles.tiles[_visible_tiles.n++] = i + j * GROUND_SIZE;
+        }
     }
 
     // transform visible tiles
@@ -347,11 +349,11 @@ void render_ground(Point3d cam_pos, float* m, uint32_t* bitmap) {
             GroundFace* f1 = &s0->faces[2 * i + 1];
             if (v_dot(&f0->n, &cv) < 0.f) 
             {
-                add_drawable_face(m, verts, (int[]) { 0, 1, 2 }, 3);
+                add_drawable_face(m, verts, (int[]) { 0, 2, 3 }, 3);
             }
             if (v_dot(&f1->n, &cv) < 0.f) 
             {
-                add_drawable_face(m, verts, (int[]) { 0, 2, 3 }, 3);
+                add_drawable_face(m, verts, (int[]) { 0, 1, 2 }, 3);
             }
         }
     }
@@ -378,6 +380,14 @@ void render_ground(Point3d cam_pos, float* m, uint32_t* bitmap) {
             if (dither_key > 15) dither_key = 15;
             if (dither_key < 0) dither_key = 0;
             polyfill(face->pts, face->n, _dithers[dither_key], bitmap);
+            /*
+            float x0 = pts[face->n - 1].x, y0 = pts[face->n - 1].y;
+            for (int i = 0; i < face->n; ++i) {
+                float x1 = pts[i].x, y1 = pts[i].y;
+                pd->graphics->drawLine(x0,y0,x1,y1, 1, kColorWhite);
+                x0 = x1, y0 = y1;
+            }  
+            */
         }
     }
 }
