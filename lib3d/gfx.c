@@ -116,29 +116,29 @@ void polyfill(const Point3d* verts, const int n, uint32_t* dither, uint32_t* bit
     for (uint8_t y =((int)miny); y < maxy; ++y){
         // maybe update to next vert
         while (ly < y) {
-            Point3d p0 = verts[lj];
+            const Point3d* p0 = &verts[lj];
             lj++;
             if (lj >= n) lj = 0;
-            Point3d p1 = verts[lj];
-            float y0 = p0.y, y1 = p1.y;
+            const Point3d* p1 = &verts[lj];
+            float y0 = p0->y, y1 = p1->y;
             float dy = y1 - y0;
             ly = (int)y1;
-            lx = p0.x;
-            ldx = (p1.x - lx) / dy;
+            lx = p0->x;
+            ldx = (p1->x - lx) / dy;
             //sub - pixel correction
             float cy = y - y0;
             lx += cy * ldx;
         }
         while (ry < y) {
-            Point3d p0 = verts[rj];
+            const Point3d* p0 = &verts[rj];
             rj--;
             if (rj < 0) rj = n - 1;
-            Point3d p1 = verts[rj];
-            float y0 = p0.y, y1 = p1.y;
+            const Point3d* p1 = &verts[rj];
+            float y0 = p0->y, y1 = p1->y;
             float dy = y1 - y0;
             ry = (int)y1;
-            rx = p0.x;
-            rdx = (p1.x - rx) / dy;
+            rx = p0->x;
+            rdx = (p1->x - rx) / dy;
             //sub - pixel correction
             float cy = y - y0;
             rx += cy * rdx;

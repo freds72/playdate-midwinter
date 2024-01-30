@@ -73,13 +73,13 @@ static void mesh_slice(int j) {
     v_normz(&sn);
 
     for (int i = 0; i < GROUND_SIZE - 1; ++i) {
-        Point3d v0 = { .v = {i * GROUND_CELL_SIZE,s0->h[i] + s0->y,j * GROUND_CELL_SIZE} };
+        const Point3d v0 = { .v = {i * GROUND_CELL_SIZE,s0->h[i] + s0->y,j * GROUND_CELL_SIZE} };
         // v1-v0
-        Point3d u1 = { .v = {GROUND_CELL_SIZE,s0->h[i + 1] + s0->y - v0.y,0} };
+        const Point3d u1 = { .v = {GROUND_CELL_SIZE,s0->h[i + 1] + s0->y - v0.y,0} };
         // v2-v0
-        Point3d u2 = { .v = {GROUND_CELL_SIZE,s1->h[i + 1] + s1->y - v0.y,GROUND_CELL_SIZE} };
+        const Point3d u2 = { .v = {GROUND_CELL_SIZE,s1->h[i + 1] + s1->y - v0.y,GROUND_CELL_SIZE} };
         // v3-v0
-        Point3d u3 = { .v = {0,s1->h[i] + s1->y - v0.y,GROUND_CELL_SIZE} };
+        const Point3d u3 = { .v = {0,s1->h[i] + s1->y - v0.y,GROUND_CELL_SIZE} };
 
         Point3d n0, n1;
         v_cross(&u3, &u2, &n0);
@@ -181,7 +181,7 @@ void get_face(Point3d pos, Point3d* nout, float* yout) {
     // z slice
     int i = (int)(pos.x / GROUND_CELL_SIZE), j = (int)(pos.z / GROUND_CELL_SIZE);
     
-    GroundSlice* s0 = _ground.slices[j];
+    const GroundSlice* s0 = _ground.slices[j];
     GroundFace* f0 = &s0->faces[2 * i];
     GroundFace* f1 = &s0->faces[2 * i + 1];
     GroundFace* f = f0;
@@ -238,10 +238,12 @@ void ground_load_assets(PlaydateAPI* playdate) {
         uint32_t* image = lib3d_malloc(h * LCD_ROWSIZE);
         uint32_t* dst = image;
         for (int j = 0; j < h; ++j) {
+            // create 32bits blocks
             for (int i = 0; i < 12; ++i) {
                 *(dst++) = (data[3] << 24) | (data[2] << 16) | (data[1] << 8) | data[0];
                 data += 4;
             }
+            // last 16 bits
             *(dst++) = (data[1] << 8) | data[0];       
             data += 2;
         }
@@ -288,13 +290,13 @@ static Face* _sortables[GROUND_SIZE * GROUND_SIZE * 2];
 
 // compare 2 Faces
 static int cmp_face(const void * a, const void * b) {
-  const float x = ((Face*)a)->key;
-  const float y = ((Face*)b)->key;
+  const float x = (*(Face**)a)->key;
+  const float y = (*(Face**)b)->key;
   return x < y ? -1 : x == y ? 0 : 1;
 }
 
 // clip polygon against near-z
-static int z_poly_clip(float znear, Point3d* in, int n, Point3d* out) {
+static int z_poly_clip(const float znear, Point3d* in, int n, Point3d* out) {
     Point3d v0 = in[n - 1];
     float d0 = v0.z - znear;
     int nout = 0;
@@ -440,7 +442,7 @@ void render_ground(Point3d cam_pos, float* m, uint32_t* bitmap) {
         for (int i = 0; i < _drawables.n; ++i) {
             _sortables[i] = &_drawables.faces[i];
         }
-        qsort(_sortables, _drawables.n, sizeof(Face*), &cmp_face);
+        qsort(_sortables, (size_t)_drawables.n, sizeof(Face*), cmp_face);
 
         // rendering
         for (int k = _drawables.n - 1; k >= 0;--k) {
