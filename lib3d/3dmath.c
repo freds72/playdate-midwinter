@@ -9,7 +9,7 @@ void make_v(const Point3d a, const Point3d b, Point3d* out) {
 
 void v_normz(Point3d* a) {
     const float d = sqrtf(a->x*a->x + a->y*a->y + a->z*a->z);
-    if (fabs(d) < 0.0001f) return;
+    if (fabsf(d) < 0.0001f) return;
     a->x /= d;
     a->y /= d;
     a->z /= d;

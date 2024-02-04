@@ -5,12 +5,16 @@
 // cmake .. -G "NMake Makefiles" --toolchain="%PLAYDATE_SDK_PATH%\C_API\buildsupport\arm.cmake" -DCMAKE_BUILD_TYPE=Release
 // nmake
 
+#include <stdint.h>
 #include <math.h>
 #include <float.h>
-#include "math.h"
 #include "luaglue.h"
 #include "realloc.h"
 #include "ground.h"
+
+#include "gfx.h"
+#include "3dmath.h"
+#include "3dmathi.h"
 
 #define fswap(a,b) {float tmp = b; b=a; a=tmp;}
 
@@ -169,6 +173,178 @@ static int lib3d_update_ground(lua_State* L) {
 	return 1;
 }
 
+static inline uint32_t __SADD16(uint32_t op1, uint32_t op2)
+{
+#if TARGET_PLAYDATE
+	uint32_t result;
+
+	__asm volatile ("sadd16 %0, %1, %2" : "=r" (result) : "r" (op1), "r" (op2));
+	return(result);
+#else
+	return op1 + op2;
+#endif
+}
+
+static int lib3d_bench_gfx(lua_State* L) {
+	volatile float a = 846.8f, b = 86.5f;
+
+	volatile int32_t ia0 = 846, ib0 = 89;
+	volatile int32_t ia1 = 95, ib1 = 981;
+	volatile int32_t ia2 = 95, ib2 = 981;
+	volatile int32_t ia3 = 95, ib3 = 981;
+
+	const Point3d verts[] = {
+		(Point3d) {
+ .v = {52.f,52.f,0.f}
+},
+		(Point3d) {
+		.v = { 76,120.f,0.f }
+	},
+	(Point3d) {
+	.v = { 196.f,150.f,0.f }
+},
+(Point3d) {
+.v = { 150.f,96.f,0.f }
+}
+	};
+
+	const Point2di vertsi[] = {
+		(Point2di) {
+ .v = {52.f,52.f}
+},
+		(Point2di) {
+		.v = { 76,120.f }
+	},
+	(Point2di) {
+	.v = { 196.f,150.f }
+},
+(Point2di) {
+.v = { 150.f,96.f }
+}
+	};
+	uint32_t dither[32];
+	for (int i = 0; i < 32; i++)
+		dither[i] = (int) - 1;
+
+	uint32_t* bitmap = (uint32_t*)pd->graphics->getFrame();
+	uint8_t* bitmap8 = pd->graphics->getFrame();
+	memset(bitmap, 0, LCD_ROWS * LCD_ROWSIZE);
+
+	PDButtons buttons;
+	PDButtons pushed;
+	PDButtons released;
+	pd->system->getButtonState(&buttons, &pushed, &released);
+
+	pd->system->resetElapsedTime();
+	float t0 = pd->system->getElapsedTime();
+
+	// do something
+	// volatile int32_t res = 0;
+	volatile float res = 0;
+	for (int i = 0; i < 100; ++i) {
+		// cycles: 0.027985
+		// res = a * b;
+			
+		// cycles: 0.033682
+		// res = __SADD16(ia0, ib0);
+		// res = __SADD16(ia1, ib1);
+
+		// cycles: 0.094497
+		// res = __SADD16(ia0, ib0);
+		// res = __SADD16(ia1, ib1);
+
+		// cycles: 0.202327
+		// res = __SADD16(ia0, ib0);
+		// res = __SADD16(ia1, ib1);
+		// res = __SADD16(ia0, ib0);
+		// res = __SADD16(ia1, ib1);
+
+		// cycles: 0.089627
+		//res = a + b;
+		//res = a + b;
+		//res = a + b;
+		//res = a + b;
+
+		// cycles: 0.048681
+		// res = a + b;
+		// res = a + b;
+
+		// cycles: 0.195919
+		// res = ia0 + ib0;
+		// res = ia0 + ib0;
+		// res = ia0 + ib0;
+		// res = ia0 + ib0;
+
+		// fixed version
+		/*
+		cycles: 0.005194
+		cycles: 0.006007
+		cycles: 0.007061
+		*/
+
+		// float version
+		/*
+		cycles: 0.006345
+		cycles: 0.005774
+		cycles: 0.007292
+		*/
+		if (buttons & kButtonA) {
+			polyfill(&verts, 4, dither, bitmap);
+		}
+		else {
+			trifill(&vertsi[0], &vertsi[2], &vertsi[1], bitmap8);
+			trifill(&vertsi[0], &vertsi[3], &vertsi[2], bitmap8);
+		}
+	}
+
+	// print the counter value
+	pd->system->logToConsole("cycles: %f", (pd->system->getElapsedTime() - t0));
+
+	pd->graphics->markUpdatedRows(0, LCD_ROWS - 1);
+
+	return 0;
+}
+
+#define FIXED_SCALE 4
+static int16_t tofixed(const float a) {
+	return (int16_t)(a * (1 << FIXED_SCALE));
+}
+
+static int lib3d_bench(lua_State* L) {
+	Point3di a = (Point3di){ .x = tofixed(0.85f), .y = tofixed(-0.5f), .z = tofixed(0.986f), .w = 0 };
+	Point3di b = (Point3di){ .x = tofixed(-0.5f), .y = tofixed(.5f), .z = tofixed(-.1f), .w = 0 };
+	pd->system->logToConsole("fixed a: 0x%02X 0x%02X 0x%02X", a.x, a.y, a.z);
+	pd->system->logToConsole("fixed b: 0x%02X 0x%02X 0x%02X", b.x, b.y, b.z);
+
+	Point3d af = (Point3d){ .x = 0.85f, .y = -0.5f, .z = 0.986f };
+	Point3d bf = (Point3d){ .x = -0.5f, .y = .5f, .z = -.1f };
+
+	pd->system->resetElapsedTime();
+	float t0 = pd->system->getElapsedTime();
+	
+	for (int i = 0; i < 1000000; i++) {
+		volatile uint32_t res = v_doti(&a, &b);		
+	}
+	pd->system->logToConsole("cycles: %f", (pd->system->getElapsedTime() - t0));
+
+	pd->system->resetElapsedTime();
+	t0 = pd->system->getElapsedTime();
+	for (int i = 0; i < 1000000; i++) {
+		volatile float resf = v_dot(&af, &bf);
+	}
+	
+	// fixed+asm cycles: 0.069264
+	// float    cycles : 0.116462
+	// float: 100%
+	// fixed: 59%
+
+	// print the counter value
+	pd->system->logToConsole("cycles: %f", (pd->system->getElapsedTime() - t0));
+
+	return 0;
+}
+
+
 void lib3d_register(PlaydateAPI* playdate)
 {
 	pd = playdate;
@@ -190,13 +366,16 @@ void lib3d_register(PlaydateAPI* playdate)
 	if (!pd->lua->addFunction(lib3d_update_ground, "lib3d.update_ground", &err))
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
+	if (!pd->lua->addFunction(lib3d_bench_gfx, "lib3d.bench", &err))
+		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
+
 	if (!pd->lua->registerClass("lib3d.GroundParams", lib3D_GroundParams, NULL, 0, &err))
 		pd->system->logToConsole("%s:%i: registerClass failed, %s", __FILE__, __LINE__, err);
 
     lib3d_setRealloc(pd->system->realloc);
 
     // 
-    ground_load_assets(playdate);
+    // ground_load_assets(playdate);
 }
 
 void lib3d_unregister(PlaydateAPI* playdate) {

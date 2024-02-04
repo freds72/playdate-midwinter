@@ -418,6 +418,21 @@ def UniformToTriangularDistribution(UniformTexture):
     return np.where(Normalized<0.5,np.sqrt(2.0*Normalized)-1.0,1.0-np.sqrt(2.0-2.0*Normalized));
 
 
+def generate(N):
+    for i in range(16):
+      pattern = GetVoidAndClusterBlueNoise((N,N),1)
+      print(f"Noise #{i}")
+      G = np.zeros((N,N,1))
+      # Where we set the RGB for each pixel
+      t = (i/16)*(N*N)
+      G[pattern>=t] = 1
+      G[pattern<t] = 0
+
+      img = Image.new("1",(N,N))
+      for index, values in np.ndenumerate(G):
+        img.putpixel((index[0],index[1]), int(values))
+      img.save(f'../source/images/generated/noise{N}x{N}-{i}.png',bits=1,optimize=False)
+
 if(__name__=="__main__"):
     # GenerateBlueNoiseDatabase(range(1),8,8,[1],1.9);
     #GenerateBlueNoiseDatabase(range(16),128,128,range(1,5),1.9);
@@ -438,17 +453,6 @@ if(__name__=="__main__"):
     # PlotBinaryPatterns(Texture,3,5);
     # pyplot.show();
 
-    N = 8
-    for i in range(16):
-      pattern = GetVoidAndClusterBlueNoise((N,N),1)
-      print(f"Noise #{i}")
-      G = np.zeros((N,N,1))
-      # Where we set the RGB for each pixel
-      t = (i/16)*(N*N)
-      G[pattern>=t] = 1
-      G[pattern<t] = 0
-
-      img = Image.new("1",(N,N))
-      for index, values in np.ndenumerate(G):
-        img.putpixel((index[0],index[1]), int(values))
-      img.save(f'../source/images/generated/noise{N}x{N}-{i}.png',bits=1,optimize=False)      
+    generate(8)
+    generate(32)
+   

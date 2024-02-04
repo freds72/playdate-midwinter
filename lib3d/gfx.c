@@ -1,31 +1,8 @@
 #include <pd_api.h>
 #include <float.h>
+#include "simd.h"
 #include "gfx.h"
 
-static inline uint32_t swap(uint32_t n)
-{
-#if TARGET_PLAYDATE
-    //return __REV(n);
-    uint32_t result;
-
-    __asm volatile ("rev %0, %1" : "=l" (result) : "l" (n));
-    return(result);
-#else
-    return ((n & 0xff000000) >> 24) | ((n & 0xff0000) >> 8) | ((n & 0xff00) << 8) | (n << 24);
-#endif
-}
-
-static inline uint32_t __SADD16(uint32_t op1, uint32_t op2)
-{
-#if TARGET_PLAYDATE
-    uint32_t result;
-
-    __asm volatile ("sadd16 %0, %1, %2" : "=r" (result) : "r" (op1), "r" (op2));
-    return(result);
-#else
-    return op1 + op2;
-#endif
-}
 
 #define LCD_ROWSIZE32 (LCD_ROWSIZE/4)
 
@@ -95,6 +72,10 @@ static void drawFragment(uint32_t* row, int x1, int x2, uint32_t color)
     }
 }
 
+#define FIXED_SCALE (1<<8)
+static inline int tofixed(const float f) { return (int)(f * FIXED_SCALE); }
+static inline float tofloat(const int i) { return ((float)i) / FIXED_SCALE; }
+
 void polyfill(const Point3d* verts, const int n, uint32_t* dither, uint32_t* bitmap) {
 	float miny = FLT_MAX, maxy = FLT_MIN;
 	int mini = -1;
@@ -112,7 +93,7 @@ void polyfill(const Point3d* verts, const int n, uint32_t* dither, uint32_t* bit
 	// data for left& right edges :
 	int lj = mini, rj = mini;
     int ly = (int)miny, ry = (int)miny;
-    float lx = 0, ldx = 0, rx = 0, rdx = 0;
+    int lx = 0, ldx = 0, rx = 0, rdx = 0;
     for (uint8_t y =((int)miny); y < maxy; ++y){
         // maybe update to next vert
         while (ly < y) {
@@ -123,11 +104,11 @@ void polyfill(const Point3d* verts, const int n, uint32_t* dither, uint32_t* bit
             float y0 = p0->y, y1 = p1->y;
             float dy = y1 - y0;
             ly = (int)y1;
-            lx = p0->x;
-            ldx = (p1->x - lx) / dy;
+            lx = tofixed(p0->x);
+            ldx = tofixed((p1->x - p0->x) / dy);
             //sub - pixel correction
-            float cy = y - y0;
-            lx += cy * ldx;
+            const float cy = y - y0;
+            lx += (int)(cy * ldx);
         }
         while (ry < y) {
             const Point3d* p0 = &verts[rj];
@@ -137,16 +118,158 @@ void polyfill(const Point3d* verts, const int n, uint32_t* dither, uint32_t* bit
             float y0 = p0->y, y1 = p1->y;
             float dy = y1 - y0;
             ry = (int)y1;
-            rx = p0->x;
-            rdx = (p1->x - rx) / dy;
+            rx = tofixed(p0->x);
+            rdx = tofixed((p1->x - p0->x) / dy);
             //sub - pixel correction
-            float cy = y - y0;
-            rx += cy * rdx;
+            const float cy = y - y0;
+            rx += (int)(cy * rdx);
         }
 
-        drawFragment(bitmap + y * LCD_ROWSIZE32, (int)lx, (int)rx, dither[y%8]);
+        drawFragment(bitmap + y * LCD_ROWSIZE32, lx>>8, rx>>8, dither[y&31]);
 
         lx += ldx;
         rx += rdx;
     }    
+}
+
+// Dimensions of our pixel group
+static const int stepXSize = 8;
+static const int stepYSize = 1;
+
+typedef struct {
+    union {
+        int16_t v[8];
+        uint32_t word[4];
+    };  
+} Vec8i;
+
+typedef struct{
+    Vec8i oneStepX;
+    Vec8i oneStepY;
+} Edge;
+
+static inline Vec8i make_vec(const int16_t a) {
+    return (Vec8i) {
+        .v = { 
+        a,
+        a,
+        a,
+        a,
+        a,
+        a,
+        a,
+        a}
+    };
+}
+
+static Vec8i edge_init(Edge* edge, const Point2di* v0, const Point2di* v1,const Point2di* origin)
+{
+    // Edge setup
+    int16_t A = v0->y - v1->y, B = v1->x - v0->x;
+    int16_t C = v0->x * v1->y - v0->y * v1->x;
+
+    // Step deltas
+    edge->oneStepX = make_vec(A * stepXSize);
+    edge->oneStepY = make_vec(B * stepYSize);
+
+    // x/y values for initial pixel block
+    Vec8i x = (Vec8i) {
+        .v = { 
+        origin->x + 0, 
+        origin->x + 1, 
+        origin->x + 2, 
+        origin->x + 3,
+        origin->x + 4,
+        origin->x + 5,
+        origin->x + 6,
+        origin->x + 7 }
+    };
+    Vec8i y = make_vec(origin->y);
+
+    // Edge function values at origin
+    Vec8i out;
+    for (int i = 0; i < 8; ++i) {
+        out.v[i] = A * x.v[i] + B * y.v[i] + C;
+    }
+    return out;
+}
+
+static uint8_t vec_mask(const Vec8i* a, const Vec8i* b, const Vec8i* c) {
+    uint8_t out = 0;
+    for (int i = 0; i < 8; ++i) {
+        out |= (a->v[i] | b->v[i] | c->v[i]) >= 0 ? (0x80>>i) : 0;
+    }
+    return out;
+}
+
+static void vec_inc(Vec8i* a, Vec8i* b) {
+    for (int i = 0; i < 8; ++i) {
+        a->v[i] += b->v[i];
+    }
+}
+
+static int orient2d(const Point2di* a, const Point2di* b, const Point2di* c)
+{
+    return (b->x - a->x) * (c->y - a->y) - (b->y - a->y) * (c->x - a->x);
+}
+static int min3(int a, int b, int c) {
+    if (a < b) b = a;
+    if (c < b) b = c;
+    return b;
+}
+static int max3(int a, int b, int c) {
+    if (a > b) b = a;
+    if (c > b) b = c;
+    return b;
+}
+
+void trifill(const Point2di* v0, const Point2di* v1, const Point2di* v2, uint8_t* bitmap) {
+    // Compute triangle bounding box
+    int16_t minX = min3(v0->x, v1->x, v2->x);
+    int16_t minY = min3(v0->y, v1->y, v2->y);
+    int16_t maxX = max3(v0->x, v1->x, v2->x);
+    int16_t maxY = max3(v0->y, v1->y, v2->y);
+
+    // Clip against screen bounds
+    if (minX < 0) minX = 0;
+    if (minY < 0) minY = 0;
+    if (maxX >= LCD_COLUMNS) maxX = LCD_COLUMNS - 1;
+    if (maxY >= LCD_ROWS) maxY = LCD_ROWS - 1;
+
+    // align to uint8 boundaries
+    minX = 8 * (minX / 8);
+    maxX = 8 * (1 + (maxX-1) / 8);
+
+    // Barycentric coordinates at minX/minY corner
+    Point2di p = (Point2di){.v = {minX, minY}};
+    Edge e01, e12, e20;
+
+    // Triangle setup
+    Vec8i w0_row = edge_init(&e12,v1, v2, &p);
+    Vec8i w1_row = edge_init(&e20,v2, v0, &p);
+    Vec8i w2_row = edge_init(&e01,v0, v1, &p);
+
+    // Rasterize
+    for (int y = minY; y <= maxY; y+=stepYSize) {
+        uint8_t* bitmap_row = bitmap + y * LCD_ROWSIZE;
+        // Barycentric coordinates at start of row
+        Vec8i w0 = w0_row;
+        Vec8i w1 = w1_row;
+        Vec8i w2 = w2_row;
+        for (int x = minX; x <= maxX; x+=stepXSize) {
+            // If p is on or inside all edges, render pixel.
+            uint8_t mask = vec_mask(&w0, &w1, &w2);
+            if (mask) {
+                bitmap_row[x / 8] = (bitmap_row[x / 8] & ~mask) | mask;
+            }
+            // One step to the right
+            vec_inc(&w0,&e12.oneStepX);
+            vec_inc(&w1,&e20.oneStepX);
+            vec_inc(&w2,&e01.oneStepX);
+        }
+        // One row step
+        vec_inc(&w0_row, &e12.oneStepY);
+        vec_inc(&w1_row, &e20.oneStepY);
+        vec_inc(&w2_row, &e01.oneStepY);
+    }
 }
