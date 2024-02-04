@@ -11,7 +11,6 @@
 
 #define GROUND_SIZE 32
 #define GROUND_CELL_SIZE 4
-#define PI 3.1415927410125732421875f
 
 static PlaydateAPI* pd;
 
@@ -43,6 +42,10 @@ typedef struct {
 
     GroundSlice* slices[GROUND_SIZE];
 } Ground;
+
+// raycasting angles
+#define RAYCAST_PRECISION 128
+static float _raycast_angles[RAYCAST_PRECISION];
 
 // global buffer to store slices
 static GroundSlice _slices_buffer[GROUND_SIZE];
@@ -250,6 +253,11 @@ void ground_load_assets(PlaydateAPI* playdate) {
         _backgrounds[i/2 + 15] = image;
         _backgrounds_heights[i/2 + 15] = h;
     }
+
+    // raycasting angles
+    for(int i=0;i<RAYCAST_PRECISION;++i) {
+        _raycast_angles[i] = atan2f(31.5f,(float)(i-63.5f)) - PI/2.f;
+    }
 }
 
 // --------------- 3d rendering -----------------------------
@@ -276,10 +284,8 @@ typedef struct {
     float key;
 } Face;
 
-static struct {
-  int tiles[GROUND_SIZE * GROUND_SIZE];
-  int n;
-} _visible_tiles;
+// visible tiles encoded as 1 bit per cell
+static uint32_t _visible_tiles[GROUND_SIZE];
 
 static struct {
   Face faces[GROUND_SIZE * GROUND_SIZE * 2];
@@ -389,50 +395,102 @@ void render_sky(float* m, uint32_t* bitmap) {
     memset(bitmap + h1 * LCD_ROWSIZE / sizeof(uint32_t), 0x00, (LCD_ROWS - h1) * LCD_ROWSIZE);
 }
 
-// render ground
-void render_ground(Point3d cam_pos, float* m, uint32_t* bitmap) {
-    render_sky(m, bitmap);
+static void collect_tiles(const Point3d pos, float base_angle) {
+    float x = pos.x / GROUND_CELL_SIZE, y = pos.z / GROUND_CELL_SIZE;
+    int x0 = (int)x, y0 = (int)y;
 
-    // todo: collect visible tiles
-    _visible_tiles.n = 0;
-    for (int j = 0; j < GROUND_SIZE - 1; ++j) {
-        for (int i = 0; i < GROUND_SIZE - 1; ++i) {
-            _visible_tiles.tiles[_visible_tiles.n++] = i + j * GROUND_SIZE;
+    // reset tiles
+    memset((uint8_t*)_visible_tiles, 0, sizeof(uint32_t) * GROUND_SIZE);
+
+    // current tile is always in
+    _visible_tiles[y0] |= 1 << x0;
+
+    for (int i = 0; i < RAYCAST_PRECISION; ++i) {
+        float angle = base_angle + _raycast_angles[i];
+        float v = cosf(angle), u = sinf(angle);
+
+        int mapx = x0, mapy = y0;
+        float ddx = 1.f / u, ddy = 1.f / v;
+        float mapdx = 1, mapdy = 1;
+        float distx = 0, disty = 0;
+        if (u < 0.f) {
+            mapdx = -1;
+            ddx = -ddx;
+            distx = (x - mapx) * ddx;
+        }
+        else {
+            distx = (mapx + 1 - x) * ddx;
+        }
+        if (v < 0) {
+            mapdy = -1;
+            ddy = -ddy;
+            disty = (y - mapy) * ddy;
+        }
+        else {
+            disty = (mapy + 1 - y) * ddy;
+        }
+
+        for (int dist = 0; dist < 16; ++dist) {
+            if (distx < disty) {
+                distx += ddx;
+                mapx += mapdx;
+            }
+            else {
+                disty += ddy;
+                mapy += mapdy;
+            }
+            // out of range?
+            // if (((mapx | mapy) & 0xffffffe0) != 0) break;
+            if (mapx > 31 || mapx < 0 || mapy > 31 || mapy < 0) break;
+
+            _visible_tiles[mapy] |= 1 << mapx;
         }
     }
+}
+
+// render ground
+void render_ground(Point3d cam_pos, float cam_angle, float* m, uint32_t* bitmap) {
+    render_sky(m, bitmap);
+
+    // collect visible tiles
+    collect_tiles(cam_pos, cam_angle);
 
     // transform visible tiles
     _drawables.n = 0;
     const float y_offset = _ground.y_offset;
-    for (int k = 0; k < _visible_tiles.n; ++k) {
-        const int tileid = _visible_tiles.tiles[k];
-        const int i = tileid % GROUND_SIZE, j = tileid / GROUND_SIZE;
-        const GroundSlice* s0 = _ground.slices[j];
-        const GroundSlice* s1 = _ground.slices[j + 1];
-        const Point3d verts[4] = {
-          {.v = {i * GROUND_CELL_SIZE,s0->h[i] + s0->y - y_offset,j * GROUND_CELL_SIZE}},
-          {.v = {(i + 1) * GROUND_CELL_SIZE,s0->h[i + 1] + s0->y - y_offset,j * GROUND_CELL_SIZE}},
-          {.v = {(i + 1) * GROUND_CELL_SIZE,s1->h[i + 1] + s1->y - y_offset,(j + 1) * GROUND_CELL_SIZE}},
-          {.v = {i * GROUND_CELL_SIZE,s1->h[i] + s1->y - y_offset,(j + 1) * GROUND_CELL_SIZE}} };
-        // transform
-        const GroundFace* f0 = &s0->faces[2 * i];
-        // camera to face point
-        const Point3d cv = { .x = verts[0].x - cam_pos.x,.y = verts[0].y - cam_pos.y,.z = verts[0].z - cam_pos.z };
-        if (f0->quad) {
-            if (v_dot(&f0->n, &cv) < 0.f) 
-            {
-                add_drawable_face(m, verts, (int[]) { 0, 1, 2, 3 }, 4);
-            }
-        }
-        else {
-            const GroundFace* f1 = &s0->faces[2 * i + 1];
-            if (v_dot(&f0->n, &cv) < 0.f) 
-            {
-                add_drawable_face(m, verts, (int[]) { 0, 2, 3 }, 3);
-            }
-            if (v_dot(&f1->n, &cv) < 0.f) 
-            {
-                add_drawable_face(m, verts, (int[]) { 0, 1, 2 }, 3);
+    for (int j = 0; j < GROUND_SIZE - 1; ++j) {
+        uint32_t visible_tiles = _visible_tiles[j];
+        for(int i=0;i<GROUND_SIZE;++i) {
+            // is the tile bit enabled?
+            if (visible_tiles & (1<<i)) {
+                const GroundSlice* s0 = _ground.slices[j];
+                const GroundSlice* s1 = _ground.slices[j + 1];
+                const Point3d verts[4] = {
+                {.v = {i * GROUND_CELL_SIZE,s0->h[i] + s0->y - y_offset,j * GROUND_CELL_SIZE}},
+                {.v = {(i + 1) * GROUND_CELL_SIZE,s0->h[i + 1] + s0->y - y_offset,j * GROUND_CELL_SIZE}},
+                {.v = {(i + 1) * GROUND_CELL_SIZE,s1->h[i + 1] + s1->y - y_offset,(j + 1) * GROUND_CELL_SIZE}},
+                {.v = {i * GROUND_CELL_SIZE,s1->h[i] + s1->y - y_offset,(j + 1) * GROUND_CELL_SIZE}} };
+                // transform
+                const GroundFace* f0 = &s0->faces[2 * i];
+                // camera to face point
+                const Point3d cv = { .x = verts[0].x - cam_pos.x,.y = verts[0].y - cam_pos.y,.z = verts[0].z - cam_pos.z };
+                if (f0->quad) {
+                    if (v_dot(&f0->n, &cv) < 0.f) 
+                    {
+                        add_drawable_face(m, verts, (int[]) { 0, 1, 2, 3 }, 4);
+                    }
+                }
+                else {
+                    const GroundFace* f1 = &s0->faces[2 * i + 1];
+                    if (v_dot(&f0->n, &cv) < 0.f) 
+                    {
+                        add_drawable_face(m, verts, (int[]) { 0, 2, 3 }, 3);
+                    }
+                    if (v_dot(&f1->n, &cv) < 0.f) 
+                    {
+                        add_drawable_face(m, verts, (int[]) { 0, 1, 2 }, 3);
+                    }
+                }
             }
         }
     }

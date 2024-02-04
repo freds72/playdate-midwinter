@@ -197,21 +197,48 @@ static Vec8i edge_init(Edge* edge, const Point2di* v0, const Point2di* v1,const 
 static uint8_t vec_mask(const Vec8i* a, const Vec8i* b, const Vec8i* c) {
     uint8_t out = 0;
     for (int i = 0; i < 8; ++i) {
-        out |= (a->v[i] | b->v[i] | c->v[i]) >= 0 ? (0x80>>i) : 0;
+        out |= (~((a->v[i] | b->v[i] | c->v[i]) >> 31)) & (0x80 >> i);
     }
     return out;
 }
 
-static void vec_inc(Vec8i* a, Vec8i* b) {
+/*
+cycles: 0.370769
+cycles : 0.363643
+cycles : 0.365406
+*/
+/*
+static inline void vec_inc(Vec8i* a, Vec8i* b) {
+    a->word[0] = __SADD16(a->word[0], b->word[0]);
+    a->word[1] = __SADD16(a->word[1], b->word[1]);
+    a->word[2] = __SADD16(a->word[2], b->word[2]);
+    a->word[3] = __SADD16(a->word[3], b->word[3]);
+}
+*/
+
+/*
+cycles: 0.359701
+cycles: 0.358622
+cycles: 0.359048
+*/
+static inline Vec8i vec_inc(Vec8i a, Vec8i b) {
+#ifdef  TARGET_PLAYDATE
+    return (Vec8i) {
+        .word = {
+__SADD16(a.word[0], b.word[0]),
+__SADD16(a.word[1], b.word[1]),
+__SADD16(a.word[2], b.word[2]),
+__SADD16(a.word[3], b.word[3]) }
+    };
+#else
+    Vec8i out;
     for (int i = 0; i < 8; ++i) {
-        a->v[i] += b->v[i];
+        out.v[i] = a.v[i] + b.v[i];
     }
+    return out;
+#endif //  TARGET_PLAYDATE
 }
 
-static int orient2d(const Point2di* a, const Point2di* b, const Point2di* c)
-{
-    return (b->x - a->x) * (c->y - a->y) - (b->y - a->y) * (c->x - a->x);
-}
 static int min3(int a, int b, int c) {
     if (a < b) b = a;
     if (c < b) b = c;
@@ -250,26 +277,27 @@ void trifill(const Point2di* v0, const Point2di* v1, const Point2di* v2, uint8_t
     Vec8i w2_row = edge_init(&e01,v0, v1, &p);
 
     // Rasterize
-    for (int y = minY; y <= maxY; y+=stepYSize) {
-        uint8_t* bitmap_row = bitmap + y * LCD_ROWSIZE;
+    bitmap += (minX >> 3) + minY * LCD_ROWSIZE;
+    for (int y = minY; y <= maxY; y+=stepYSize, bitmap += LCD_ROWSIZE) {
+        uint8_t* bitmap_row = bitmap;
         // Barycentric coordinates at start of row
         Vec8i w0 = w0_row;
         Vec8i w1 = w1_row;
         Vec8i w2 = w2_row;
-        for (int x = minX; x <= maxX; x+=stepXSize) {
+        for (int x = minX; x <= maxX; x+=stepXSize, bitmap_row++) {
             // If p is on or inside all edges, render pixel.
             uint8_t mask = vec_mask(&w0, &w1, &w2);
             if (mask) {
-                bitmap_row[x / 8] = (bitmap_row[x / 8] & ~mask) | mask;
+                *bitmap_row = ((* bitmap_row) & ~mask) | mask;
             }
-            // One step to the right
-            vec_inc(&w0,&e12.oneStepX);
-            vec_inc(&w1,&e20.oneStepX);
-            vec_inc(&w2,&e01.oneStepX);
+            // One step to the right            
+            w0 = vec_inc(w0, e12.oneStepX);
+            w1 = vec_inc(w1, e20.oneStepX);
+            w2 = vec_inc(w2, e01.oneStepX);
         }
-        // One row step
-        vec_inc(&w0_row, &e12.oneStepY);
-        vec_inc(&w1_row, &e20.oneStepY);
-        vec_inc(&w2_row, &e01.oneStepY);
+        // One row step        
+        w0_row = vec_inc(w0_row, e12.oneStepY);
+        w1_row = vec_inc(w1_row, e20.oneStepY);
+        w2_row = vec_inc(w2_row, e01.oneStepY);
     }
 }

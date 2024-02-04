@@ -1280,7 +1280,7 @@ function make_ground(params)
 			p[3] = lib3d.update_ground(table.unpack(p))
 		end,
 		draw=function(self,cam)
-			lib3d.render_ground(cam.pos[1],cam.pos[2],cam.pos[3],table.unpack(cam.m))
+			lib3d.render_ground(cam.pos[1],cam.pos[2],cam.pos[3],cam.angle,table.unpack(cam.m))
 		end,
 		find_face=function(self,p)
 			local y,nx,ny,nz=lib3d.get_face(table.unpack(p))

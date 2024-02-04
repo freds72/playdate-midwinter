@@ -33,7 +33,7 @@ void get_face(Point3d pos, Point3d* n, float* y);
 void update_ground(Point3d* pos);
 
 // render ground
-void render_ground(Point3d pos, float*m, uint32_t* bitmap);
+void render_ground(Point3d pos, float angle, float*m, uint32_t* bitmap);
 
 // load stuff
 void ground_load_assets(PlaydateAPI* playdate);

@@ -105,6 +105,8 @@ static int lib3d_render_ground(lua_State* L)
 		// Get it's value.        
 		pos.v[i] = pd->lua->getArgFloat(argc++);
 	}
+	// cam angle
+	float angle = 2.f * PI * pd->lua->getArgFloat(argc++);
 
     // camera matrix
     float m[16];
@@ -117,7 +119,7 @@ static int lib3d_render_ground(lua_State* L)
     // draw_polygon(verts, len / 2, (uint32_t*)pd->graphics->getFrame());
     uint32_t* bitmap = (uint32_t*)pd->graphics->getFrame();
 
-	render_ground(pos, m, bitmap);
+	render_ground(pos, angle, m, bitmap);
 
     pd->graphics->markUpdatedRows(0, LCD_ROWS - 1);
 
@@ -289,7 +291,12 @@ static int lib3d_bench_gfx(lua_State* L) {
 		cycles: 0.007292
 		*/
 		if (buttons & kButtonA) {
-			polyfill(&verts, 4, dither, bitmap);
+			if (buttons & kButtonB) {
+				pd->graphics->fillPolygon(4, (int*)&vertsi, kColorWhite, 0);
+			}
+			else {
+				polyfill(&verts, 4, dither, bitmap);
+			}
 		}
 		else {
 			trifill(&vertsi[0], &vertsi[2], &vertsi[1], bitmap8);
@@ -375,7 +382,7 @@ void lib3d_register(PlaydateAPI* playdate)
     lib3d_setRealloc(pd->system->realloc);
 
     // 
-    // ground_load_assets(playdate);
+    ground_load_assets(playdate);
 }
 
 void lib3d_unregister(PlaydateAPI* playdate) {

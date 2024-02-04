@@ -1,6 +1,8 @@
 #ifndef _lib3d_math_h
 #define _lib3d_math_h
 
+#define PI 3.1415927410125732421875f
+
 // misc. math typedefs
 typedef struct {
   union {
