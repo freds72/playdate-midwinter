@@ -357,6 +357,13 @@ static int _x = 40;
 static int lib3d_bench_scaler(lua_State* L) {
 	uint8_t* bitmap8 = pd->graphics->getFrame();
 	memset(bitmap8, 0, LCD_ROWS * LCD_ROWSIZE);
+	/*
+	for (int j = 0; j<LCD_ROWS; j++) {
+		for (int i = 0; i < LCD_COLUMNS / 8; i ++) {
+			bitmap8[i + j * LCD_ROWSIZE] = 0xff * ( ((j/8)&2) + i&2);
+		}
+	}
+	*/
 
 	PDButtons buttons;
 	PDButtons pushed;
@@ -369,7 +376,7 @@ static int lib3d_bench_scaler(lua_State* L) {
 
 	pd->system->resetElapsedTime();
 	float t0 = pd->system->getElapsedTime();
-	float w = 60 + (64.f * fabsf(cos(t0)));
+	float w = 60;// + (64.f * fabsf(cos(t0)));
 
 	// pc: 0.002
 	for (int i = 0; i < 100; ++i) {
@@ -403,10 +410,10 @@ void lib3d_register(PlaydateAPI* playdate)
 	if (!pd->lua->addFunction(lib3d_make_ground, "lib3d.make_ground", &err))
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
-	if ( !pd->lua->addFunction(lib3d_render_ground, "lib3d.render_ground", &err) )
+	if (!pd->lua->addFunction(lib3d_render_ground, "lib3d.render_ground", &err))
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
-	if ( !pd->lua->addFunction(lib3d_get_start_pos, "lib3d.get_start_pos", &err) )
+	if (!pd->lua->addFunction(lib3d_get_start_pos, "lib3d.get_start_pos", &err))
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
 	if (!pd->lua->addFunction(lib3d_get_face, "lib3d.get_face", &err))
@@ -421,18 +428,33 @@ void lib3d_register(PlaydateAPI* playdate)
 	if (!pd->lua->registerClass("lib3d.GroundParams", lib3D_GroundParams, NULL, 0, &err))
 		pd->system->logToConsole("%s:%i: registerClass failed, %s", __FILE__, __LINE__, err);
 
-    lib3d_setRealloc(pd->system->realloc);
+	lib3d_setRealloc(pd->system->realloc);
 
 	const char* path = "images/mire32x32";
 	_mire_bitmap = pd->graphics->loadBitmap(path, &err);
 	if (!_mire_bitmap)
 		pd->system->logToConsole("Failed to load: %s, %s", path, err);
 	int w = 0, h = 0, r = 0;
-	uint8_t* mask = NULL;
-	pd->graphics->getBitmapData(_mire_bitmap, &w, &h, &r, &mask, &_mire_data);
+	uint8_t* data = NULL;
+	uint8_t* alpha = NULL;
+	pd->graphics->getBitmapData(_mire_bitmap, &w, &h, &r, &alpha, &data);
+	// 1 byte per pixel + alpha
+	_mire_data = lib3d_malloc((w / 8) * h * 2 * 8);
 
-    // 
-    ground_load_assets(playdate);
+	int alpha_offset = 0;
+	for (int j = 0; j < h; j++) {
+		for (int i = 0; i < w / 8; i++, data++, alpha_offset++) {
+			for (int k = 0; k < 8; k++) {
+				uint8_t mask = 0x80 >> (k & 7);
+				// pixel
+				_mire_data[2 * (8 * i + k + j * h)] = !!((*data) & mask);
+				// alpha				
+				_mire_data[2 * (8 * i + k + j * h) + 1] = alpha? !!((alpha[alpha_offset]) & mask) : 1;
+			}
+		}
+	}
+	// 
+	ground_load_assets(playdate);
 }
 
 void lib3d_unregister(PlaydateAPI* playdate) {

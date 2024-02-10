@@ -183,9 +183,8 @@ void sspr(int x, int y, int w, uint8_t* src, int sw, uint8_t* bitmap) {
     
     // pd->system->logToConsole("x: %i x0: %i x1: %i x2: %i x3: %i l. mask: 0x%02x r. mask: 0x%02x", x, x0, x1, x2, x3, left_mask, right_mask);
 
-    bitmap += x / 8 + y * LCD_ROWSIZE;
-    sw /= 8;
-
+    bitmap += x / 8 + y * LCD_ROWSIZE;    
+    sw *= 2;
     /*
     1- pixel per loop
     cycles: 0.043588
@@ -222,6 +221,15 @@ void sspr(int x, int y, int w, uint8_t* src, int sw, uint8_t* bitmap) {
     cycles: 0.021584
     cycles: 0.021456
 
+    1 byte per pix: 40% cpu
+    cycles: 0.014279
+    cycles: 0.013815
+    cycles: 0.013228
+
+    1 byte per pix + alpha mask: 62% cpu
+    cycles: 0.022014
+    cycles: 0.022317
+    cycles: 0.024208
     */
 
     for (int j = 0; j < h; ++j, bitmap += LCD_ROWSIZE, sy += sdy) {
@@ -232,43 +240,63 @@ void sspr(int x, int y, int w, uint8_t* src, int sw, uint8_t* bitmap) {
         uint16_t lsx = 0;
         if (left_mask) {
             uint8_t pixels = 0;
+            uint8_t mask = left_mask;
             for (int i = x; i < x1; i++, lsx += src_step_x) {
                 int src_x = lsx >> FIXED_SHIFT;
-                if (src_row[src_x >> 3] & (0x80 >> (src_x & 7))) pixels |= 0x80 >> (i & 7);
+                int dst_shift = (0x80 >> (i & 7));
+                pixels |= src_row[2 * src_x] * dst_shift;
+                mask |= src_row[2 * src_x + 1] * dst_shift;
             }
-            *dst = (*dst & ~left_mask) | pixels;
+            *dst = (*dst & ~mask) | pixels;
             dst++;
         }
         // fill bytes between 
         uint16_t_pair sx = (uint16_t_pair){ .hi = lsx, .lo = lsx + src_step_x };
         for (int i = x1; i < x2; i += 8, dst++) {
+            // bench with smlad
+            // hi * 0x80 + lo * 0x40
             uint8_t pixels =
-                ((!!(src_row[(size_t)sx.hihi >> 3] & (0x80 >> (sx.hihi & 7)))) * 0x80) |
-                ((!!(src_row[(size_t)sx.lohi >> 3] & (0x80 >> (sx.lohi & 7)))) * 0x40);
+                (src_row[2* sx.hihi] * 0x80) |
+                (src_row[2* sx.lohi] * 0x40);
+            uint8_t mask =
+                (src_row[2 * sx.hihi + 1] * 0x80) |
+                (src_row[2 * sx.lohi + 1] * 0x40);
             sx.v += sdx.v;
             pixels |=
-                ((!!(src_row[(size_t)sx.hihi >> 3] & (0x80 >> (sx.hihi & 7)))) * 0x20) |
-                ((!!(src_row[(size_t)sx.lohi >> 3] & (0x80 >> (sx.lohi & 7)))) * 0x10);
+                (src_row[2*sx.hihi] * 0x20) |
+                (src_row[2*sx.lohi] * 0x10);
+            mask |=
+                (src_row[2 * sx.hihi + 1] * 0x20) |
+                (src_row[2 * sx.lohi + 1] * 0x10);
             sx.v += sdx.v;
             pixels |=
-                ((!!(src_row[(size_t)sx.hihi >> 3] & (0x80 >> (sx.hihi & 7)))) * 0x08) |
-                ((!!(src_row[(size_t)sx.lohi >> 3] & (0x80 >> (sx.lohi & 7)))) * 0x04);
+                (src_row[2*sx.hihi] * 0x08) |
+                (src_row[2*sx.lohi] * 0x04);
+            mask |=
+                (src_row[2 * sx.hihi + 1] * 0x08) |
+                (src_row[2 * sx.lohi + 1] * 0x04);
             sx.v += sdx.v;
             pixels |=
-                ((!!(src_row[(size_t)sx.hihi >> 3] & (0x80 >> (sx.hihi & 7)))) * 0x02) |
-                ((!!(src_row[(size_t)sx.lohi >> 3] & (0x80 >> (sx.lohi & 7)))) * 0x01);
+                (src_row[2*sx.hihi] * 0x02) |
+                (src_row[2*sx.lohi] * 0x01);
+            mask |=
+                (src_row[2 * sx.hihi + 1] * 0x02) |
+                (src_row[2 * sx.lohi + 1] * 0x01);
             sx.v += sdx.v;
 
-            *dst = pixels;
+            *dst = (*dst & ~mask) | pixels;
         }
         if (right_mask) {
             uint16_t rsx = sx.lo;
             uint8_t pixels = 0;
+            uint8_t mask = right_mask;
             for (int i = x2; i < x3; i++, rsx += src_step_x) {
                 int src_x = rsx >> FIXED_SHIFT;
-                if (src_row[src_x >> 3] & (0x80 >> (src_x & 7))) pixels |= 0x80 >> (i & 7);
+                int dst_shift = (0x80 >> (i & 7));
+                pixels |= src_row[2 * src_x] * dst_shift;
+                mask |= src_row[2 * src_x + 1] * dst_shift;
             }
-            *dst = (*dst & ~right_mask) | pixels;
+            *dst = (*dst & ~ mask) | pixels;
         }
     }
 }
