@@ -95,6 +95,9 @@ static const lua_reg lib3D_GroundParams[] =
 	{ NULL,				NULL }
 };
 
+LCDBitmap* _mire_bitmap = NULL;
+uint8_t* _mire_data = NULL;
+
 // 
 static int lib3d_render_ground(lua_State* L)
 {
@@ -116,7 +119,6 @@ static int lib3d_render_ground(lua_State* L)
         m[i] = pd->lua->getArgFloat(argc++);
     }
 
-    // draw_polygon(verts, len / 2, (uint32_t*)pd->graphics->getFrame());
     uint32_t* bitmap = (uint32_t*)pd->graphics->getFrame();
 
 	render_ground(pos, angle, m, bitmap);
@@ -351,12 +353,52 @@ static int lib3d_bench(lua_State* L) {
 	return 0;
 }
 
+static int _x = 40;
+static int lib3d_bench_scaler(lua_State* L) {
+	uint8_t* bitmap8 = pd->graphics->getFrame();
+	memset(bitmap8, 0, LCD_ROWS * LCD_ROWSIZE);
+
+	PDButtons buttons;
+	PDButtons pushed;
+	PDButtons released;
+	pd->system->getButtonState(&buttons, &pushed, &released);
+	if (buttons & kButtonRight) _x ++;
+	if (buttons & kButtonLeft) _x--;
+	if (_x > LCD_COLUMNS) _x = LCD_COLUMNS;
+	if (_x < 0) _x = 0;
+
+	pd->system->resetElapsedTime();
+	float t0 = pd->system->getElapsedTime();
+	float w = 60 + (64.f * fabsf(cos(t0)));
+
+	// pc: 0.002
+	for (int i = 0; i < 100; ++i) {
+
+		if (buttons & kButtonA) {
+			pd->graphics->drawScaledBitmap(_mire_bitmap, _x - w / 2, 96 - w / 2, w / 32.f, w / 32.f);
+		}
+		else {
+			sspr(_x - w / 2, 96 - w / 2, w, _mire_data, 32, bitmap8);
+		}
+		// upscale_image(41, 96, 60, 60, _mire_data, 32, 32, bitmap8);
+	}
+
+	pd->system->logToConsole("cycles: %f", pd->system->getElapsedTime() - t0);
+
+	pd->graphics->markUpdatedRows(0, LCD_ROWS - 1);
+
+	return 0;
+}
+
 
 void lib3d_register(PlaydateAPI* playdate)
 {
 	pd = playdate;
 
 	const char* err;
+
+	// init modules
+	gfx_init(playdate);
 
 	if (!pd->lua->addFunction(lib3d_make_ground, "lib3d.make_ground", &err))
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
@@ -373,13 +415,21 @@ void lib3d_register(PlaydateAPI* playdate)
 	if (!pd->lua->addFunction(lib3d_update_ground, "lib3d.update_ground", &err))
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
-	if (!pd->lua->addFunction(lib3d_bench_gfx, "lib3d.bench", &err))
+	if (!pd->lua->addFunction(lib3d_bench_scaler, "lib3d.bench", &err))
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
 	if (!pd->lua->registerClass("lib3d.GroundParams", lib3D_GroundParams, NULL, 0, &err))
 		pd->system->logToConsole("%s:%i: registerClass failed, %s", __FILE__, __LINE__, err);
 
     lib3d_setRealloc(pd->system->realloc);
+
+	const char* path = "images/mire32x32";
+	_mire_bitmap = pd->graphics->loadBitmap(path, &err);
+	if (!_mire_bitmap)
+		pd->system->logToConsole("Failed to load: %s, %s", path, err);
+	int w = 0, h = 0, r = 0;
+	uint8_t* mask = NULL;
+	pd->graphics->getBitmapData(_mire_bitmap, &w, &h, &r, &mask, &_mire_data);
 
     // 
     ground_load_assets(playdate);

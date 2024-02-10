@@ -3,6 +3,11 @@
 #include "simd.h"
 #include "gfx.h"
 
+static PlaydateAPI* pd = NULL;
+
+void gfx_init(PlaydateAPI* playdate) {
+    pd = playdate;
+}
 
 #define LCD_ROWSIZE32 (LCD_ROWSIZE/4)
 
@@ -130,6 +135,188 @@ void polyfill(const Point3d* verts, const int n, uint32_t* dither, uint32_t* bit
         lx += ldx;
         rx += rdx;
     }    
+}
+
+typedef struct {
+    union {
+        struct {
+            uint8_t hilo;
+            uint8_t hihi;
+            uint8_t lolo;
+            uint8_t lohi;
+        };
+        struct {
+            uint16_t hi;
+            uint16_t lo;
+        };
+        uint32_t v;
+    };
+} uint16_t_pair;
+
+// draw a sprite a x/y with source scaled to w (source is sw * sw)
+void sspr(int x, int y, int w, uint8_t* src, int sw, uint8_t* bitmap) {
+    if (x >= LCD_COLUMNS || x + w < 0) return;
+    if (y >= LCD_ROWS || y + w < 0) return;
+
+    // fixed point 24:8
+    const int FIXED_SHIFT = 8;
+    int h = w;
+    const uint16_t src_step_x = (sw << FIXED_SHIFT) / w;
+    uint16_t_pair sdx = (uint16_t_pair){ .hi = 2 * src_step_x,.lo = 2 * src_step_x };
+    const int sdy = (sw<<FIXED_SHIFT) / w;
+    int sy = 0;
+
+    if (x < 0) x = 0;
+    if (x + w >= LCD_COLUMNS) w = LCD_COLUMNS - x - 1;
+    if (y < 0) y = 0;
+    if (y + w >= LCD_ROWS) h = LCD_ROWS - y - 1;
+
+
+    // align to byte boundary
+    const int x0 = 8 * (x / 8);
+    const uint8_t left_mask = (0x000000ff << (8-(x&7)));
+    // ceiling
+    const int x1 = 8 * ((x + 8 - 1) / 8);
+    const int x2 = 8 * ((x + w) / 8);
+    const int x3 = x + w;
+    const uint8_t right_mask = 0x0000ff00 >> (x3 & 7);
+    
+    // pd->system->logToConsole("x: %i x0: %i x1: %i x2: %i x3: %i l. mask: 0x%02x r. mask: 0x%02x", x, x0, x1, x2, x3, left_mask, right_mask);
+
+    bitmap += x / 8 + y * LCD_ROWSIZE;
+    sw /= 8;
+
+    /*
+    1- pixel per loop
+    cycles: 0.043588
+    cycles : 0.042131
+    cycles : 0.041841
+
+    8 pixels per loop
+    cycles: 0.010865
+    cycles: 0.010859
+    cycles: 0.011876
+
+    2 pixels
+    cycles: 0.013355
+    cycles: 0.012962
+    cycles: 0.012604
+
+    cycles: 0.014759
+    cycles: 0.012901
+    cycles: 0.012849
+
+    SADD16
+    cycles: 0.015083
+    cycles: 0.015953
+    cycles: 0.015312
+
+    unrolled + constant masks:
+    cycles: 0.007522
+    cycles: 0.007120
+    cycles: 0.007267
+
+    -----------------
+    unrolled:
+    cycles: 0.023058
+    cycles: 0.021584
+    cycles: 0.021456
+
+    */
+
+    for (int j = 0; j < h; ++j, bitmap += LCD_ROWSIZE, sy += sdy) {
+        // offset source starting point by 
+        uint8_t* dst = bitmap;
+        uint8_t* src_row = src + (sy >> FIXED_SHIFT) * sw;
+        // fill left column (if any) not aligned with 8 bit boundary
+        uint16_t lsx = 0;
+        if (left_mask) {
+            uint8_t pixels = 0;
+            for (int i = x; i < x1; i++, lsx += src_step_x) {
+                int src_x = lsx >> FIXED_SHIFT;
+                if (src_row[src_x >> 3] & (0x80 >> (src_x & 7))) pixels |= 0x80 >> (i & 7);
+            }
+            *dst = (*dst & ~left_mask) | pixels;
+            dst++;
+        }
+        // fill bytes between 
+        uint16_t_pair sx = (uint16_t_pair){ .hi = lsx, .lo = lsx + src_step_x };
+        for (int i = x1; i < x2; i += 8, dst++) {
+            uint8_t pixels =
+                ((!!(src_row[(size_t)sx.hihi >> 3] & (0x80 >> (sx.hihi & 7)))) * 0x80) |
+                ((!!(src_row[(size_t)sx.lohi >> 3] & (0x80 >> (sx.lohi & 7)))) * 0x40);
+            sx.v += sdx.v;
+            pixels |=
+                ((!!(src_row[(size_t)sx.hihi >> 3] & (0x80 >> (sx.hihi & 7)))) * 0x20) |
+                ((!!(src_row[(size_t)sx.lohi >> 3] & (0x80 >> (sx.lohi & 7)))) * 0x10);
+            sx.v += sdx.v;
+            pixels |=
+                ((!!(src_row[(size_t)sx.hihi >> 3] & (0x80 >> (sx.hihi & 7)))) * 0x08) |
+                ((!!(src_row[(size_t)sx.lohi >> 3] & (0x80 >> (sx.lohi & 7)))) * 0x04);
+            sx.v += sdx.v;
+            pixels |=
+                ((!!(src_row[(size_t)sx.hihi >> 3] & (0x80 >> (sx.hihi & 7)))) * 0x02) |
+                ((!!(src_row[(size_t)sx.lohi >> 3] & (0x80 >> (sx.lohi & 7)))) * 0x01);
+            sx.v += sdx.v;
+
+            *dst = pixels;
+        }
+        if (right_mask) {
+            uint16_t rsx = sx.lo;
+            uint8_t pixels = 0;
+            for (int i = x2; i < x3; i++, rsx += src_step_x) {
+                int src_x = rsx >> FIXED_SHIFT;
+                if (src_row[src_x >> 3] & (0x80 >> (src_x & 7))) pixels |= 0x80 >> (i & 7);
+            }
+            *dst = (*dst & ~right_mask) | pixels;
+        }
+    }
+}
+
+static inline void bic(uint8_t* bitmap, int x, int len, uint8_t color) {
+    color = !!color;
+    const uint8_t mask = ((uint8_t)((int8_t)-1 >> len)) >> x;
+    *bitmap = (*bitmap & ~mask) | (mask * color);
+}
+
+/*
+cycles: 0.033123
+cycles: 0.033349
+cycles: 0.032799
+
+*/
+void upscale_image(int x, int y, int w, int h, uint8_t* src, int sw, int sh, uint8_t* bitmap) {
+    const float ddx = (float)w / sw;
+    const float ddy = (float)h / sh;
+    float y1 = y;
+    float y0 = y;
+    // byte boundary
+    bitmap += x / 8;
+    
+    for (int j = 0; j < sh; j++, y0 = y1, y1 += ddy, src += sw / 8) {
+        uint8_t* dst = bitmap + (int)y0 * LCD_ROWSIZE;
+        for (int k = (int)y0; k < (int)y1; k++, dst = bitmap + k * LCD_ROWSIZE) {
+            float x1 = x & 7;
+            float x0 = x1;
+            for (int i = 0; i < sw; i++, x0 = x1, x1 += ddx) {
+                uint8_t color = src[i / 8] & (0x80 >> (i & 7));
+                int len = (int)x1 - (int)x0;
+                int n = ((int)x0 + len) / 8;
+                for (int kk = 0; kk < n; kk++) {
+                    bic(dst, x0, 8 - (int)x0, color);
+                    // todo: move out of loop?
+                    len -= 8 - (int)x0;
+                    // next 8 pixels block
+                    dst++;
+                    // reset boundaries
+                    x0 = 0;
+                    x1 = 0;
+                }
+                // draw remaining pixels
+                bic(dst, x0, len, color);
+            }
+        }
+    }
 }
 
 // Dimensions of our pixel group

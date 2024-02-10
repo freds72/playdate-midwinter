@@ -131,6 +131,7 @@ void make_ground(GroundParams params) {
     active_params = params;
     // reset global params
     _ground.slice_y = 0;
+    _ground.y_offset = 0;
     _ground.noise_y_offset = 16.f * randf();
     _ground.plyr_z_index = GROUND_SIZE / 2 - 1;
     _ground.max_pz = INT_MIN;
@@ -209,13 +210,13 @@ void ground_load_assets(PlaydateAPI* playdate) {
     for (int i = 0; i < 16; ++i) {
         char* path = NULL;
         pd->system->formatString(&path, "images/generated/noise32x32-%d", i);
-        LCDBitmap* dither = pd->graphics->loadBitmap(path, &err);
-        if (!dither)
+        LCDBitmap* bitmap = pd->graphics->loadBitmap(path, &err);
+        if (!bitmap)
             pd->system->logToConsole("Failed to load: %s, %s", path, err);
         int w = 0, h = 0, r = 0;
         uint8_t* mask = NULL;
         uint8_t* data = NULL;
-        pd->graphics->getBitmapData(dither, &w, &h, &r, &mask, &data);
+        pd->graphics->getBitmapData(bitmap, &w, &h, &r, &mask, &data);
         if (w != 32 || h != 32)
             pd->system->logToConsole("Invalid pattern format: %dx%d, file: %s", w, h, path);
         for (int j = 0; j < 32; ++j) {
@@ -223,19 +224,21 @@ void ground_load_assets(PlaydateAPI* playdate) {
             _dithers[i][j] = mask;
             data += 4;
         }
+        // release source image
+        pd->graphics->freeBitmap(bitmap);
     }
 
     // read rotated backgrounds
     for (int i = -30; i < 28; i+=2) {
         char* path = NULL;
         pd->system->formatString(&path, "images/generated/sky_background_%d", i);
-        LCDBitmap* dither = pd->graphics->loadBitmap(path, &err);
-        if (!dither)
+        LCDBitmap* bitmap = pd->graphics->loadBitmap(path, &err);
+        if (!bitmap)
             pd->system->logToConsole("Failed to load: %s, %s", path, err);
         int w = 0, h = 0, r = 0;
         uint8_t* mask = NULL;
         uint8_t* data = NULL;
-        pd->graphics->getBitmapData(dither, &w, &h, &r, &mask, &data);
+        pd->graphics->getBitmapData(bitmap, &w, &h, &r, &mask, &data);
         if (w != 400 )
             pd->system->logToConsole("Invalid background format: %dx%d, expected 400x*, file: %s", w, h, path);
         uint32_t* image = lib3d_malloc(h * LCD_ROWSIZE);
@@ -252,6 +255,8 @@ void ground_load_assets(PlaydateAPI* playdate) {
         }
         _backgrounds[i/2 + 15] = image;
         _backgrounds_heights[i/2 + 15] = h;
+        // release source image
+        pd->graphics->freeBitmap(bitmap);
     }
 
     // raycasting angles
