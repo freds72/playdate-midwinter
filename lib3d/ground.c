@@ -45,9 +45,15 @@ typedef struct {
     GroundSlice* slices[GROUND_SIZE];
 } Ground;
 
+
+typedef struct {
+    int w, h;
+    LCDBitmap* image;
+} PropImage;
+
 typedef struct {
     // contains all zoom levels
-    LCDBitmap* scaled[_scaled_image_count];
+    PropImage scaled[_scaled_image_count];
 } ScaledProp;
 
 typedef struct {
@@ -126,6 +132,7 @@ static void make_slice(GroundSlice* slice, float y) {
     slice->y = y;
     for (int i = 0; i < GROUND_SIZE; ++i) {
         slice->h[i] = (16.f*perlin2d((16.f * i) / GROUND_SIZE, _ground.noise_y_offset, 0.1f, 4) - 8.f) * active_params.slope;
+        // avoid props on 
         if (randf()>active_params.props_rate)
         {
             // todo: more types
@@ -142,6 +149,10 @@ static void make_slice(GroundSlice* slice, float y) {
     // side walls
     slice->h[0] = slice->h[1] + 32.0f;
     slice->h[GROUND_SIZE - 1] = slice->h[GROUND_SIZE - 2] + 32.0f;
+    // kill props on side walls
+    slice->props[0] = 0;
+    slice->props[GROUND_SIZE - 1] = 0;
+    slice->props[GROUND_SIZE - 2] = 0;
 
     slice->extents[0] = GROUND_CELL_SIZE;
     slice->extents[1] = (GROUND_SIZE - 2) * GROUND_CELL_SIZE;
@@ -290,7 +301,15 @@ static void load_prop(const int angle, const int prop) {
         if (!bitmap)
             pd->system->logToConsole("Failed to load: %s, %s", path, err);
 
-        _ground_props->rotated[30 + angle].scaled[i] = bitmap;
+        int w, h, stride;
+        uint8_t* data, * alpha;
+        pd->graphics->getBitmapData(bitmap, &w, &h, &stride, &alpha, &data);
+        
+        _ground_props->rotated[30 + angle].scaled[i] = (PropImage){
+            .w = w,
+            .h = h,
+            .image = bitmap
+        };
     }
 }
 
@@ -448,8 +467,8 @@ static void draw_face(const float* m, const Point3d* p, int* indices, int n, uin
         if (dither_key < 0) dither_key = 0;
         polyfill(pts, n, _dithers[dither_key], bitmap);
         /*
-        float x0 = pts[face->n - 1].x, y0 = pts[face->n - 1].y;
-        for (int i = 0; i < face->n; ++i) {
+        float x0 = pts[n - 1].x, y0 = pts[n - 1].y;
+        for (int i = 0; i < n; ++i) {
             float x1 = pts[i].x, y1 = pts[i].y;
             pd->graphics->drawLine(x0,y0,x1,y1, 1, kColorWhite);
             x0 = x1, y0 = y1;
@@ -543,8 +562,10 @@ static void collect_tiles(const Point3d pos, float base_angle) {
             // if (((mapx | mapy) & 0xffffffe0) != 0) break;
             if (mapx > 31 || mapx < 0 || mapy > 31 || mapy < 0) break;
 
+            // not already visited?
             if(!(_visible_tiles.visited[mapy] & (1 << mapx))) {
                 _visible_tiles.visited[mapy] |= 1 << mapx;
+                // add tile to the front to back set
                 _visible_tiles.ordered[_visible_tiles.n++] = mapx + mapy * GROUND_SIZE;
             }
         }
@@ -562,8 +583,8 @@ void render_ground(Point3d cam_pos, float cam_angle, float* m, uint32_t* bitmap)
 
     collect_tiles(cam_pos, cam_angle);
 
-    // transform visible tiles
     const float y_offset = _ground.y_offset;
+    // transform visible tiles in reverse order (back to front)
     for (int k = _visible_tiles.n - 1; k >= 0; k--) {
         const int tile_id = _visible_tiles.ordered[k];
         const int i = tile_id % GROUND_SIZE, j = tile_id / GROUND_SIZE;
@@ -607,12 +628,8 @@ void render_ground(Point3d cam_pos, float cam_angle, float* m, uint32_t* bitmap)
                     float y = 119.5f - w * res.y;
                     int bw, bh;
                     int stride;
-                    LCDBitmap* bitmap = _ground_props->rotated[angle + 30].scaled[_scaled_by_z[(int)(16 * (res.z / GROUND_CELL_SIZE - 1.f))]];
-                    if (bitmap) {
-                        uint8_t* dummy;
-                        pd->graphics->getBitmapData(bitmap, &bw, &bh, &stride, &dummy, &dummy);
-                        pd->graphics->drawBitmap(bitmap, x - bw / 2, y - bh, 0);
-                    }
+                    PropImage* prop = &_ground_props->rotated[angle + 30].scaled[_scaled_by_z[(int)(16 * (res.z / GROUND_CELL_SIZE - 1.f))]];
+                    pd->graphics->drawBitmap(prop->image, x - prop->w / 2, y - prop->h, 0);
                 }
             }
         }
