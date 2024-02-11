@@ -36,5 +36,6 @@ float v_dot(const Point3d* a, const Point3d* b);
 void v_normz(Point3d* a);
 void v_cross(const Point3d* a, const Point3d* b, Point3d* out);
 void m_x_v(const float* m, const Point3d v,Point3d *out);
+void v_lerp(const Point3d* a, const Point3d* b, const float t, Point3d* out);
 
 #endif

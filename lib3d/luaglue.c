@@ -374,18 +374,18 @@ static int lib3d_bench_scaler(lua_State* L) {
 	if (_x > LCD_COLUMNS) _x = LCD_COLUMNS;
 	if (_x < 0) _x = 0;
 
-	pd->system->resetElapsedTime();
+	// pd->system->resetElapsedTime();
 	float t0 = pd->system->getElapsedTime();
-	float w = 60;// + (64.f * fabsf(cos(t0)));
+	float w = 16 + (164.f * fabsf(cos(t0)));
 
 	// pc: 0.002
-	for (int i = 0; i < 100; ++i) {
+	for (int i = 0; i < 25; ++i) {
 
 		if (buttons & kButtonA) {
-			pd->graphics->drawScaledBitmap(_mire_bitmap, _x - w / 2, 96 - w / 2, w / 32.f, w / 32.f);
+			pd->graphics->drawScaledBitmap(_mire_bitmap, _x - w / 2 + i * 2, 96 - w / 2 + i % 32, w / 32.f, w / 32.f);
 		}
 		else {
-			sspr(_x - w / 2, 96 - w / 2, w, _mire_data, 32, bitmap8);
+			sspr(_x - w / 2 + i *2, 96 - w / 2 + i%32, w, _mire_data, 32, bitmap8);
 		}
 		// upscale_image(41, 96, 60, 60, _mire_data, 32, 32, bitmap8);
 	}
@@ -397,6 +397,16 @@ static int lib3d_bench_scaler(lua_State* L) {
 	return 0;
 }
 
+// async load asset function
+static int lib3d_load_assets_async(lua_State* L) {
+	const int res = ground_load_assets_async();
+	if (res) {
+		pd->lua->pushBool(1);
+		return 1;
+	}
+
+	return 0;
+}
 
 void lib3d_register(PlaydateAPI* playdate)
 {
@@ -406,6 +416,7 @@ void lib3d_register(PlaydateAPI* playdate)
 
 	// init modules
 	gfx_init(playdate);
+	ground_init(playdate);
 
 	if (!pd->lua->addFunction(lib3d_make_ground, "lib3d.make_ground", &err))
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
@@ -417,6 +428,9 @@ void lib3d_register(PlaydateAPI* playdate)
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
 	if (!pd->lua->addFunction(lib3d_get_face, "lib3d.get_face", &err))
+		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
+
+	if (!pd->lua->addFunction(lib3d_load_assets_async, "lib3d.load_assets_async", &err))
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
 	if (!pd->lua->addFunction(lib3d_update_ground, "lib3d.update_ground", &err))
@@ -453,10 +467,7 @@ void lib3d_register(PlaydateAPI* playdate)
 			}
 		}
 	}
-	// 
-	ground_load_assets(playdate);
 }
 
 void lib3d_unregister(PlaydateAPI* playdate) {
-
 }

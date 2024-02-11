@@ -81,6 +81,18 @@ function wait_async(t)
 	end
 end
 
+-- transition to next state
+local states={}
+
+function pop_state()
+	assert(#states>0,"missing base state")	
+	states[#states]=nil
+end
+
+function push_state(state,...)
+	add(states,state(...))
+end
+
 -- vector & tools
 function lerp(a,b,t)
 	return a*(1-t)+b*t
@@ -646,18 +658,29 @@ function make_snowball(pos)
 end
 
 -- game states
--- transition to next state
--- game states
--- transition to next state
-local states={}
+function loading_state()
+	local step = 0
+	do_async(function()
+		while lib3d.load_assets_async() do
+			step += 1
+			if step%10==0 then
+				coroutine.yield()
+			end
+		end
+		push_state(menu_state)
+	end)
 
-function pop_state()
-	assert(#states>0,"missing base state")	
-	states[#states]=nil
-end
+	return {
+		-- draw
+		draw=function()
+			cls()
+			print("Loading assets: "..step,4,4)
+		end,
+		-- update
+		update=function()
 
-function push_state(state,...)
-	add(states,state(...))
+		end
+	}
 end
 
 function menu_state()
@@ -707,14 +730,14 @@ function menu_state()
 
 	local tree_prop,bush_prop,cow_prop={sx=112,sy=16,r=1.4,sfx={9,10}},{sx=96,sy=32,r=1,sfx={9,10}},{sx=112,sy=48,r=1,sfx={4}}
 	local panels={
-		{panel=make_panel("MARMOTTES","piste verte",12),c=1,params={dslot=0,slope=1.5,tracks=1,bonus_t=2,total_t=30*30,record_t=records[1],props={tree_prop},props_rate=0.85}},
-		{panel=make_panel("BIQUETTES","piste rouge",18),c=8,params={dslot=1,slope=2,tracks=2,bonus_t=1.5,total_t=20*30,record_t=records[2],props={tree_prop,bush_prop},props_rate=0.87,}},
+		{panel=make_panel("MARMOTTES","piste verte",12),c=1,params={dslot=0,slope=1.5,tracks=1,bonus_t=2,total_t=30*30,record_t=records[1],props={tree_prop},props_rate=0.95}},
+		{panel=make_panel("BIQUETTES","piste rouge",18),c=8,params={dslot=1,slope=2,tracks=2,bonus_t=1.5,total_t=20*30,record_t=records[2],props={tree_prop,bush_prop},props_rate=0.97,}},
 		{panel=make_panel("CHAMOIS","piste noire",21),c=0,params={dslot=2,slope=3,tracks=3,bonus_t=1.5,total_t=15*30,record_t=records[3],props={tree_prop,tree_prop,tree_prop,cow_prop},props_rate=0.92,}},
 		{panel=make_direction("Le village")}
 	}
 	local sel,sel_tgt,blink=0,0,false
 
-	ground=make_ground({slope=0,tracks=0,props_rate=0.6,props={tree_prop}})
+	ground=make_ground({slope=0,tracks=0,props_rate=0.86,props={tree_prop}})
 
 	-- reset cam	
 	cam=make_cam()
@@ -840,31 +863,11 @@ function play_state(params)
 	-- reset cam	
 	cam=make_cam()
 
-	-- sprites
-	local rot_sprites={
-		-- flags
-		make_rspr(112,32,128),
-		make_rspr(48,0,128)}
-	-- per track props
-	local prev_prop
-	for _,prop in pairs(params.props) do
-		if prev_prop~=prop then
-			add(rot_sprites,make_rspr(prop.sx,prop.sy,128))
-			-- avoid double registration!
-			prev_prop=prop
-		end
-	end
-
 	return {
 		-- draw
 		draw=function()
 			
-			-- cam:draw_horizon(1,12)
-			
-			ground:draw(cam)
-			 
-			--local cpu=flr(10000*stat(1))/100
-			-- print(stat(1),96,2,2)
+			ground:draw(cam)			 
 
 			if plyr then
 				local pos,a,steering=plyr:get_pos()
@@ -1150,7 +1153,7 @@ function _init()
 	end
 
 	-- init state machine
-	push_state(menu_state)
+	push_state(loading_state)
 end
 
 function _update()
@@ -1268,7 +1271,9 @@ end
 function make_ground(params)
 	-- ground params
 	local gp = lib3d.GroundParams.new()
-	gp.slope = params.slope
+	for k,v in pairs(params) do
+		gp[k] = v
+	end
 	lib3d.make_ground(gp)
 	
 	return {		

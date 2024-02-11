@@ -8,6 +8,7 @@
 #include "gfx.h"
 #include "3dmath.h"
 #include "realloc.h"
+#include "scales.h"
 
 #define GROUND_SIZE 32
 #define GROUND_CELL_SIZE 4
@@ -22,7 +23,8 @@ typedef struct {
     float h[GROUND_SIZE];
     // actor type (0 if none)
     int props[GROUND_SIZE];
-    Point3d props_pos[GROUND_SIZE];
+    // ratio [0;1[ in the face diagonal
+    float prop_t[GROUND_SIZE];
 
     // 
     int is_checkpoint;
@@ -43,6 +45,19 @@ typedef struct {
     GroundSlice* slices[GROUND_SIZE];
 } Ground;
 
+typedef struct {
+    // contains all zoom levels
+    LCDBitmap* scaled[_scaled_image_count];
+} ScaledProp;
+
+typedef struct {
+    // -30 - 30 (inc.)
+    ScaledProp rotated[61];
+} RotatedScaledProp;
+
+// 0: pine tree
+static RotatedScaledProp _ground_props[8];
+
 // raycasting angles
 #define RAYCAST_PRECISION 128
 static float _raycast_angles[RAYCAST_PRECISION];
@@ -58,8 +73,8 @@ static GroundParams active_params;
 typedef uint32_t DitherPattern[32];
 static DitherPattern _dithers[16];
 
-static uint32_t* _backgrounds[60];
-static int _backgrounds_heights[60];
+static uint32_t* _backgrounds[61];
+static int _backgrounds_heights[61];
 
 // returns a random number between 0-1
 static float randf() {
@@ -111,7 +126,16 @@ static void make_slice(GroundSlice* slice, float y) {
     slice->y = y;
     for (int i = 0; i < GROUND_SIZE; ++i) {
         slice->h[i] = (16.f*perlin2d((16.f * i) / GROUND_SIZE, _ground.noise_y_offset, 0.1f, 4) - 8.f) * active_params.slope;
-        slice->props[i] = 0;
+        if (randf()>active_params.props_rate)
+        {
+            // todo: more types
+            slice->props[i] = 1;
+            slice->prop_t[i] = randf();
+        }
+        else {
+            slice->props[i] = 0;
+        }
+
     }
     // todo: control roughness from slope?
     _ground.noise_y_offset += 0.5f;
@@ -202,67 +226,136 @@ void get_face(Point3d pos, Point3d* nout, float* yout) {
     //         return f, p, atan2(slices[j + 2].x - p[1], 2 * dz)
 }
 
-void ground_load_assets(PlaydateAPI* playdate) {
-    pd = playdate;
-
+static void load_noise(const int i, const int _) {
     const char* err;
-    // read dither table
-    for (int i = 0; i < 16; ++i) {
+    char* path = NULL;
+    pd->system->formatString(&path, "images/generated/noise32x32-%d", i);
+    LCDBitmap* bitmap = pd->graphics->loadBitmap(path, &err);
+    if (!bitmap)
+        pd->system->logToConsole("Failed to load: %s, %s", path, err);
+    int w = 0, h = 0, r = 0;
+    uint8_t* mask = NULL;
+    uint8_t* data = NULL;
+    pd->graphics->getBitmapData(bitmap, &w, &h, &r, &mask, &data);
+    if (w != 32 || h != 32)
+        pd->system->logToConsole("Invalid pattern format: %dx%d, file: %s", w, h, path);
+    for (int j = 0; j < 32; ++j) {
+        int mask = (data[3] << 24) | (data[2] << 16) | (data[1] << 8) | data[0];
+        _dithers[i][j] = mask;
+        data += 4;
+    }
+    // release source image
+    pd->graphics->freeBitmap(bitmap);
+}
+
+static void load_background(const int i, const int _) {
+    const char* err;
+    char* path = NULL;
+    // convert to "angle"
+    pd->system->formatString(&path, "images/generated/sky_background_%i", i);
+    LCDBitmap* bitmap = pd->graphics->loadBitmap(path, &err);
+    if (!bitmap)
+        pd->system->logToConsole("Failed to load: %s, %s", path, err);
+    int w = 0, h = 0, r = 0;
+    uint8_t* mask = NULL;
+    uint8_t* data = NULL;
+    pd->graphics->getBitmapData(bitmap, &w, &h, &r, &mask, &data);
+    if (w != 400)
+        pd->system->logToConsole("Invalid background format: %ix%i, expected 400x*, file: %s", w, h, path);
+    uint32_t* image = lib3d_malloc(h * LCD_ROWSIZE);
+    uint32_t* dst = image;
+    for (int j = 0; j < h; ++j) {
+        // create 32bits blocks
+        for (int i = 0; i < 12; ++i) {
+            *(dst++) = (data[3] << 24) | (data[2] << 16) | (data[1] << 8) | data[0];
+            data += 4;
+        }
+        // last 16 bits
+        *(dst++) = (data[1] << 8) | data[0];
+        data += 2;
+    }
+    _backgrounds[i + 30] = image;
+    _backgrounds_heights[i + 30] = h;
+    // release source image
+    pd->graphics->freeBitmap(bitmap);
+}
+
+static void load_prop(const int angle, const int prop) {
+    const char* err;
+    for (int i = 0; i < _scaled_image_count; i++) {
         char* path = NULL;
-        pd->system->formatString(&path, "images/generated/noise32x32-%d", i);
+        pd->system->formatString(&path, "images/generated/pine_snow_0_%i_%i", angle, i);
+
         LCDBitmap* bitmap = pd->graphics->loadBitmap(path, &err);
         if (!bitmap)
             pd->system->logToConsole("Failed to load: %s, %s", path, err);
-        int w = 0, h = 0, r = 0;
-        uint8_t* mask = NULL;
-        uint8_t* data = NULL;
-        pd->graphics->getBitmapData(bitmap, &w, &h, &r, &mask, &data);
-        if (w != 32 || h != 32)
-            pd->system->logToConsole("Invalid pattern format: %dx%d, file: %s", w, h, path);
-        for (int j = 0; j < 32; ++j) {
-            int mask = (data[3] << 24) | (data[2] << 16) | (data[1] << 8) | data[0];
-            _dithers[i][j] = mask;
-            data += 4;
-        }
-        // release source image
-        pd->graphics->freeBitmap(bitmap);
+
+        _ground_props->rotated[30 + angle].scaled[i] = bitmap;
+    }
+}
+
+typedef void(* unit_of_work_callback)(const int, const int);
+typedef struct {
+    unit_of_work_callback callback;
+    int param1;
+    int param2;
+} UnitOfWork;
+
+static struct {
+    UnitOfWork todo[512];
+    int cursor;
+    int n;
+} _work;
+
+
+void ground_init(PlaydateAPI* playdate) {
+
+    // keep SDK handle   
+    pd = playdate;
+
+    _work.cursor = 0;
+    _work.n = 0;
+
+    // read dither table
+    for (int i = 0; i < 16; ++i) {
+        _work.todo[_work.n++] = (UnitOfWork){
+            .callback = load_noise,
+            .param1 = i,
+            .param2 = -1
+        };
     }
 
     // read rotated backgrounds
-    for (int i = -30; i < 28; i+=2) {
-        char* path = NULL;
-        pd->system->formatString(&path, "images/generated/sky_background_%d", i);
-        LCDBitmap* bitmap = pd->graphics->loadBitmap(path, &err);
-        if (!bitmap)
-            pd->system->logToConsole("Failed to load: %s, %s", path, err);
-        int w = 0, h = 0, r = 0;
-        uint8_t* mask = NULL;
-        uint8_t* data = NULL;
-        pd->graphics->getBitmapData(bitmap, &w, &h, &r, &mask, &data);
-        if (w != 400 )
-            pd->system->logToConsole("Invalid background format: %dx%d, expected 400x*, file: %s", w, h, path);
-        uint32_t* image = lib3d_malloc(h * LCD_ROWSIZE);
-        uint32_t* dst = image;
-        for (int j = 0; j < h; ++j) {
-            // create 32bits blocks
-            for (int i = 0; i < 12; ++i) {
-                *(dst++) = (data[3] << 24) | (data[2] << 16) | (data[1] << 8) | data[0];
-                data += 4;
-            }
-            // last 16 bits
-            *(dst++) = (data[1] << 8) | data[0];       
-            data += 2;
-        }
-        _backgrounds[i/2 + 15] = image;
-        _backgrounds_heights[i/2 + 15] = h;
-        // release source image
-        pd->graphics->freeBitmap(bitmap);
+    for (int i = -30; i < 30; i++) {
+        _work.todo[_work.n++] = (UnitOfWork){
+            .callback = load_background,
+            .param1 = i,
+            .param2 = -1
+        };
+    }
+
+    // read rotated & scaled sprites
+    for (int angle = -30; angle < 31; ++angle) {
+        _work.todo[_work.n++] = (UnitOfWork){
+            .callback = load_prop,
+            .param1 = angle,
+            .param2 = 1
+        };
     }
 
     // raycasting angles
     for(int i=0;i<RAYCAST_PRECISION;++i) {
         _raycast_angles[i] = atan2f(31.5f,(float)(i-63.5f)) - PI/2.f;
     }
+}
+
+int ground_load_assets_async() {
+    // done
+    if (_work.cursor >= _work.n) return 0;
+
+    UnitOfWork* activeUnit = &_work.todo[_work.cursor++];
+    (*activeUnit->callback)(activeUnit->param1, activeUnit->param2);
+    return 1;
 }
 
 // --------------- 3d rendering -----------------------------
@@ -279,32 +372,14 @@ typedef struct {
     int outcode;
 } CameraPoint3d;
 
-typedef struct {
-    // clipped points in camera space
-    Point3d pts[5];
-    // number of points
-    int n;
-    int material;
-    // sort key
-    float key;
-} Face;
-
-// visible tiles encoded as 1 bit per cell
-static uint32_t _visible_tiles[GROUND_SIZE];
-
 static struct {
-  Face faces[GROUND_SIZE * GROUND_SIZE * 2];
-  int n;
-} _drawables;
-
-static Face* _sortables[GROUND_SIZE * GROUND_SIZE * 2];
-
-// compare 2 Faces
-static int cmp_face(const void * a, const void * b) {
-  const float x = (*(Face**)a)->key;
-  const float y = (*(Face**)b)->key;
-  return x < y ? -1 : x == y ? 0 : 1;
-}
+    // visible tiles encoded as 1 bit per cell
+    uint32_t visited[GROUND_SIZE];
+    // front to back visible tiles
+    uint32_t ordered[GROUND_SIZE * GROUND_SIZE];
+    // number of visible tiles
+    int n;
+} _visible_tiles;
 
 // clip polygon against near-z
 static int z_poly_clip(const float znear, Point3d* in, int n, Point3d* out) {
@@ -331,40 +406,59 @@ static int z_poly_clip(const float znear, Point3d* in, int n, Point3d* out) {
     return nout;
 }
 
-// add a drawable to the global list
-static void add_drawable_face(const float* m, const Point3d* p,int* indices, int n) {
-  Point3d tmp[4];
-  // transform
-  int outcode = 0xfffffff, is_clipped = 0;
-  float min_key = FLT_MAX;
-  for(int i=0;i<n;++i) {          
-    Point3d* res = &tmp[i];
-    // project using active matrix
-    m_x_v(m,p[indices[i]], res);
-    int code = res->z>Z_NEAR?OUTCODE_FAR:OUTCODE_NEAR;
-    if(res->x>res->z) code|=OUTCODE_RIGHT;
-    if(-res->x>res->z) code|=OUTCODE_LEFT;
-    outcode &= code;
-    is_clipped += code&2;
-    if(res->z<min_key) min_key = res->z;
-  }
+// draw a face
+static void draw_face(const float* m, const Point3d* p, int* indices, int n, uint32_t* bitmap) {
+    Point3d tmp[4];
+    // transform
+    int outcode = 0xfffffff, is_clipped = 0;
+    float min_key = FLT_MAX;
+    for (int i = 0; i < n; ++i) {
+        Point3d* res = &tmp[i];
+        // project using active matrix
+        m_x_v(m, p[indices[i]], res);
+        int code = res->z > Z_NEAR ? OUTCODE_FAR : OUTCODE_NEAR;
+        if (res->x > res->z) code |= OUTCODE_RIGHT;
+        if (-res->x > res->z) code |= OUTCODE_LEFT;
+        outcode &= code;
+        is_clipped += code & 2;
+        if (res->z < min_key) min_key = res->z;
+    }
 
-  // visible?
-  if (outcode==0) {
-    Face* face = &_drawables.faces[_drawables.n++];
-    face->key = min_key;
-    if (is_clipped>0) {
-      face->n = z_poly_clip(Z_NEAR, tmp, n, face->pts);
-    } else {
-      face->n = n;
-      for(int i=0;i<n;++i) {
-        face->pts[i] = tmp[i];
-      }
-    }   
-  }  
+    // visible?
+    if (outcode == 0) {
+        // clipped points in camera space
+        Point3d pts[5];
+        if (is_clipped > 0) {
+            n = z_poly_clip(Z_NEAR, tmp, n, pts);
+        }
+        else {
+            for (int i = 0; i < n; ++i) {
+                pts[i] = tmp[i];
+            }
+        }
+        for (int i = 0; i < n; ++i) {
+            // project 
+            float w = 199.5f / pts[i].z;
+            pts[i].x = 199.5f + w * pts[i].x;
+            pts[i].y = 119.5f - w * pts[i].y;
+        }
+        // todo: dither based on material + distance
+        int dither_key = (int)(min_key / 4.f);
+        if (dither_key > 15) dither_key = 15;
+        if (dither_key < 0) dither_key = 0;
+        polyfill(pts, n, _dithers[dither_key], bitmap);
+        /*
+        float x0 = pts[face->n - 1].x, y0 = pts[face->n - 1].y;
+        for (int i = 0; i < face->n; ++i) {
+            float x1 = pts[i].x, y1 = pts[i].y;
+            pd->graphics->drawLine(x0,y0,x1,y1, 1, kColorWhite);
+            x0 = x1, y0 = y1;
+        }
+        */
+    }
 }
 
-void render_sky(float* m, uint32_t* bitmap) {
+int render_sky(float* m, uint32_t* bitmap) {
     // cam up in world space
     Point3d n = { .v = {-m[4],-m[5],-m[6]} };
 
@@ -379,10 +473,10 @@ void render_sky(float* m, uint32_t* bitmap) {
     v_normz(&n);
     int angle = (int)(90.0f + 180.0f * atan2f(n.y, n.x) / PI);
     if (angle < -30) angle = -30;
-    if (angle > 28) angle = 28;
-    uint32_t* src = _backgrounds[angle/2 + 15];
+    if (angle > 30) angle = 30;
+    uint32_t* src = _backgrounds[angle + 30];
 
-    int h = _backgrounds_heights[angle/2 + 15];
+    int h = _backgrounds_heights[angle + 30];
 
     int h0 = (int)(y0 - h / 2);
     if (h0 < 0) {
@@ -398,18 +492,19 @@ void render_sky(float* m, uint32_t* bitmap) {
     memset(bitmap, 0xff, h0 * LCD_ROWSIZE);
     memcpy(bitmap + h0 * LCD_ROWSIZE / sizeof(uint32_t), src, (h1-h0) * LCD_ROWSIZE);
     memset(bitmap + h1 * LCD_ROWSIZE / sizeof(uint32_t), 0x00, (LCD_ROWS - h1) * LCD_ROWSIZE);
+
+    return angle;
 }
 
 static void collect_tiles(const Point3d pos, float base_angle) {
     float x = pos.x / GROUND_CELL_SIZE, y = pos.z / GROUND_CELL_SIZE;
     int x0 = (int)x, y0 = (int)y;
 
-    // reset tiles
-    memset((uint8_t*)_visible_tiles, 0, sizeof(uint32_t) * GROUND_SIZE);
-
-    // current tile is always in
-    _visible_tiles[y0] |= 1 << x0;
-
+    // current tile
+    if (!(_visible_tiles.visited[y0] & (1 << x0))) {
+        _visible_tiles.visited[y0] |= 1 << x0;
+        _visible_tiles.ordered[_visible_tiles.n++] = x0 + y0 * GROUND_SIZE;
+    }
     for (int i = 0; i < RAYCAST_PRECISION; ++i) {
         float angle = base_angle + _raycast_angles[i];
         float v = cosf(angle), u = sinf(angle);
@@ -448,88 +543,78 @@ static void collect_tiles(const Point3d pos, float base_angle) {
             // if (((mapx | mapy) & 0xffffffe0) != 0) break;
             if (mapx > 31 || mapx < 0 || mapy > 31 || mapy < 0) break;
 
-            _visible_tiles[mapy] |= 1 << mapx;
+            if(!(_visible_tiles.visited[mapy] & (1 << mapx))) {
+                _visible_tiles.visited[mapy] |= 1 << mapx;
+                _visible_tiles.ordered[_visible_tiles.n++] = mapx + mapy * GROUND_SIZE;
+            }
         }
     }
 }
 
 // render ground
 void render_ground(Point3d cam_pos, float cam_angle, float* m, uint32_t* bitmap) {
-    render_sky(m, bitmap);
+    int angle = render_sky(m, bitmap);
 
     // collect visible tiles
+    // reset tiles
+    _visible_tiles.n = 0;
+    memset(_visible_tiles.visited, 0, sizeof(uint32_t) * GROUND_SIZE);
+
     collect_tiles(cam_pos, cam_angle);
 
     // transform visible tiles
-    _drawables.n = 0;
     const float y_offset = _ground.y_offset;
-    for (int j = 0; j < GROUND_SIZE - 1; ++j) {
-        uint32_t visible_tiles = _visible_tiles[j];
-        for(int i=0;i<GROUND_SIZE;++i) {
-            // is the tile bit enabled?
-            if (visible_tiles & (1<<i)) {
-                const GroundSlice* s0 = _ground.slices[j];
-                const GroundSlice* s1 = _ground.slices[j + 1];
-                const Point3d verts[4] = {
-                {.v = {i * GROUND_CELL_SIZE,s0->h[i] + s0->y - y_offset,j * GROUND_CELL_SIZE}},
-                {.v = {(i + 1) * GROUND_CELL_SIZE,s0->h[i + 1] + s0->y - y_offset,j * GROUND_CELL_SIZE}},
-                {.v = {(i + 1) * GROUND_CELL_SIZE,s1->h[i + 1] + s1->y - y_offset,(j + 1) * GROUND_CELL_SIZE}},
-                {.v = {i * GROUND_CELL_SIZE,s1->h[i] + s1->y - y_offset,(j + 1) * GROUND_CELL_SIZE}} };
-                // transform
-                const GroundFace* f0 = &s0->faces[2 * i];
-                // camera to face point
-                const Point3d cv = { .x = verts[0].x - cam_pos.x,.y = verts[0].y - cam_pos.y,.z = verts[0].z - cam_pos.z };
-                if (f0->quad) {
-                    if (v_dot(&f0->n, &cv) < 0.f) 
-                    {
-                        add_drawable_face(m, verts, (int[]) { 0, 1, 2, 3 }, 4);
-                    }
+    for (int k = _visible_tiles.n - 1; k >= 0; k--) {
+        const int tile_id = _visible_tiles.ordered[k];
+        const int i = tile_id % GROUND_SIZE, j = tile_id / GROUND_SIZE;
+        if (j < GROUND_SIZE - 1) {
+            const GroundSlice* s0 = _ground.slices[j];
+            const GroundSlice* s1 = _ground.slices[j + 1];
+            const Point3d verts[4] = {
+            {.v = {i * GROUND_CELL_SIZE,s0->h[i] + s0->y - y_offset,j * GROUND_CELL_SIZE}},
+            {.v = {(i + 1) * GROUND_CELL_SIZE,s0->h[i + 1] + s0->y - y_offset,j * GROUND_CELL_SIZE}},
+            {.v = {(i + 1) * GROUND_CELL_SIZE,s1->h[i + 1] + s1->y - y_offset,(j + 1) * GROUND_CELL_SIZE}},
+            {.v = {i * GROUND_CELL_SIZE,s1->h[i] + s1->y - y_offset,(j + 1) * GROUND_CELL_SIZE}} };
+            // transform
+            const GroundFace* f0 = &s0->faces[2 * i];
+            // camera to face point
+            const Point3d cv = { .x = verts[0].x - cam_pos.x,.y = verts[0].y - cam_pos.y,.z = verts[0].z - cam_pos.z };
+            if (f0->quad) {
+                if (v_dot(&f0->n, &cv) < 0.f)
+                {
+                    draw_face(m, verts, (int[]) { 0, 1, 2, 3 }, 4, bitmap);
                 }
-                else {
-                    const GroundFace* f1 = &s0->faces[2 * i + 1];
-                    if (v_dot(&f0->n, &cv) < 0.f) 
-                    {
-                        add_drawable_face(m, verts, (int[]) { 0, 2, 3 }, 3);
-                    }
-                    if (v_dot(&f1->n, &cv) < 0.f) 
-                    {
-                        add_drawable_face(m, verts, (int[]) { 0, 1, 2 }, 3);
+            }
+            else {
+                const GroundFace* f1 = &s0->faces[2 * i + 1];
+                if (v_dot(&f0->n, &cv) < 0.f)
+                {
+                    draw_face(m, verts, (int[]) { 0, 2, 3 }, 3, bitmap);
+                }
+                if (v_dot(&f1->n, &cv) < 0.f)
+                {
+                    draw_face(m, verts, (int[]) { 0, 1, 2 }, 3, bitmap);
+                }
+            }
+            // draw prop (if any)
+            if (s0->props[i] != 0) {
+                Point3d pos, res;
+                v_lerp(&verts[0], &verts[2], s0->prop_t[i], &pos);
+                m_x_v(m, pos, &res);
+                if (res.z > Z_NEAR && res.z < GROUND_CELL_SIZE * 16) {
+                    float w = 199.5f / res.z;
+                    float x = 199.5f + w * res.x;
+                    float y = 119.5f - w * res.y;
+                    int bw, bh;
+                    int stride;
+                    LCDBitmap* bitmap = _ground_props->rotated[angle + 30].scaled[_scaled_by_z[(int)(16 * (res.z / GROUND_CELL_SIZE - 1.f))]];
+                    if (bitmap) {
+                        uint8_t* dummy;
+                        pd->graphics->getBitmapData(bitmap, &bw, &bh, &stride, &dummy, &dummy);
+                        pd->graphics->drawBitmap(bitmap, x - bw / 2, y - bh, 0);
                     }
                 }
             }
-        }
-    }
-
-    // sort
-    if (_drawables.n > 0) {
-        for (int i = 0; i < _drawables.n; ++i) {
-            _sortables[i] = &_drawables.faces[i];
-        }
-        qsort(_sortables, (size_t)_drawables.n, sizeof(Face*), cmp_face);
-
-        // rendering
-        for (int k = _drawables.n - 1; k >= 0;--k) {
-            Face* face = _sortables[k];
-            Point3d* pts = face->pts;
-            for (int i = 0; i < face->n; ++i) {
-                // project 
-                float w = 199.5f / pts[i].z;
-                pts[i].x = 199.5f + w * pts[i].x;
-                pts[i].y = 119.5f - w * pts[i].y;
-            }
-            // todo: dither based on material + distance
-            int dither_key = (int)(face->key / 4.f);
-            if (dither_key > 15) dither_key = 15;
-            if (dither_key < 0) dither_key = 0;
-            polyfill(face->pts, face->n, _dithers[dither_key], bitmap);
-            /*
-            float x0 = pts[face->n - 1].x, y0 = pts[face->n - 1].y;
-            for (int i = 0; i < face->n; ++i) {
-                float x1 = pts[i].x, y1 = pts[i].y;
-                pd->graphics->drawLine(x0,y0,x1,y1, 1, kColorWhite);
-                x0 = x1, y0 = y1;
-            }  
-            */
         }
     }
 }

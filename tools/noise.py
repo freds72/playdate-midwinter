@@ -18,6 +18,7 @@ import png
 from PIL import Image
 import threading
 import struct
+import os
 
 def GetBayerPattern(Log2Width):
     """Creates a two-dimensional Bayer pattern with a width and height of 
@@ -453,6 +454,7 @@ if(__name__=="__main__"):
     # PlotBinaryPatterns(Texture,3,5);
     # pyplot.show();
 
+    os.makedirs("../source/images/generated",exist_ok=True)
     generate(8)
     generate(32)
    

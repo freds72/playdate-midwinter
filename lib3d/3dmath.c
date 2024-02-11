@@ -36,3 +36,9 @@ float v_dot(const Point3d* a, const Point3d* b) {
     a->y * b->y +
     a->z * b->z;
 }
+
+void v_lerp(const Point3d* a, const Point3d* b, const float t, Point3d* out) {
+    out->x = lerpf(a->x, b->x, t);
+    out->y = lerpf(a->y, b->y, t);
+    out->z = lerpf(a->z, b->z, t);
+}

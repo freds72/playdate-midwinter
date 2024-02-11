@@ -35,7 +35,10 @@ void update_ground(Point3d* pos);
 // render ground
 void render_ground(Point3d pos, float angle, float*m, uint32_t* bitmap);
 
-// load stuff
-void ground_load_assets(PlaydateAPI* playdate);
+// load stuff (to be called until returns 0)
+int ground_load_assets_async();
+
+// init module
+void ground_init(PlaydateAPI* playdate);
 
 #endif 
