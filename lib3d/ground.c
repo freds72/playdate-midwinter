@@ -9,6 +9,7 @@
 #include "3dmath.h"
 #include "realloc.h"
 #include "scales.h"
+#include "tracks.h"
 
 #define GROUND_SIZE 32
 #define GROUND_CELL_SIZE 4
@@ -29,6 +30,7 @@ typedef struct {
     // 
     int is_checkpoint;
     // main track extents
+    float center;
     float extents[2];
 
 } GroundSlice;
@@ -36,11 +38,15 @@ typedef struct {
 // active slices + misc "globals"
 typedef struct {
     // 
+    int slice_id;
     float slice_y;
     float noise_y_offset;
     float y_offset;
     int plyr_z_index;
     int max_pz;
+
+    // active tracks
+    Tracks* tracks;
 
     GroundSlice* slices[GROUND_SIZE];
 } Ground;
@@ -82,11 +88,6 @@ static DitherPattern _dithers[16];
 static uint32_t* _backgrounds[61];
 static int _backgrounds_heights[61];
 
-// returns a random number between 0-1
-static float randf() {
-  return (float)rand() / RAND_MAX;
-}
-
 // compute normal and assign material for faces
 static void mesh_slice(int j) {
     GroundSlice* s0 = _ground.slices[j];
@@ -97,13 +98,13 @@ static void mesh_slice(int j) {
     v_normz(&sn);
 
     for (int i = 0; i < GROUND_SIZE - 1; ++i) {
-        const Point3d v0 = { .v = {i * GROUND_CELL_SIZE,s0->h[i] + s0->y,j * GROUND_CELL_SIZE} };
+        const Point3d v0 = { .v = {(float)i * GROUND_CELL_SIZE,s0->h[i] + s0->y,(float)j * GROUND_CELL_SIZE} };
         // v1-v0
-        const Point3d u1 = { .v = {GROUND_CELL_SIZE,s0->h[i + 1] + s0->y - v0.y,0} };
+        const Point3d u1 = { .v = {(float)GROUND_CELL_SIZE,s0->h[i + 1] + s0->y - v0.y,0.f} };
         // v2-v0
-        const Point3d u2 = { .v = {GROUND_CELL_SIZE,s1->h[i + 1] + s1->y - v0.y,GROUND_CELL_SIZE} };
+        const Point3d u2 = { .v = {(float)GROUND_CELL_SIZE,s1->h[i + 1] + s1->y - v0.y,(float)GROUND_CELL_SIZE} };
         // v3-v0
-        const Point3d u3 = { .v = {0,s1->h[i] + s1->y - v0.y,GROUND_CELL_SIZE} };
+        const Point3d u3 = { .v = {0.f,s1->h[i] + s1->y - v0.y,(float)GROUND_CELL_SIZE} };
 
         Point3d n0, n1;
         v_cross(&u3, &u2, &n0);
@@ -130,34 +131,73 @@ static void make_slice(GroundSlice* slice, float y) {
     y = _ground.slice_y;
     // capture height
     slice->y = y;
+
+    update_tracks();
+
+    // generate height
     for (int i = 0; i < GROUND_SIZE; ++i) {
         slice->h[i] = (16.f*perlin2d((16.f * i) / GROUND_SIZE, _ground.noise_y_offset, 0.1f, 4) - 8.f) * active_params.slope;
-        // avoid props on 
-        if (randf()>active_params.props_rate)
-        {
-            // todo: more types
-            slice->props[i] = 1;
-            slice->prop_t[i] = randf();
+        // avoid props on side walls
+        slice->props[i] = 0;
+        if (i > 0 && i < GROUND_SIZE - 2) {
+            if (randf() > active_params.props_rate)
+            {
+                // todo: more types
+                slice->props[i] = 1;
+                slice->prop_t[i] = randf();
+            }
         }
-        else {
-            slice->props[i] = 0;
-        }
-
     }
     // todo: control roughness from slope?
     _ground.noise_y_offset += 0.5f;
     // side walls
-    slice->h[0] = slice->h[1] + 32.0f;
-    slice->h[GROUND_SIZE - 1] = slice->h[GROUND_SIZE - 2] + 32.0f;
-    // kill props on side walls
-    slice->props[0] = 0;
-    slice->props[GROUND_SIZE - 1] = 0;
-    slice->props[GROUND_SIZE - 2] = 0;
+    slice->h[0] = slice->h[1]/2 + 16.0f;
+    slice->h[GROUND_SIZE - 1] = slice->h[GROUND_SIZE - 2]/2 + 16.0f;
 
-    slice->extents[0] = GROUND_CELL_SIZE;
-    slice->extents[1] = (GROUND_SIZE - 2) * GROUND_CELL_SIZE;
+    float xmin = 2 * GROUND_CELL_SIZE, xmax = (GROUND_SIZE - 2) * GROUND_CELL_SIZE;
+    float main_track_x = (xmin + xmax) / 2.f;
+    int is_checkpoint = 0;
+    Tracks* tracks = _ground.tracks;
+    for (int k = 0; k < tracks->n; ++k) {
+        Track* t = &tracks->tracks[k];
+        const int ii = (int)t->x;
+        const int i0 = ii - 2, i1 = ii + 2;
+        if (t->is_main) {
+            main_track_x = t->x;
+            xmin = (float)i0 * GROUND_CELL_SIZE;
+            xmax = (float)i1 * GROUND_CELL_SIZE;
+            for (int i = i0; i < i1; ++i) {
+                // smooth track
+                slice->h[i] = t->h + slice->h[i] / 4.f;
+                // remove props from track
+                slice->props[i] = 0;
+            }
+            // race markers
+            if (_ground.slice_id % 8 == 0) {
+                is_checkpoint = 1;
+                // slice->actors[i0] = clone(left_pole)
+                // actors[i1] = clone(right_pole)-- {sx = right_pole.sx, sy = right_pole.sy}
+            }
+        }
+        else {
+            // side tracks
+            for (int i = i0; i < i1; ++i) {
+                slice->h[i] = (t->h + slice->h[i]) / 2.f;
+            }
+            // coins
+            if (_ground.slice_id % 2 == 0) {
+                // slice->props[ii] = clone(coin);
+            }
+        }
+    }
 
-    slice->is_checkpoint = 0;
+    slice->center = main_track_x;
+    slice->extents[0] = xmin;
+    slice->extents[1] = xmax;
+
+    slice->is_checkpoint = is_checkpoint;
+
+    _ground.slice_id++;
 }
 
 void make_ground(GroundParams params) {
@@ -165,11 +205,16 @@ void make_ground(GroundParams params) {
 
     active_params = params;
     // reset global params
+    _ground.slice_id = 0;
     _ground.slice_y = 0;
     _ground.y_offset = 0;
     _ground.noise_y_offset = 16.f * randf();
     _ground.plyr_z_index = GROUND_SIZE / 2 - 1;
     _ground.max_pz = INT_MIN;
+
+    // init track generator
+    int num_tracks = params.num_tracks > 0 ? params.num_tracks : 3;
+    make_tracks(8, GROUND_SIZE - 8, num_tracks, &_ground.tracks);
 
     for (int i = 0; i < GROUND_SIZE; ++i) {
         // reset slices
@@ -189,7 +234,7 @@ void update_ground(Point3d* p) {
         // shift back
         p->z -= GROUND_CELL_SIZE;
         _ground.max_pz -= GROUND_CELL_SIZE;
-        GroundSlice* old_slice = _ground.slices[0];
+        const GroundSlice* old_slice = _ground.slices[0];
         float old_y = old_slice->y;
         // drop slice 0
         for (int i = 1; i < GROUND_SIZE; ++i) {
@@ -206,21 +251,21 @@ void update_ground(Point3d* p) {
     // update y offset
     if (p->z > _ground.max_pz) {
         _ground.y_offset = lerpf(_ground.slices[0]->y, _ground.slices[1]->y, pz - (int)pz);
-        _ground.max_pz = p->z;
+        _ground.max_pz = (int)p->z;
     }
 }
 
 void get_start_pos(Point3d* out) {
-    out->x = GROUND_SIZE * GROUND_CELL_SIZE / 2;
+    out->x = _ground.slices[_ground.plyr_z_index]->center;
     out->y = 0;
-    out->z = _ground.plyr_z_index * GROUND_CELL_SIZE;
+    out->z = (float)_ground.plyr_z_index * GROUND_CELL_SIZE;
 }
 
-void get_face(Point3d pos, Point3d* nout, float* yout) {
+void get_face(Point3d pos, Point3d* nout, float* yout,float* angleout) {
     // z slice
     int i = (int)(pos.x / GROUND_CELL_SIZE), j = (int)(pos.z / GROUND_CELL_SIZE);
     
-    const GroundSlice* s0 = _ground.slices[j];
+    GroundSlice* s0 = _ground.slices[j];
     GroundFace* f0 = &s0->faces[2 * i];
     GroundFace* f1 = &s0->faces[2 * i + 1];
     GroundFace* f = f0;
@@ -229,14 +274,35 @@ void get_face(Point3d pos, Point3d* nout, float* yout) {
 
     // intersection point
     Point3d ptOnFace;
-    make_v((Point3d) { .v = {i * GROUND_CELL_SIZE, s0->h[i] + s0->y - _ground.y_offset, j * GROUND_CELL_SIZE} }, pos, &ptOnFace);
+    make_v((Point3d) { .v = {(float)i * GROUND_CELL_SIZE, s0->h[i] + s0->y - _ground.y_offset, (float)j * GROUND_CELL_SIZE} }, pos, &ptOnFace);
          
-    // 
+    // height
     *yout = pos.y - v_dot(&ptOnFace, &f->n) / f->n.y;
+    // face normal
     *nout = f->n;
-    //         return f, p, atan2(slices[j + 2].x - p[1], 2 * dz)
+    // direction to track ahead
+    *angleout = atan2f(2 * GROUND_CELL_SIZE, _ground.slices[j + 2]->center - pos.x) / PI;
 }
 
+// get slice extents
+void get_track_info(Point3d pos, float* xmin, float *xmax, int*checkpoint) {
+    int j = (int)(pos.z / GROUND_CELL_SIZE);
+    const GroundSlice* s0 = _ground.slices[j];
+    *xmin = s0->extents[0];
+    *xmax = s0->extents[1];
+    *checkpoint = s0->is_checkpoint;
+}
+
+// clear checkpoint
+void clear_checkpoint(Point3d pos) {
+    int j = (int)(pos.z / GROUND_CELL_SIZE);
+    GroundSlice* s0 = _ground.slices[j];
+    s0->is_checkpoint = 0;
+}
+
+/*
+* loading assets helpers
+*/
 static void load_noise(const int i, const int _) {
     const char* err;
     char* path = NULL;
@@ -529,8 +595,8 @@ static void collect_tiles(const Point3d pos, float base_angle) {
         float v = cosf(angle), u = sinf(angle);
 
         int mapx = x0, mapy = y0;
+        int mapdx = 1, mapdy = 1;
         float ddx = 1.f / u, ddy = 1.f / v;
-        float mapdx = 1, mapdy = 1;
         float distx = 0, disty = 0;
         if (u < 0.f) {
             mapdx = -1;
@@ -592,10 +658,10 @@ void render_ground(Point3d cam_pos, float cam_angle, float* m, uint32_t* bitmap)
             const GroundSlice* s0 = _ground.slices[j];
             const GroundSlice* s1 = _ground.slices[j + 1];
             const Point3d verts[4] = {
-            {.v = {i * GROUND_CELL_SIZE,s0->h[i] + s0->y - y_offset,j * GROUND_CELL_SIZE}},
-            {.v = {(i + 1) * GROUND_CELL_SIZE,s0->h[i + 1] + s0->y - y_offset,j * GROUND_CELL_SIZE}},
-            {.v = {(i + 1) * GROUND_CELL_SIZE,s1->h[i + 1] + s1->y - y_offset,(j + 1) * GROUND_CELL_SIZE}},
-            {.v = {i * GROUND_CELL_SIZE,s1->h[i] + s1->y - y_offset,(j + 1) * GROUND_CELL_SIZE}} };
+            {.v = {(float)i * GROUND_CELL_SIZE,s0->h[i] + s0->y - y_offset,             (float)j * GROUND_CELL_SIZE}},
+            {.v = {(float)(i + 1) * GROUND_CELL_SIZE,s0->h[i + 1] + s0->y - y_offset,   (float)j * GROUND_CELL_SIZE}},
+            {.v = {(float)(i + 1) * GROUND_CELL_SIZE,s1->h[i + 1] + s1->y - y_offset,   (float)(j + 1) * GROUND_CELL_SIZE}},
+            {.v = {(float)i * GROUND_CELL_SIZE,s1->h[i] + s1->y - y_offset,             (float)(j + 1) * GROUND_CELL_SIZE}} };
             // transform
             const GroundFace* f0 = &s0->faces[2 * i];
             // camera to face point
@@ -626,10 +692,8 @@ void render_ground(Point3d cam_pos, float cam_angle, float* m, uint32_t* bitmap)
                     float w = 199.5f / res.z;
                     float x = 199.5f + w * res.x;
                     float y = 119.5f - w * res.y;
-                    int bw, bh;
-                    int stride;
                     PropImage* prop = &_ground_props->rotated[angle + 30].scaled[_scaled_by_z[(int)(16 * (res.z / GROUND_CELL_SIZE - 1.f))]];
-                    pd->graphics->drawBitmap(prop->image, x - prop->w / 2, y - prop->h, 0);
+                    pd->graphics->drawBitmap(prop->image, (int)(x - prop->w / 2), (int)(y - prop->h), 0);
                 }
             }
         }

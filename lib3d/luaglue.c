@@ -11,7 +11,9 @@
 #include "luaglue.h"
 #include "realloc.h"
 #include "ground.h"
+#include "tracks.h"
 
+// to remove
 #include "gfx.h"
 #include "3dmath.h"
 #include "3dmathi.h"
@@ -32,7 +34,6 @@ static void* getArgObject(int n, char* type)
 }
 
 static GroundParams* getGroundParams(int n)			{ return getArgObject(n, "lib3d.GroundParams"); }
-
 
 /// Ground Params
 
@@ -62,7 +63,7 @@ static int ground_params_index(lua_State* L)
 	if ( strcmp(arg, "slope") == 0 )
 		pd->lua->pushFloat(p->slope);
 	else if ( strcmp(arg, "num_tracks") == 0 )
-		pd->lua->pushFloat(p->num_tracks);
+		pd->lua->pushInt(p->num_tracks);
 	else if ( strcmp(arg, "props_rate") == 0 )
 		pd->lua->pushFloat(p->props_rate);
 	else
@@ -94,6 +95,7 @@ static const lua_reg lib3D_GroundParams[] =
 	{ "__newindex",		ground_params_newindex },
 	{ NULL,				NULL }
 };
+
 
 LCDBitmap* _mire_bitmap = NULL;
 uint8_t* _mire_data = NULL;
@@ -153,7 +155,8 @@ static int lib3d_get_face(lua_State* L) {
 
 	Point3d n;
 	float y;
-	get_face(pos, &n, &y);
+	float angle;
+	get_face(pos, &n, &y, &angle);
 
 	pd->lua->pushFloat(y);
 	
@@ -161,8 +164,38 @@ static int lib3d_get_face(lua_State* L) {
 	pd->lua->pushFloat(n.y);
 	pd->lua->pushFloat(n.z);
 
+	pd->lua->pushFloat(angle);
+
 	// arg count
-	return 4;
+	return 5;
+}
+
+static int lib3d_get_track_info(lua_State* L) {
+	Point3d pos;
+	for (int i = 0; i < 3; ++i) {
+		pos.v[i] = pd->lua->getArgFloat(i + 1);
+	}
+	
+	float xmin, xmax;
+	int is_checkpoint;
+	get_track_info(pos, &xmin, &xmax, &is_checkpoint);
+	
+	pd->lua->pushFloat(xmin);
+	pd->lua->pushFloat(xmin);
+	pd->lua->pushBool(is_checkpoint);
+
+	return 3;
+}
+
+static int lib3d_clear_checkpoint(lua_State* L) {
+	Point3d pos;
+	for (int i = 0; i < 3; ++i) {
+		pos.v[i] = pd->lua->getArgFloat(i + 1);
+	}
+
+	clear_checkpoint(pos);
+
+	return 0;
 }
 
 static int lib3d_update_ground(lua_State* L) {
@@ -417,6 +450,7 @@ void lib3d_register(PlaydateAPI* playdate)
 	// init modules
 	gfx_init(playdate);
 	ground_init(playdate);
+	tracks_init(playdate);
 
 	if (!pd->lua->addFunction(lib3d_make_ground, "lib3d.make_ground", &err))
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
@@ -428,6 +462,12 @@ void lib3d_register(PlaydateAPI* playdate)
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
 	if (!pd->lua->addFunction(lib3d_get_face, "lib3d.get_face", &err))
+		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
+
+	if (!pd->lua->addFunction(lib3d_clear_checkpoint, "lib3d.clear_checkpoint", &err))
+		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
+
+	if (!pd->lua->addFunction(lib3d_get_track_info, "lib3d.get_track_info", &err))
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
 	if (!pd->lua->addFunction(lib3d_load_assets_async, "lib3d.load_assets_async", &err))

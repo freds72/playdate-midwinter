@@ -27,6 +27,20 @@ typedef struct {
     };
 } Point2d;
 
+// convert a tau angle [0;1] into a radian angle
+inline float detauify(const float tau) {
+    return tau * 2 * PI;
+}
+
+// convert a rad angle [0;2*PI] into a tau angle [0;1]
+inline float tauify(const float rad) {
+    return rad / (2 * PI);
+}
+
+// returns a random number between 0-1
+float randf();
+
+// lerp between 2 float values
 inline float lerpf(const float a, const float b, const float t) {
   return a*(1.f-t)+b*t;
 }

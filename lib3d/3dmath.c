@@ -1,6 +1,15 @@
 #include <math.h>
+#include <stdlib.h>
 #include "3dmath.h"
 
+// misc. helpers
+
+// returns a random number between 0-1
+float randf() {
+    return (float)rand() / RAND_MAX;
+}
+
+// vector helpers
 void make_v(const Point3d a, const Point3d b, Point3d* out) {
     out->x = b.x - a.x;
     out->y = b.y - a.y;

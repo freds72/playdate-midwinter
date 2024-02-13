@@ -590,20 +590,18 @@ function make_plyr(p,params)
 		end
 		
 		self.on_track=true
-		--[[
-		local slice,slice_extent=ground:get_track(pos)
-		if pos[1]>=slice_extent[1] and pos[1]<=slice_extent[2] then			
+		local slice=ground:get_track(pos)
+		if pos[1]>=slice.xmin and pos[1]<=slice.xmax then			
 			if slice.is_checkpoint then
 				if pos[3]>slice_extent[3] then
 					add_time_bonus(params.bonus_t)
 					sfx(1)
 				end
-				slice.is_checkpoint=nil
+				ground:clear_checkpoint(pos)
 			end
 		else
 			self.on_track=nil
 		end
-		]]
 
 		-- need to have some speed
 		if v_dot(velocity,{-sin(angle),0,cos(angle)})<-0.2 then
@@ -1276,6 +1274,7 @@ function make_ground(params)
 	end
 	lib3d.make_ground(gp)
 	
+	-- interface with C library
 	return {		
 		_gp = gp,
 		get_pos=function(self)
@@ -1288,11 +1287,19 @@ function make_ground(params)
 			lib3d.render_ground(cam.pos[1],cam.pos[2],cam.pos[3],cam.angle,table.unpack(cam.m))
 		end,
 		find_face=function(self,p)
-			local y,nx,ny,nz=lib3d.get_face(table.unpack(p))
-			return y, {nx,ny,nz},0
+			local y,nx,ny,nz,angle=lib3d.get_face(table.unpack(p))
+			return y, {nx,ny,nz},angle
 		end,
 		get_track=function(self,p)
-			
+			local xmin,xmax,checkpoint = lib3d.get_track_info(table.unpack(p))
+			return {
+				xmin=xmin,
+				xmax=xmax,
+				is_checkpoint=checkpoint
+			}
+		end,
+		clear_checkpoint=function(self,p)
+			lib3d.clear_checkpoint(table.unpack(p))
 		end,
 		-- find all actors within a given radius from given position
 		collide=function(self,p,r)

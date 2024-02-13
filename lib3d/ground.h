@@ -20,6 +20,14 @@ typedef struct {
   int num_tracks;
 } GroundParams;
 
+typedef struct {
+	int is_checkpoint;
+	float xmin;
+	float xmax;
+
+	void* impl;
+} TrackInfo;
+
 // create a new ground
 void make_ground(GroundParams params);
 
@@ -27,7 +35,12 @@ void make_ground(GroundParams params);
 void get_start_pos(Point3d* out);
 
 // return face details at given position
-void get_face(Point3d pos, Point3d* n, float* y);
+void get_face(Point3d pos, Point3d* n, float* y,float* angle);
+
+// get track extent
+void get_track_info(Point3d pos, float* xmin, float* xmax, int* checkpoint);
+// clear checkpoint flag at pos
+void clear_checkpoint(Point3d pos);
 
 // update ground, create new slice as necessary and adjust position
 void update_ground(Point3d* pos);
