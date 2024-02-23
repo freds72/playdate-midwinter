@@ -67,7 +67,14 @@ typedef struct {
     ScaledProp rotated[61];
 } RotatedScaledProp;
 
-// 0: pine tree
+static const char* _props_paths[] = {
+    // 1: pine tree
+    "images/generated/pine_snow_0",
+    // 2: checkpoint flag
+    "images/generated/checkpoint_left",
+};
+
+
 static RotatedScaledProp _ground_props[8];
 
 // raycasting angles
@@ -136,7 +143,7 @@ static void make_slice(GroundSlice* slice, float y) {
 
     // generate height
     for (int i = 0; i < GROUND_SIZE; ++i) {
-        slice->h[i] = (16.f*perlin2d((16.f * i) / GROUND_SIZE, _ground.noise_y_offset, 0.1f, 4) - 8.f) * active_params.slope;
+        slice->h[i] = (8.f*perlin2d((16.f * i) / GROUND_SIZE, _ground.noise_y_offset, 0.1f, 4) - 4.f) * active_params.slope;
         // avoid props on side walls
         slice->props[i] = 0;
         if (i > 0 && i < GROUND_SIZE - 2) {
@@ -160,7 +167,7 @@ static void make_slice(GroundSlice* slice, float y) {
     Tracks* tracks = _ground.tracks;
     for (int k = 0; k < tracks->n; ++k) {
         Track* t = &tracks->tracks[k];
-        const int ii = (int)t->x;
+        const int ii = (int)(t->x / GROUND_CELL_SIZE);
         const int i0 = ii - 2, i1 = ii + 2;
         if (t->is_main) {
             main_track_x = t->x;
@@ -175,8 +182,9 @@ static void make_slice(GroundSlice* slice, float y) {
             // race markers
             if (_ground.slice_id % 8 == 0) {
                 is_checkpoint = 1;
-                // slice->actors[i0] = clone(left_pole)
-                // actors[i1] = clone(right_pole)-- {sx = right_pole.sx, sy = right_pole.sy}
+                // checkoint pole
+                slice->props[i0] = 2;
+                slice->props[i1] = 2;
             }
         }
         else {
@@ -214,7 +222,7 @@ void make_ground(GroundParams params) {
 
     // init track generator
     int num_tracks = params.num_tracks > 0 ? params.num_tracks : 3;
-    make_tracks(8, GROUND_SIZE - 8, num_tracks, &_ground.tracks);
+    make_tracks(2 * GROUND_CELL_SIZE, (GROUND_SIZE - 2)*GROUND_CELL_SIZE, num_tracks, &_ground.tracks);
 
     for (int i = 0; i < GROUND_SIZE; ++i) {
         // reset slices
@@ -285,11 +293,13 @@ void get_face(Point3d pos, Point3d* nout, float* yout,float* angleout) {
 }
 
 // get slice extents
-void get_track_info(Point3d pos, float* xmin, float *xmax, int*checkpoint) {
+void get_track_info(Point3d pos, float* xmin, float *xmax, float*z, int*checkpoint) {
     int j = (int)(pos.z / GROUND_CELL_SIZE);
     const GroundSlice* s0 = _ground.slices[j];
     *xmin = s0->extents[0];
     *xmax = s0->extents[1];
+    // activate checkpoint at middle of cell
+    *z = (j + 0.5f) * GROUND_CELL_SIZE;
     *checkpoint = s0->is_checkpoint;
 }
 
@@ -303,91 +313,90 @@ void clear_checkpoint(Point3d pos) {
 /*
 * loading assets helpers
 */
-static void load_noise(const int i, const int _) {
-    const char* err;
-    char* path = NULL;
-    pd->system->formatString(&path, "images/generated/noise32x32-%d", i);
-    LCDBitmap* bitmap = pd->graphics->loadBitmap(path, &err);
-    if (!bitmap)
-        pd->system->logToConsole("Failed to load: %s, %s", path, err);
+static struct {
+    int n;
+    LCDBitmap* all[128];
+} _gc_bitmaps;
+
+static void free_bitmap_table(void* data, const int _, const int __) {
+    pd->graphics->freeBitmapTable((LCDBitmapTable*)data);
+}
+
+static void load_noise(void* ptr,const int i, const int _) {
+    LCDBitmap* bitmap = pd->graphics->getTableBitmap((LCDBitmapTable*)ptr, i);
     int w = 0, h = 0, r = 0;
     uint8_t* mask = NULL;
     uint8_t* data = NULL;
     pd->graphics->getBitmapData(bitmap, &w, &h, &r, &mask, &data);
     if (w != 32 || h != 32)
-        pd->system->logToConsole("Invalid pattern format: %dx%d, file: %s", w, h, path);
-    for (int j = 0; j < 32; ++j) {
+        pd->system->logToConsole("Invalid noise image format: %dx%d", w, h);
+    for (int j = 0; j < 32; ++j, data+=4) {
         int mask = (data[3] << 24) | (data[2] << 16) | (data[1] << 8) | data[0];
         _dithers[i][j] = mask;
-        data += 4;
     }
-    // release source image
-    pd->graphics->freeBitmap(bitmap);
 }
 
-static void load_background(const int i, const int _) {
-    const char* err;
-    char* path = NULL;
+static void load_background(void* ptr, const int angle, const int _) {
+    const int image_index = angle - _scaled_image_min_angle;
+    LCDBitmap* bitmap = pd->graphics->getTableBitmap((LCDBitmapTable*)ptr, image_index);
     // convert to "angle"
-    pd->system->formatString(&path, "images/generated/sky_background_%i", i);
-    LCDBitmap* bitmap = pd->graphics->loadBitmap(path, &err);
-    if (!bitmap)
-        pd->system->logToConsole("Failed to load: %s, %s", path, err);
     int w = 0, h = 0, r = 0;
     uint8_t* mask = NULL;
     uint8_t* data = NULL;
     pd->graphics->getBitmapData(bitmap, &w, &h, &r, &mask, &data);
+    if (!bitmap) {
+        pd->system->error("Missing background at angle: %i", angle);
+    }
+
     if (w != 400)
-        pd->system->logToConsole("Invalid background format: %ix%i, expected 400x*, file: %s", w, h, path);
+        pd->system->logToConsole("Invalid background format: %ix%i, expected 400x*", w, h);
     uint32_t* image = lib3d_malloc(h * LCD_ROWSIZE);
     uint32_t* dst = image;
     for (int j = 0; j < h; ++j) {
         // create 32bits blocks
-        for (int i = 0; i < 12; ++i) {
+        for (int i = 0; i < 12; ++i) {            
             *(dst++) = (data[3] << 24) | (data[2] << 16) | (data[1] << 8) | data[0];
             data += 4;
         }
         // last 16 bits
         *(dst++) = (data[1] << 8) | data[0];
         data += 2;
-    }
-    _backgrounds[i + 30] = image;
-    _backgrounds_heights[i + 30] = h;
-    // release source image
-    pd->graphics->freeBitmap(bitmap);
+    }    
+    _backgrounds[image_index] = image;
+    _backgrounds_heights[image_index] = h;
 }
 
-static void load_prop(const int angle, const int prop) {
-    const char* err;
-    for (int i = 0; i < _scaled_image_count; i++) {
-        char* path = NULL;
-        pd->system->formatString(&path, "images/generated/pine_snow_0_%i_%i", angle, i);
+static void load_prop(void* ptr, const int prop, const int _) {
+    for (int angle = _scaled_image_min_angle; angle <= _scaled_image_max_angle; angle++) {
+        const int r = angle - _scaled_image_min_angle;
+        for (int i = 0; i < _scaled_image_count; i++) {
+            int w, h, stride;
+            uint8_t* data, * alpha;
+            LCDBitmap* bitmap = pd->graphics->getTableBitmap((LCDBitmapTable*)ptr, r * _scaled_image_count + i);
+            if (!bitmap) {
+                pd->system->error("Missing prop %i angle: %i scale: %i", prop, angle, i);
+            }
+            pd->graphics->getBitmapData(bitmap, &w, &h, &stride, &alpha, &data);
 
-        LCDBitmap* bitmap = pd->graphics->loadBitmap(path, &err);
-        if (!bitmap)
-            pd->system->logToConsole("Failed to load: %s, %s", path, err);
-
-        int w, h, stride;
-        uint8_t* data, * alpha;
-        pd->graphics->getBitmapData(bitmap, &w, &h, &stride, &alpha, &data);
-        
-        _ground_props->rotated[30 + angle].scaled[i] = (PropImage){
-            .w = w,
-            .h = h,
-            .image = bitmap
-        };
+            _ground_props[prop - 1].rotated[r].scaled[i] = (PropImage){
+                .w = w,
+                .h = h,
+                .image = bitmap
+            };
+        }
     }
 }
 
-typedef void(* unit_of_work_callback)(const int, const int);
+typedef void(* unit_of_work_callback)(void*, const int, const int);
 typedef struct {
     unit_of_work_callback callback;
+    void* param0;
     int param1;
     int param2;
 } UnitOfWork;
 
 static struct {
-    UnitOfWork todo[512];
+    UnitOfWork todo[256];
     int cursor;
     int n;
 } _work;
@@ -398,35 +407,77 @@ void ground_init(PlaydateAPI* playdate) {
     // keep SDK handle   
     pd = playdate;
 
+    // local strings
+    const char* err;
+    char* path = NULL;
+    LCDBitmapTable* bitmaps = NULL;
+
     _work.cursor = 0;
     _work.n = 0;
+    _gc_bitmaps.n = 0;
+
+    // read rotated & scaled sprites
+    for (int prop = 1; prop < 3; prop++) {
+        path = _props_paths[prop - 1];
+        pd->system->logToConsole("Loading prop: %s", path);
+        bitmaps = pd->graphics->loadBitmapTable(path, &err);
+        if (!bitmaps)
+            pd->system->logToConsole("Failed to load: %s, %s", path, err);
+
+        _work.todo[_work.n++] = (UnitOfWork){
+            .callback = load_prop,
+            .param0 = bitmaps,
+            .param1 = prop,
+            .param2 = -1
+        };
+    }
 
     // read dither table
+    pd->system->formatString(&path, "images/generated/noise32x32");
+    pd->system->logToConsole("Loading noise: %s", path);
+    bitmaps = pd->graphics->loadBitmapTable(path, &err);
+    
+    if (!bitmaps)
+        pd->system->logToConsole("Failed to load: %s, %s", path, err);
+
     for (int i = 0; i < 16; ++i) {
         _work.todo[_work.n++] = (UnitOfWork){
             .callback = load_noise,
+            .param0 = bitmaps,
             .param1 = i,
             .param2 = -1
         };
     }
+    _work.todo[_work.n++] = (UnitOfWork){
+        .callback = free_bitmap_table,
+        .param0 = bitmaps,
+        .param1 = -1,
+        .param2 = -1
+    };
 
     // read rotated backgrounds
-    for (int i = -30; i < 30; i++) {
+    pd->system->formatString(&path, "images/generated/sky_background");
+    pd->system->logToConsole("Loading background: %s", path);
+    bitmaps = pd->graphics->loadBitmapTable(path, &err);
+    if (!bitmaps)
+        pd->system->logToConsole("Failed to load: %s, %s", path, err);
+
+    for (int i = _scaled_image_min_angle; i <= _scaled_image_max_angle; i++) {
         _work.todo[_work.n++] = (UnitOfWork){
             .callback = load_background,
+            .param0 = bitmaps,
             .param1 = i,
             .param2 = -1
         };
     }
+    _work.todo[_work.n++] = (UnitOfWork){
+        .callback = free_bitmap_table,
+        .param0 = bitmaps,
+        .param1 = -1,
+        .param2 = -1
+    };
 
-    // read rotated & scaled sprites
-    for (int angle = -30; angle < 31; ++angle) {
-        _work.todo[_work.n++] = (UnitOfWork){
-            .callback = load_prop,
-            .param1 = angle,
-            .param2 = 1
-        };
-    }
+    pd->system->logToConsole("Load async tasks #: %i", _work.n);
 
     // raycasting angles
     for(int i=0;i<RAYCAST_PRECISION;++i) {
@@ -435,11 +486,14 @@ void ground_init(PlaydateAPI* playdate) {
 }
 
 int ground_load_assets_async() {
+
     // done
-    if (_work.cursor >= _work.n) return 0;
+    if (_work.cursor >= _work.n) {
+        return 0;        
+    }
 
     UnitOfWork* activeUnit = &_work.todo[_work.cursor++];
-    (*activeUnit->callback)(activeUnit->param1, activeUnit->param2);
+    (*activeUnit->callback)(activeUnit->param0, activeUnit->param1, activeUnit->param2);
     return 1;
 }
 
@@ -457,14 +511,54 @@ typedef struct {
     int outcode;
 } CameraPoint3d;
 
-static struct {
-    // visible tiles encoded as 1 bit per cell
-    uint32_t visited[GROUND_SIZE];
-    // front to back visible tiles
-    uint32_t ordered[GROUND_SIZE * GROUND_SIZE];
-    // number of visible tiles
+// visible tiles encoded as 1 bit per cell
+static uint32_t _visible_tiles[GROUND_SIZE];
+
+typedef struct {
+    // number of points
     int n;
-} _visible_tiles;
+    float material;
+    // clipped points in camera space
+    Point3d pts[5];
+} DrawableFace;
+
+typedef struct {
+    int material;
+    int angle;
+    Point3d pos;
+} DrawableProp;
+
+struct Drawable_s;
+typedef void(*draw_drawable)(struct Drawable_s* drawable, uint32_t* bitmap);
+
+// generic drawable thingy
+// cache-friendlyness???
+typedef struct Drawable_s {
+    float key;
+    draw_drawable draw;
+    union {
+        DrawableFace face;
+        DrawableProp prop;
+    };
+} Drawable;
+
+static struct {
+    Drawable all[GROUND_SIZE * GROUND_SIZE * 3];
+    int n;
+} _drawables;
+
+static Drawable* _sortables[GROUND_SIZE * GROUND_SIZE * 3];
+
+// visible tiles encoded as 1 bit per cell
+static uint32_t _visible_tiles[GROUND_SIZE];
+
+// compare 2 drawables
+static int cmp_drawable(const void* a, const void* b) {
+    const float x = (*(Drawable**)a)->key;
+    const float y = (*(Drawable**)b)->key;
+    return x < y ? -1 : x == y ? 0 : 1;
+}
+
 
 // clip polygon against near-z
 static int z_poly_clip(const float znear, Point3d* in, int n, Point3d* out) {
@@ -491,8 +585,48 @@ static int z_poly_clip(const float znear, Point3d* in, int n, Point3d* out) {
     return nout;
 }
 
-// draw a face
-static void draw_face(const float* m, const Point3d* p, int* indices, int n, uint32_t* bitmap) {
+static void draw_face(struct Drawable_s* drawable, uint32_t* bitmap) {
+    DrawableFace* face = &drawable->face;
+
+    const int n = face->n;
+    Point3d* pts = face->pts;
+    float depth = FLT_MAX;
+    for (int i = 0; i < n; ++i) {
+        // project 
+        float w = 1.f / pts[i].z;
+        if (w < depth) depth = w;
+        pts[i].x = 199.5f + 199.5f * w * pts[i].x;
+        pts[i].y = 119.5f - 199.5f * w * pts[i].y;
+    }
+    // todo: dither based on material + distance
+    float mat = face->material;
+    int dither_key = (int)(256.f * (mat * mat) + 64.0f * depth);
+    if (dither_key > 15) dither_key = 15;
+    if (dither_key < 0) dither_key = 0;
+    polyfill(pts, n, _dithers[15 - dither_key], bitmap);
+
+    /*
+    float x0 = pts[n - 1].x, y0 = pts[n - 1].y;
+    for (int i = 0; i < n; ++i) {
+        float x1 = pts[i].x, y1 = pts[i].y;
+        pd->graphics->drawLine(x0,y0,x1,y1, 1, kColorWhite);
+        x0 = x1, y0 = y1;
+    }
+    */
+}
+static void draw_prop(Drawable* drawable, uint32_t* butmap) {
+    DrawableProp* prop = &drawable->prop;
+
+    float w = 199.5f / prop->pos.z;
+    float x = 199.5f + w * prop->pos.x;
+    float y = 119.5f - w * prop->pos.y;
+    PropImage* image = &_ground_props[prop->material - 1].rotated[prop->angle + 30].scaled[_scaled_by_z[(int)(16.0f * (prop->pos.z - 1.f) / GROUND_CELL_SIZE)]];
+    pd->graphics->drawBitmap(image->image, (int)(x - image->w / 2), (int)(y - image->h), 0);
+
+}
+
+// push a face to the drawing list
+static void push_face(Point3d cv, const float* m, const Point3d* p, int* indices, int n, const Point3d* normal) {
     Point3d tmp[4];
     // transform
     int outcode = 0xfffffff, is_clipped = 0;
@@ -511,36 +645,31 @@ static void draw_face(const float* m, const Point3d* p, int* indices, int n, uin
 
     // visible?
     if (outcode == 0) {
-        // clipped points in camera space
-        Point3d pts[5];
+        Drawable* drawable = &_drawables.all[_drawables.n++];
+        drawable->draw = draw_face;
+        drawable->key = min_key;
+        DrawableFace* face = &drawable->face;
+        v_normz(&cv);
+        face->material = v_dot(normal, &cv);
         if (is_clipped > 0) {
-            n = z_poly_clip(Z_NEAR, tmp, n, pts);
+            face->n = z_poly_clip(Z_NEAR, tmp, n, face->pts);
         }
         else {
+            face->n = n;
             for (int i = 0; i < n; ++i) {
-                pts[i] = tmp[i];
+                face->pts[i] = tmp[i];
             }
         }
-        for (int i = 0; i < n; ++i) {
-            // project 
-            float w = 199.5f / pts[i].z;
-            pts[i].x = 199.5f + w * pts[i].x;
-            pts[i].y = 119.5f - w * pts[i].y;
-        }
-        // todo: dither based on material + distance
-        int dither_key = (int)(min_key / 4.f);
-        if (dither_key > 15) dither_key = 15;
-        if (dither_key < 0) dither_key = 0;
-        polyfill(pts, n, _dithers[dither_key], bitmap);
-        /*
-        float x0 = pts[n - 1].x, y0 = pts[n - 1].y;
-        for (int i = 0; i < n; ++i) {
-            float x1 = pts[i].x, y1 = pts[i].y;
-            pd->graphics->drawLine(x0,y0,x1,y1, 1, kColorWhite);
-            x0 = x1, y0 = y1;
-        }
-        */
     }
+}
+
+static void push_prop(const Point3d* p, int angle, int material) {
+    Drawable* drawable = &_drawables.all[_drawables.n++];
+    drawable->draw = draw_prop;
+    drawable->key = p->z;
+    drawable->prop.material = material;
+    drawable->prop.pos = *p;
+    drawable->prop.angle = angle;
 }
 
 int render_sky(float* m, uint32_t* bitmap) {
@@ -557,11 +686,11 @@ int render_sky(float* m, uint32_t* bitmap) {
     n.z = 0;
     v_normz(&n);
     int angle = (int)(90.0f + 180.0f * atan2f(n.y, n.x) / PI);
-    if (angle < -30) angle = -30;
-    if (angle > 30) angle = 30;
-    uint32_t* src = _backgrounds[angle + 30];
+    if (angle < _scaled_image_min_angle) angle = _scaled_image_min_angle;
+    if (angle > _scaled_image_max_angle) angle = _scaled_image_max_angle;
+    uint32_t* src = _backgrounds[angle - _scaled_image_min_angle];
 
-    int h = _backgrounds_heights[angle + 30];
+    int h = _backgrounds_heights[angle - _scaled_image_min_angle];
 
     int h0 = (int)(y0 - h / 2);
     if (h0 < 0) {
@@ -574,9 +703,9 @@ int render_sky(float* m, uint32_t* bitmap) {
     if (h1 < 0) h1 = 0;
     if (h1 > LCD_ROWS) h1 = LCD_ROWS;
     
-    memset(bitmap, 0xff, h0 * LCD_ROWSIZE);
+    memset(bitmap, 0x00, h0 * LCD_ROWSIZE);
     memcpy(bitmap + h0 * LCD_ROWSIZE / sizeof(uint32_t), src, (h1-h0) * LCD_ROWSIZE);
-    memset(bitmap + h1 * LCD_ROWSIZE / sizeof(uint32_t), 0x00, (LCD_ROWS - h1) * LCD_ROWSIZE);
+    memset(bitmap + h1 * LCD_ROWSIZE / sizeof(uint32_t), 0xff, (LCD_ROWS - h1) * LCD_ROWSIZE);
 
     return angle;
 }
@@ -585,11 +714,12 @@ static void collect_tiles(const Point3d pos, float base_angle) {
     float x = pos.x / GROUND_CELL_SIZE, y = pos.z / GROUND_CELL_SIZE;
     int x0 = (int)x, y0 = (int)y;
 
-    // current tile
-    if (!(_visible_tiles.visited[y0] & (1 << x0))) {
-        _visible_tiles.visited[y0] |= 1 << x0;
-        _visible_tiles.ordered[_visible_tiles.n++] = x0 + y0 * GROUND_SIZE;
-    }
+    // reset tiles
+    memset((uint8_t*)_visible_tiles, 0, sizeof(uint32_t) * GROUND_SIZE);
+
+    // current tile is always in
+    _visible_tiles[y0] |= 1 << x0;
+
     for (int i = 0; i < RAYCAST_PRECISION; ++i) {
         float angle = base_angle + _raycast_angles[i];
         float v = cosf(angle), u = sinf(angle);
@@ -628,12 +758,7 @@ static void collect_tiles(const Point3d pos, float base_angle) {
             // if (((mapx | mapy) & 0xffffffe0) != 0) break;
             if (mapx > 31 || mapx < 0 || mapy > 31 || mapy < 0) break;
 
-            // not already visited?
-            if(!(_visible_tiles.visited[mapy] & (1 << mapx))) {
-                _visible_tiles.visited[mapy] |= 1 << mapx;
-                // add tile to the front to back set
-                _visible_tiles.ordered[_visible_tiles.n++] = mapx + mapy * GROUND_SIZE;
-            }
+            _visible_tiles[mapy] |= 1 << mapx;
         }
     }
 }
@@ -643,59 +768,68 @@ void render_ground(Point3d cam_pos, float cam_angle, float* m, uint32_t* bitmap)
     int angle = render_sky(m, bitmap);
 
     // collect visible tiles
-    // reset tiles
-    _visible_tiles.n = 0;
-    memset(_visible_tiles.visited, 0, sizeof(uint32_t) * GROUND_SIZE);
-
+    _drawables.n = 0;
     collect_tiles(cam_pos, cam_angle);
 
     const float y_offset = _ground.y_offset;
-    // transform visible tiles in reverse order (back to front)
-    for (int k = _visible_tiles.n - 1; k >= 0; k--) {
-        const int tile_id = _visible_tiles.ordered[k];
-        const int i = tile_id % GROUND_SIZE, j = tile_id / GROUND_SIZE;
-        if (j < GROUND_SIZE - 1) {
-            const GroundSlice* s0 = _ground.slices[j];
-            const GroundSlice* s1 = _ground.slices[j + 1];
-            const Point3d verts[4] = {
-            {.v = {(float)i * GROUND_CELL_SIZE,s0->h[i] + s0->y - y_offset,             (float)j * GROUND_CELL_SIZE}},
-            {.v = {(float)(i + 1) * GROUND_CELL_SIZE,s0->h[i + 1] + s0->y - y_offset,   (float)j * GROUND_CELL_SIZE}},
-            {.v = {(float)(i + 1) * GROUND_CELL_SIZE,s1->h[i + 1] + s1->y - y_offset,   (float)(j + 1) * GROUND_CELL_SIZE}},
-            {.v = {(float)i * GROUND_CELL_SIZE,s1->h[i] + s1->y - y_offset,             (float)(j + 1) * GROUND_CELL_SIZE}} };
-            // transform
-            const GroundFace* f0 = &s0->faces[2 * i];
-            // camera to face point
-            const Point3d cv = { .x = verts[0].x - cam_pos.x,.y = verts[0].y - cam_pos.y,.z = verts[0].z - cam_pos.z };
-            if (f0->quad) {
-                if (v_dot(&f0->n, &cv) < 0.f)
-                {
-                    draw_face(m, verts, (int[]) { 0, 1, 2, 3 }, 4, bitmap);
+    // transform
+    for (int j = 0; j < GROUND_SIZE - 1; ++j) {
+        uint32_t visible_tiles = _visible_tiles[j];
+        for (int i = 0; i < GROUND_SIZE; ++i) {
+            // is the tile bit enabled?
+            if (visible_tiles & (1 << i)) {
+                const GroundSlice* s0 = _ground.slices[j];
+                const GroundSlice* s1 = _ground.slices[j + 1];
+                const Point3d verts[4] = {
+                {.v = {(float)i * GROUND_CELL_SIZE,         s0->h[i] + s0->y - y_offset,       (float)j * GROUND_CELL_SIZE}},
+                {.v = {(float)(i + 1) * GROUND_CELL_SIZE,   s0->h[i + 1] + s0->y - y_offset,   (float)j * GROUND_CELL_SIZE}},
+                {.v = {(float)(i + 1) * GROUND_CELL_SIZE,   s1->h[i + 1] + s1->y - y_offset,   (float)(j + 1) * GROUND_CELL_SIZE}},
+                {.v = {(float)i * GROUND_CELL_SIZE,         s1->h[i] + s1->y - y_offset,       (float)(j + 1) * GROUND_CELL_SIZE}} };
+                // transform
+                const GroundFace* f0 = &s0->faces[2 * i];
+                // camera to face point
+                const Point3d cv = { .x = verts[0].x - cam_pos.x,.y = verts[0].y - cam_pos.y,.z = verts[0].z - cam_pos.z };
+                if (f0->quad) {
+                    if (v_dot(&f0->n, &cv) < 0.f)
+                    {
+                        push_face(cv, m, verts, (int[]) { 0, 1, 2, 3 }, 4, &f0->n);
+                    }
+                }
+                else {
+                    const GroundFace* f1 = &s0->faces[2 * i + 1];
+                    if (v_dot(&f0->n, &cv) < 0.f)
+                    {
+                        push_face(cv, m, verts, (int[]) { 0, 2, 3 }, 3, &f0->n);
+                    }
+                    if (v_dot(&f1->n, &cv) < 0.f)
+                    {
+                        push_face(cv, m, verts, (int[]) { 0, 1, 2 }, 3, &f0->n);
+                    }
+                }
+                // draw prop (if any)
+                int prop_id = s0->props[i];
+                if (prop_id != 0) {
+                    Point3d pos, res;
+                    v_lerp(&verts[0], &verts[2], s0->prop_t[i], &pos);
+                    m_x_v(m, pos, &res);
+                    if (res.z > Z_NEAR && res.z < GROUND_CELL_SIZE * 16) {
+                        push_prop(&res, angle, prop_id);
+                    }
                 }
             }
-            else {
-                const GroundFace* f1 = &s0->faces[2 * i + 1];
-                if (v_dot(&f0->n, &cv) < 0.f)
-                {
-                    draw_face(m, verts, (int[]) { 0, 2, 3 }, 3, bitmap);
-                }
-                if (v_dot(&f1->n, &cv) < 0.f)
-                {
-                    draw_face(m, verts, (int[]) { 0, 1, 2 }, 3, bitmap);
-                }
-            }
-            // draw prop (if any)
-            if (s0->props[i] != 0) {
-                Point3d pos, res;
-                v_lerp(&verts[0], &verts[2], s0->prop_t[i], &pos);
-                m_x_v(m, pos, &res);
-                if (res.z > Z_NEAR && res.z < GROUND_CELL_SIZE * 16) {
-                    float w = 199.5f / res.z;
-                    float x = 199.5f + w * res.x;
-                    float y = 119.5f - w * res.y;
-                    PropImage* prop = &_ground_props->rotated[angle + 30].scaled[_scaled_by_z[(int)(16 * (res.z / GROUND_CELL_SIZE - 1.f))]];
-                    pd->graphics->drawBitmap(prop->image, (int)(x - prop->w / 2), (int)(y - prop->h), 0);
-                }
-            }
+        }
+    }
+
+    // sort & renders back to front
+    if (_drawables.n > 0) {
+        for (int i = 0; i < _drawables.n; ++i) {
+            _sortables[i] = &_drawables.all[i];
+        }
+        qsort(_sortables, (size_t)_drawables.n, sizeof(Drawable*), cmp_drawable);
+
+        // rendering
+        for (int k = _drawables.n - 1; k >= 0; --k) {
+            _sortables[k]->draw(_sortables[k], bitmap);
         }
     }
 }

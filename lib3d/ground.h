@@ -38,7 +38,7 @@ void get_start_pos(Point3d* out);
 void get_face(Point3d pos, Point3d* n, float* y,float* angle);
 
 // get track extent
-void get_track_info(Point3d pos, float* xmin, float* xmax, int* checkpoint);
+void get_track_info(Point3d pos, float* xmin, float* xmax, float*z, int* checkpoint);
 // clear checkpoint flag at pos
 void clear_checkpoint(Point3d pos);
 

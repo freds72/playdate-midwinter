@@ -11,7 +11,7 @@ static void reset_track_timers(TrackTimers *timers)
 {
   timers->ttl = 12 + 20 * randf();
   timers->trick_ttl = 4 + 4 * randf();
-  timers->trick_type = randf() > 0.5 ? 0 : 1;
+  timers->trick_type = randf() > 0.5f ? 0.f : 1.f;
 }
 
 static Track *add_track(const int x, const float u, int is_main)
@@ -81,6 +81,7 @@ static int update_track(Track *track)
 }
 
 // generate ski tracks
+// xmin/xmax: min/max world coordinates for track
 void make_tracks(const int xmin, const int xmax, const int max_tracks, Tracks **out)
 {
   float angle = 0.05f + 0.45f * randf();
@@ -135,15 +136,18 @@ void update_tracks()
   }
 
   // debug dump track outline
+  /*
   char buffer[33];
-  memset(buffer, 32, 33);
+  memset(buffer, 32, 32);
   buffer[0] = '|';
   buffer[31] = '|';  
+  buffer[32] = 0;
   for(int i = 0; i < _tracks.n; i++) {
       Track* t = &_tracks.tracks[i];
       buffer[(int)(t->x / 4)] = t->is_main ? '*' : '$';
   }
-  pd->system->logToConsole(buffer);
+  pd->system->logToConsole("%s",buffer);
+  */
 }
 
 // init module

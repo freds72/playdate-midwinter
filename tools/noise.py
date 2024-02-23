@@ -432,7 +432,7 @@ def generate(N):
       img = Image.new("1",(N,N))
       for index, values in np.ndenumerate(G):
         img.putpixel((index[0],index[1]), int(values))
-      img.save(f'../source/images/generated/noise{N}x{N}-{i}.png',bits=1,optimize=False)
+      img.save(f'../source/images/generated/noise{N}x{N}-table-{i+1}.png',bits=1,optimize=False)
 
 if(__name__=="__main__"):
     # GenerateBlueNoiseDatabase(range(1),8,8,[1],1.9);

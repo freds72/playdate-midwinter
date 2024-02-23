@@ -9,7 +9,6 @@ local font = gfx.font.new('font/whiteglove-stroked')
 local memoFont = gfx.font.new('font/Memo')
 local panelFont = gfx.font.new('font/Roobert-10-Bold')
 local panelFontFigures = gfx.font.new('font/Roobert-24-Medium-Numerals-White')
-local _dither={}
 local _angle=0
 
 -- some "pico-like" helpers
@@ -91,6 +90,9 @@ end
 
 function push_state(state,...)
 	add(states,state(...))
+end
+function clear_states()
+	states={}
 end
 
 -- vector & tools
@@ -288,55 +290,6 @@ function make_cam()
 		project2d=function(self,v)
 			local w=199.5/v[3]
 			return 199.5+w*v[1],119.5-w*v[2],w
-		end,
-		project_poly=function(self,p,c0)
-      local verts={}
-      for i=1,#p do
-        local x,y=self:project2d(p[i])
-        verts[#verts+1]=x
-        verts[#verts+1]=y
-      end
-      gfx.fillPolygon(table.unpack(verts))
-		end,
-		draw_horizon=function(self,ground_color,sky_color)
-			cls(gfx.kColorWhite)
-			
-			-- cam up in world space
-			local n=m_up(self.m)
-			-- a bit ugly
-			v_scale(n,-1)
-
-			-- intersection between camera eye and up plane (world space)
-			local x0,y0=self:project2d({0,-n[3]/n[2],1})
-
-			-- horizon 'normal'
-			n[3]=0
-			v_normz(n)
-			-- spread clouds
-			v_scale(n,32)
-			local u,v=n[1],n[2]
-			
-			-- sun
-			_sun:draw(x0-3*u+2*v-16,y0+3*v+2*u-16)
-
-			-- horizon intersections (clouds)
-			local xl,yl,xr,yr=0,y0-u*x0/v,400,y0+u*(400-x0)/v			
-			-- yl: min
-			-- yr: max
-			if yl>yr then xl,yl,xr,yr=xr,yr,xl,yl end
-			
-			gfx.setPattern(_dither[6])
-			for _,c in pairs(clouds2) do
-				gfx.fillCircleAtPoint(x0+c.i*v,y0+c.i*u,c.r,6)
-			end
-			gfx.setColor(gfx.kColorBlack)
-			for _,c in pairs(clouds) do
-				gfx.fillCircleAtPoint(x0+c.i*v,y0+c.i*u,c.r)
-			end
-
-			gfx.setColor(gfx.kColorBlack)
-			gfx.fillRect(0,yr,400,240-yr)
-			gfx.fillTriangle(xl,yl,xr,yr,xl,yr)
 		end
 	}
 end
@@ -593,11 +546,11 @@ function make_plyr(p,params)
 		local slice=ground:get_track(pos)
 		if pos[1]>=slice.xmin and pos[1]<=slice.xmax then			
 			if slice.is_checkpoint then
-				if pos[3]>slice_extent[3] then
+				if pos[3]>slice.z then
 					add_time_bonus(params.bonus_t)
 					sfx(1)
+					ground:clear_checkpoint(pos)
 				end
-				ground:clear_checkpoint(pos)
 			end
 		else
 			self.on_track=nil
@@ -658,13 +611,23 @@ end
 -- game states
 function loading_state()
 	local step = 0
+	local cabin=gfx.image.new("images/cabin")
+	local cabin2=gfx.image.new("images/cabin2")
+	local t=-1
+	-- load gps cursor
+	_gps_sprites = gfx.imagetable.new("images/generated/arrow")
+	
 	do_async(function()
+		local t0 = playdate.getCurrentTimeMilliseconds()
 		while lib3d.load_assets_async() do
 			step += 1
-			if step%10==0 then
+			local t1 = playdate.getCurrentTimeMilliseconds()
+			if t1-t0>250 then
+				t0 = t1
 				coroutine.yield()
 			end
 		end
+		pop_state()
 		push_state(menu_state)
 	end)
 
@@ -672,11 +635,25 @@ function loading_state()
 		-- draw
 		draw=function()
 			cls()
-			print("Loading assets: "..step,4,4)
+			gfx.setColor(gfx.kColorWhite)
+			gfx.setLineWidth(2)
+			gfx.drawLine(16,0, 399, 128)
+			gfx.drawLine(188,0, 399, 82)
+			gfx.setLineWidth(1)
+			cabin:draw(
+				lerp(16,400,t),
+				lerp(0,128,t))
+			cabin2:draw(
+				lerp(400,188,t),
+				lerp(82,0,t))
+			print("Altitude: "..(step*10).."m",4,220)
 		end,
 		-- update
 		update=function()
-
+			t+=1/30
+			if t>3 then
+				t = -1
+			end
 		end
 	}
 end
@@ -731,7 +708,7 @@ function menu_state()
 		{panel=make_panel("MARMOTTES","piste verte",12),c=1,params={dslot=0,slope=1.5,tracks=1,bonus_t=2,total_t=30*30,record_t=records[1],props={tree_prop},props_rate=0.95}},
 		{panel=make_panel("BIQUETTES","piste rouge",18),c=8,params={dslot=1,slope=2,tracks=2,bonus_t=1.5,total_t=20*30,record_t=records[2],props={tree_prop,bush_prop},props_rate=0.97,}},
 		{panel=make_panel("CHAMOIS","piste noire",21),c=0,params={dslot=2,slope=3,tracks=3,bonus_t=1.5,total_t=15*30,record_t=records[3],props={tree_prop,tree_prop,tree_prop,cow_prop},props_rate=0.92,}},
-		{panel=make_direction("Le village")}
+		{panel=make_direction("Shop")}
 	}
 	local sel,sel_tgt,blink=0,0,false
 
@@ -742,10 +719,19 @@ function menu_state()
 
 	music(0)
 	sfx(-1)
+
+	-- menu to get back to selection menu
+	local menu = playdate.getSystemMenu()
+	menu:removeAllMenuItems()
+	local menuItem, error = menu:addMenuItem("start menu", function()
+			_futures={}
+			clear_states()
+			push_state(menu_state)
+	end)	
+
 	return {
 		-- draw
 		draw=function()
-			-- cam:draw_horizon(1,12)
 
 			ground:draw(cam)
 
@@ -909,7 +895,7 @@ function play_state(params)
 
 				if plyr.gps then
 					local idx=flr(((plyr.gps%1+1)%1)*360)
-					local gps=_gps_sprites[idx]
+					local gps=_gps_sprites:getImage(idx)
 					local w,h=gps:getSize()
 					gps:draw(199.5-w/2,32-h/2)
 				end
@@ -950,7 +936,6 @@ function play_state(params)
 
 					-- latest score
 					local _,_,total_t,total_tricks=plyr:score()
-					
 					push_state(plyr_death_state,plyr:get_pos(),total_t,total_tricks,params,plyr.time_over)
 					-- not active
 					plyr=nil
@@ -1000,9 +985,9 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 		draw=function()
 			local c=msg_colors[active_msg+1]
 			printb(msgs[active_msg+1],nil,msg_y,c[1],c[2],c[3])
-			local x,y=rnd(2)-1,msg_y+8+rnd(2)-1
-			if active_msg==0 and total_t>params.record_t then print("★new record★",x+50,y,c[2]) end
-			if active_msg==1 then print(tricks_rating[min(flr(total_tricks/5)+1,4)],x+70,y,c[2]) end
+			local x,y=rnd(4)-2,msg_y+8+rnd(4)-2
+			if active_msg==0 and total_t>params.record_t then print("★new record★",x+250,y,c[2]) end
+			if active_msg==1 then print(tricks_rating[min(flr(total_tricks/5)+1,4)],x+270,y,c[2]) end
 
 			if text_ttl>0 and not time_over then
 				print(active_text,60,50+text_ttl,8)
@@ -1047,6 +1032,7 @@ end
 function make_direction(text)
 	gfx.setFont(panelFont)
 	local w,h = gfx.getTextSize(text)
+	w = min(64,w)
 
 	local panel = gfx.image.new(w+32,40,gfx.kColorClear)
 	gfx.lockFocus(panel)
@@ -1130,11 +1116,6 @@ function _init()
 
 	-- todo: remove (only for benchmarks)
 	-- srand(12)
-	for i=0,15 do
-		local img=gfx.image.new("images/generated/noise8x8-"..i)
-		assert(img)
-		_dither[i]=img
-	end
 
 	-- https://opengameart.org/content/pine-tree-pack
 	_tree=gfx.image.new("images/pine_snow_0")
@@ -1145,10 +1126,6 @@ function _init()
 	_ski = gfx.image.new("images/ski")
 	_panel_pole = gfx.image.new("images/panel_pole")
 	_panel_slices = gfx.nineSlice.new("images/panel",6,5,10,30)
-	_gps_sprites = {}
-	for i=0,359 do
-		_gps_sprites[i] =  gfx.image.new("images/generated/arrow_"..i)
-	end
 
 	-- init state machine
 	push_state(loading_state)
@@ -1291,10 +1268,11 @@ function make_ground(params)
 			return y, {nx,ny,nz},angle
 		end,
 		get_track=function(self,p)
-			local xmin,xmax,checkpoint = lib3d.get_track_info(table.unpack(p))
+			local xmin,xmax,z,checkpoint = lib3d.get_track_info(table.unpack(p))
 			return {
 				xmin=xmin,
 				xmax=xmax,
+				z=z,
 				is_checkpoint=checkpoint
 			}
 		end,

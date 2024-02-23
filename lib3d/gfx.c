@@ -13,10 +13,12 @@ void gfx_init(PlaydateAPI* playdate) {
 
 static inline void _drawMaskPattern(uint32_t* p, uint32_t mask, uint32_t color)
 {
-    if (mask == 0xffffffff)
-        *p = color;
-    else
-        *p = (*p & ~mask) | (color & mask);
+    *p = (*p & ~mask) | (color & mask);
+}
+
+static inline void _drawMaskPatternOpaque(uint32_t* p, uint32_t color)
+{
+    *p = color;
 }
 
 static void drawFragment(uint32_t* row, int x1, int x2, uint32_t color)
@@ -68,7 +70,7 @@ static void drawFragment(uint32_t* row, int x1, int x2, uint32_t color)
 
         while (x + 32 <= x2)
         {
-            _drawMaskPattern(p++, 0xffffffff, color);
+            _drawMaskPatternOpaque(p++, color);
             x += 32;
         }
 
@@ -76,10 +78,6 @@ static void drawFragment(uint32_t* row, int x1, int x2, uint32_t color)
             _drawMaskPattern(p, endmask, color);
     }
 }
-
-#define FIXED_SCALE (1<<8)
-static inline int tofixed(const float f) { return (int)(f * FIXED_SCALE); }
-static inline float tofloat(const int i) { return ((float)i) / FIXED_SCALE; }
 
 void polyfill(const Point3d* verts, const int n, uint32_t* dither, uint32_t* bitmap) {
 	float miny = FLT_MAX, maxy = FLT_MIN;
@@ -91,7 +89,7 @@ void polyfill(const Point3d* verts, const int n, uint32_t* dither, uint32_t* bit
 		if (y > maxy) maxy = y;
 	}
     // out of screen?
-    if (miny > LCD_ROWS) return;
+    if (miny > LCD_ROWS || maxy < 0) return;
     if (maxy > LCD_ROWS) maxy = LCD_ROWS;
     if (miny < 0) miny = 0;
 
@@ -99,18 +97,19 @@ void polyfill(const Point3d* verts, const int n, uint32_t* dither, uint32_t* bit
 	int lj = mini, rj = mini;
     int ly = (int)miny, ry = (int)miny;
     int lx = 0, ldx = 0, rx = 0, rdx = 0;
-    for (uint8_t y =((int)miny); y < maxy; ++y){
+    bitmap = bitmap + (int)miny * LCD_ROWSIZE32;
+    for (int y =(int)miny; y < maxy; ++y, bitmap+=LCD_ROWSIZE32) {
         // maybe update to next vert
         while (ly < y) {
             const Point3d* p0 = &verts[lj];
             lj++;
             if (lj >= n) lj = 0;
             const Point3d* p1 = &verts[lj];
-            float y0 = p0->y, y1 = p1->y;
-            float dy = y1 - y0;
+            const float y0 = p0->y, y1 = p1->y;
+            const float dy = y1 - y0;
             ly = (int)y1;
-            lx = tofixed(p0->x);
-            ldx = tofixed((p1->x - p0->x) / dy);
+            lx = __TOFIXED16(p0->x);
+            ldx = __TOFIXED16((p1->x - p0->x) / dy);
             //sub - pixel correction
             const float cy = y - y0;
             lx += (int)(cy * ldx);
@@ -120,17 +119,17 @@ void polyfill(const Point3d* verts, const int n, uint32_t* dither, uint32_t* bit
             rj--;
             if (rj < 0) rj = n - 1;
             const Point3d* p1 = &verts[rj];
-            float y0 = p0->y, y1 = p1->y;
-            float dy = y1 - y0;
+            const float y0 = p0->y, y1 = p1->y;
+            const float dy = y1 - y0;
             ry = (int)y1;
-            rx = tofixed(p0->x);
-            rdx = tofixed((p1->x - p0->x) / dy);
+            rx = __TOFIXED16(p0->x);
+            rdx = __TOFIXED16((p1->x - p0->x) / dy);
             //sub - pixel correction
             const float cy = y - y0;
             rx += (int)(cy * rdx);
         }
 
-        drawFragment(bitmap + y * LCD_ROWSIZE32, lx>>8, rx>>8, dither[y&31]);
+        drawFragment(bitmap, lx>>16, rx>>16, dither[y&31]);
 
         lx += ldx;
         rx += rdx;

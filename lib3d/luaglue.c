@@ -176,15 +176,16 @@ static int lib3d_get_track_info(lua_State* L) {
 		pos.v[i] = pd->lua->getArgFloat(i + 1);
 	}
 	
-	float xmin, xmax;
+	float xmin, xmax,z;
 	int is_checkpoint;
-	get_track_info(pos, &xmin, &xmax, &is_checkpoint);
+	get_track_info(pos, &xmin, &xmax, &z, &is_checkpoint);
 	
 	pd->lua->pushFloat(xmin);
-	pd->lua->pushFloat(xmin);
+	pd->lua->pushFloat(xmax);
+	pd->lua->pushFloat(z);
 	pd->lua->pushBool(is_checkpoint);
 
-	return 3;
+	return 4;
 }
 
 static int lib3d_clear_checkpoint(lua_State* L) {
@@ -484,6 +485,7 @@ void lib3d_register(PlaydateAPI* playdate)
 
 	lib3d_setRealloc(pd->system->realloc);
 
+	/*
 	const char* path = "images/mire32x32";
 	_mire_bitmap = pd->graphics->loadBitmap(path, &err);
 	if (!_mire_bitmap)
@@ -507,6 +509,7 @@ void lib3d_register(PlaydateAPI* playdate)
 			}
 		}
 	}
+	*/
 }
 
 void lib3d_unregister(PlaydateAPI* playdate) {
