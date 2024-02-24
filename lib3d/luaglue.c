@@ -239,10 +239,10 @@ static int lib3d_bench_gfx(lua_State* L) {
  .v = {52.f,52.f,0.f}
 },
 		(Point3d) {
-		.v = { 76,120.f,0.f }
+		.v = { 76,120.f,15.f }
 	},
 	(Point3d) {
-	.v = { 196.f,150.f,15.f }
+	.v = { 196.f,150.f,0.f }
 },
 (Point3d) {
 .v = { 150.f,96.f,0.f }
