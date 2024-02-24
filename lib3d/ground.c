@@ -242,7 +242,7 @@ void update_ground(Point3d* p) {
         // shift back
         p->z -= GROUND_CELL_SIZE;
         _ground.max_pz -= GROUND_CELL_SIZE;
-        const GroundSlice* old_slice = _ground.slices[0];
+        GroundSlice* old_slice = _ground.slices[0];
         float old_y = old_slice->y;
         // drop slice 0
         for (int i = 1; i < GROUND_SIZE; ++i) {
@@ -418,7 +418,7 @@ void ground_init(PlaydateAPI* playdate) {
 
     // read rotated & scaled sprites
     for (int prop = 1; prop < 3; prop++) {
-        path = _props_paths[prop - 1];
+        const char* path = _props_paths[prop - 1];
         pd->system->logToConsole("Loading prop: %s", path);
         bitmaps = pd->graphics->loadBitmapTable(path, &err);
         if (!bitmaps)
@@ -597,13 +597,15 @@ static void draw_face(struct Drawable_s* drawable, uint32_t* bitmap) {
         if (w < depth) depth = w;
         pts[i].x = 199.5f + 199.5f * w * pts[i].x;
         pts[i].y = 119.5f - 199.5f * w * pts[i].y;
+        pts[i].z = w;
     }
     // todo: dither based on material + distance
     float mat = face->material;
     int dither_key = (int)(256.f * (mat * mat) + 64.0f * depth);
     if (dither_key > 15) dither_key = 15;
     if (dither_key < 0) dither_key = 0;
-    polyfill(pts, n, _dithers[15 - dither_key], bitmap);
+    // polyfill(pts, n, _dithers[15 - dither_key], bitmap);
+    texfill(pts, n, _dithers, bitmap);
 
     /*
     float x0 = pts[n - 1].x, y0 = pts[n - 1].y;

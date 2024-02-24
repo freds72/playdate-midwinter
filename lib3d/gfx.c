@@ -79,6 +79,92 @@ static void drawFragment(uint32_t* row, int x1, int x2, uint32_t color)
     }
 }
 
+static void drawTextureFragment(uint32_t* row, int x1, int x2, int lu, int ru, uint32_t* dither_ramp)
+{
+    if (x2 < 0 || x1 >= LCD_COLUMNS)
+        return;
+
+    int dx = x2 - x1;
+    if (dx == 0) return;
+    // source is fixed point already
+    int du = (ru - lu) / dx;
+    if (x1 < 0) {
+        lu -= x1 * du;
+        x1 = 0;
+    }
+
+    if (x2 > LCD_COLUMNS)
+        x2 = LCD_COLUMNS;
+
+    if (x1 > x2)
+        return;
+
+    // Operate on 32 bits at a time
+
+    int startbit = x1 & 31;
+    uint32_t startmask = swap((1 << (32 - startbit)) - 1);
+    int endbit = x2 & 31;
+    uint32_t endmask = swap(((1 << endbit) - 1) << (32 - endbit));
+
+    int col = x1 / 32;
+    uint32_t* p = row + col;
+
+    if (col == x2 / 32)
+    {
+        uint32_t mask = 0;
+
+        if (startbit > 0 && endbit > 0)
+            mask = startmask & endmask;
+        else if (startbit > 0)
+            mask = startmask;
+        else if (endbit > 0)
+            mask = endmask;
+
+        // _drawMaskTexture(p, mask, dither_ramp);
+        uint32_t pixels = 0;
+        for (int i = startbit; i < endbit; ++i, lu += du) {
+            pixels |= (*(dither_ramp + (lu >> 16) * 32)) & ((uint32_t)0x80000000 >> i);
+        }
+        *p = (*p & ~mask) | swap(pixels);
+    }
+    else
+    {
+        int x = x1;
+
+        if (startbit > 0)
+        {
+            uint32_t pixels = 0;
+            for (int i = startbit; i < 32; ++i, lu += du) {
+                pixels |= (*(dither_ramp + (lu >> 16) * 32)) & ((uint32_t)0x80000000 >> i);
+            }
+            // _drawMaskTexture(p++, startmask, dither_ramp);
+            *(p++) = (*p & ~startmask) | swap(pixels);
+            x += (32 - startbit);
+        }
+
+        while (x + 32 <= x2)
+        {
+            // _drawMaskTextureOpaque(p++, color);
+            uint32_t pixels = 0;
+            for (int i = 0; i < 32; ++i, lu += du) {
+                pixels |= (*(dither_ramp + (lu >> 16) * 32)) & ((uint32_t)0x80000000 >> i);
+            }
+            *(p++) = swap(pixels);
+
+            x += 32;
+        }
+
+        if (endbit > 0) {
+            uint32_t pixels = 0;
+            //_drawMaskTexture(p, endmask, color);
+            for (int i = 0; i < endbit; ++i, lu += du) {
+                pixels |= (*(dither_ramp + (lu >> 16) * 32)) & ((uint32_t)0x80000000 >> i);
+            }
+            *p = (*p & ~endmask) | swap(pixels);
+        }
+    }
+}
+
 void polyfill(const Point3d* verts, const int n, uint32_t* dither, uint32_t* bitmap) {
 	float miny = FLT_MAX, maxy = FLT_MIN;
 	int mini = -1;
@@ -135,6 +221,75 @@ void polyfill(const Point3d* verts, const int n, uint32_t* dither, uint32_t* bit
         rx += rdx;
     }    
 }
+
+// affine texturing (using dither pattern)
+// z contains dither color
+void texfill(const Point3d* verts, const int n, uint32_t* dither_ramp, uint32_t* bitmap) {
+    float miny = FLT_MAX, maxy = FLT_MIN;
+    int mini = -1;
+    // find extent
+    for (int i = 0; i < n; ++i) {
+        float y = verts[i].y;
+        if (y < miny) miny = y, mini = i;
+        if (y > maxy) maxy = y;
+    }
+    // out of screen?
+    if (miny > LCD_ROWS || maxy < 0) return;
+    if (maxy > LCD_ROWS) maxy = LCD_ROWS;
+    if (miny < 0) miny = 0;
+
+    // data for left& right edges :
+    int lj = mini, rj = mini;
+    int ly = (int)miny, ry = (int)miny;
+    int lx = 0, ldx = 0, rx = 0, rdx = 0;
+    int lu = 0, ldu = 0, ru = 0, rdu = 0;
+    bitmap = bitmap + (int)miny * LCD_ROWSIZE32;
+    for (int y = (int)miny; y < maxy; ++y, bitmap += LCD_ROWSIZE32) {
+        // maybe update to next vert
+        while (ly < y) {
+            const Point3d* p0 = &verts[lj];
+            lj++;
+            if (lj >= n) lj = 0;
+            const Point3d* p1 = &verts[lj];
+            const float y0 = p0->y, y1 = p1->y;
+            const float dy = y1 - y0;
+            ly = (int)y1;
+            lx = __TOFIXED16(p0->x);
+            lu = __TOFIXED16(p0->z);
+            ldx = __TOFIXED16((p1->x - p0->x) / dy);
+            ldu = __TOFIXED16((p1->z - p0->z) / dy);
+            //sub - pixel correction
+            const float cy = y - y0;
+            lx += (int)(cy * ldx);
+            lu += (int)(cy * ldu);
+        }
+        while (ry < y) {
+            const Point3d* p0 = &verts[rj];
+            rj--;
+            if (rj < 0) rj = n - 1;
+            const Point3d* p1 = &verts[rj];
+            const float y0 = p0->y, y1 = p1->y;
+            const float dy = y1 - y0;
+            ry = (int)y1;
+            rx = __TOFIXED16(p0->x);
+            ru = __TOFIXED16(p0->z);
+            rdx = __TOFIXED16((p1->x - p0->x) / dy);
+            rdu = __TOFIXED16((p1->z - p0->z) / dy);
+            //sub - pixel correction
+            const float cy = y - y0;
+            rx += (int)(cy * rdx);
+            ru += (int)(cy * rdu);
+        }
+
+        drawTextureFragment(bitmap, lx >> 16, rx >> 16, lu, ru, dither_ramp + (y&31));
+
+        lx += ldx;
+        rx += rdx;
+        lu += ldu;
+        ru += rdu;
+    }
+}
+
 
 typedef struct {
     union {
