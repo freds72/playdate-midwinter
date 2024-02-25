@@ -17,6 +17,7 @@
 #include "gfx.h"
 #include "3dmath.h"
 #include "3dmathi.h"
+#include "simd.h"
 
 #define fswap(a,b) {float tmp = b; b=a; a=tmp;}
 
@@ -211,17 +212,6 @@ static int lib3d_update_ground(lua_State* L) {
 	return 1;
 }
 
-static inline uint32_t __SADD16(uint32_t op1, uint32_t op2)
-{
-#if TARGET_PLAYDATE
-	uint32_t result;
-
-	__asm volatile ("sadd16 %0, %1, %2" : "=r" (result) : "r" (op1), "r" (op2));
-	return(result);
-#else
-	return op1 + op2;
-#endif
-}
 
 // 16 32*32 bitmaps
 static uint32_t _dithers[32 * 16];
@@ -234,15 +224,15 @@ static int lib3d_bench_gfx(lua_State* L) {
 	volatile int32_t ia2 = 95, ib2 = 981;
 	volatile int32_t ia3 = 95, ib3 = 981;
 
-	const Point3d verts[] = {
+	Point3d verts[] = {
 		(Point3d) {
  .v = {52.f,52.f,0.f}
 },
 		(Point3d) {
-		.v = { 76,120.f,15.f }
+		.v = { 76,120.f,0.f }
 	},
 	(Point3d) {
-	.v = { 196.f,150.f,0.f }
+	.v = { 196.f,150.f,15.f }
 },
 (Point3d) {
 .v = { 150.f,96.f,0.f }
@@ -276,9 +266,18 @@ static int lib3d_bench_gfx(lua_State* L) {
 	PDButtons released;
 	pd->system->getButtonState(&buttons, &pushed, &released);
 
-	pd->system->resetElapsedTime();
+	
+	//pd->system->resetElapsedTime();
 	float t0 = pd->system->getElapsedTime();
 
+	/*
+	float c = cosf(t0), s = sinf(t0);
+	for (int i = 0; i < 4; ++i) {
+		float x = verts[i].x - 80, y = verts[i].y - 80;
+		verts[i].x = x * c - y * s + 80;
+		verts[i].y = x * s + y * c + 80;
+	}
+	*/
 	// do something
 	// volatile int32_t res = 0;
 	volatile float res = 0;
@@ -354,6 +353,23 @@ static int lib3d_bench_gfx(lua_State* L) {
 	pd->system->logToConsole("cycles: %f", (pd->system->getElapsedTime() - t0));
 
 	pd->graphics->markUpdatedRows(0, LCD_ROWS - 1);
+
+	return 0;
+}
+
+static uint32_t _buffer[512];
+static int lib3d_bench_asm(lua_State* L) {
+	uint32_t lu = 0;
+	uint32_t du = 0;
+	uint32_t flu = 0;
+	uint32_t fdu = 0x1000<<16;
+
+	pd->system->logToConsole("-------------------------\nbefore: lu: %x flu: %x", lu, flu);
+	for (int i = 0; i < 64; ++i) {
+		__ADC2(&flu, fdu, &lu, du);
+	}
+
+	pd->system->logToConsole("after: lu %x flu: %x", lu, flu);
 
 	return 0;
 }
@@ -463,7 +479,8 @@ static int lib3d_bench_init(lua_State* L) {
 			pd->system->logToConsole("Invalid noise image format: %dx%d", w, h);
 		for (int j = 0; j < 32; ++j, data += 4) {
 			int mask = (data[3] << 24) | (data[2] << 16) | (data[1] << 8) | data[0];
-			*(dst++) = mask;
+			// interleaved values
+			_dithers[i + j * 16] = mask;
 		}
 	}
 

@@ -54,4 +54,52 @@ static inline int32_t __TOFIXED16(float x)
     return (int32_t)(x * (1<<16));
 }
 
+static inline void __ADC(uint32_t *a, uint32_t b, uint32_t** op1, uint32_t op2)
+{
+#if TARGET_PLAYDATE
+    __asm volatile (
+        "adds   %0, %2      \n\t"
+        "adc    %1, %3      \n\t"
+    : "+r" (*a), "+r" (*op1)
+    : "r" (b), "r" (op2)
+    : "cc");
+#else
+    uint32_t a_low = ((*a) >> 16);
+    uint32_t b_low = (b >> 16);
+    a_low += b_low;
+    if (a_low > 0xffff) {
+        *op1 += op2 + 1;
+    }
+    else {
+        *op1 += op2;
+    }
+    *a += b;
+
+#endif
+}
+
+static inline void __ADC2(uint32_t* a, uint32_t b, uint32_t* op1, uint32_t op2)
+{
+#if TARGET_PLAYDATE
+    __asm volatile (
+    "adds   %0, %2      \n\t"
+    "adc    %1, %3      \n\t"
+    //"cmp    %0, %0        \n\t"
+    : "+r" (*a), "+r" (*op1)
+    : "r" (b), "r" (op2)
+    : "cc");
+#else
+    uint32_t a_low = ((*a) >> 16);
+    uint32_t b_low = (b >> 16);
+    a_low += b_low;
+    if (a_low > 0xffff) {
+        *op1 += op2 + 1;
+    }
+    else {
+        *op1 += op2;
+    }
+    *a += b;
+#endif
+}
+
 #endif
