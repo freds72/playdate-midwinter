@@ -234,7 +234,7 @@ static int lib3d_bench_gfx(lua_State* L) {
 	volatile int32_t ia2 = 95, ib2 = 981;
 	volatile int32_t ia3 = 95, ib3 = 981;
 
-	const Point3d verts[] = {
+	Point3d verts[] = {
 		(Point3d) {
  .v = {52.f,52.f,0.f}
 },
@@ -276,8 +276,16 @@ static int lib3d_bench_gfx(lua_State* L) {
 	PDButtons released;
 	pd->system->getButtonState(&buttons, &pushed, &released);
 
-	pd->system->resetElapsedTime();
+	// pd->system->resetElapsedTime();
 	float t0 = pd->system->getElapsedTime();
+
+	for (int i = 0; i < 4; ++i) {
+		float angle = t0 - 2.f * i * PI / 4;
+		float c = cosf(angle), s = sinf(angle);
+		// float x = verts[i].x - 80, y = verts[i].y - 80;
+		verts[i].x = 80 + c * 64; //x * c - y * s + 80;
+		verts[i].y = 80 + s * 64; //x * s + y * c + 80;
+	}
 
 	// do something
 	// volatile int32_t res = 0;
@@ -463,7 +471,8 @@ static int lib3d_bench_init(lua_State* L) {
 			pd->system->logToConsole("Invalid noise image format: %dx%d", w, h);
 		for (int j = 0; j < 32; ++j, data += 4) {
 			int mask = (data[3] << 24) | (data[2] << 16) | (data[1] << 8) | data[0];
-			*(dst++) = mask;
+			// interleaved values
+			_dithers[i + j * 16] = mask;
 		}
 	}
 

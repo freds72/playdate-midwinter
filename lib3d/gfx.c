@@ -79,41 +79,6 @@ static void drawFragment(uint32_t* row, int x1, int x2, uint32_t color)
     }
 }
 
-static const uint32_t _masks[32] = {
-    0x80000000,
-    0x40000000,
-    0x20000000,
-    0x10000000,
-    0x8000000,
-    0x4000000,
-    0x2000000,
-    0x1000000,
-    0x800000,
-    0x400000,
-    0x200000,
-    0x100000,
-    0x80000,
-    0x40000,
-    0x20000,
-    0x10000,
-    0x8000,
-    0x4000,
-    0x2000,
-    0x1000,
-    0x800,
-    0x400,
-    0x200,
-    0x100,
-    0x80,
-    0x40,
-    0x20,
-    0x10,
-    0x08,
-    0x04,
-    0x02,
-    0x01
-};
-
 static void drawTextureFragment(uint32_t* row, int x1, int x2, int lu, int ru, uint32_t* dither_ramp)
 {
     if (x2 < 0 || x1 >= LCD_COLUMNS)
@@ -157,8 +122,8 @@ static void drawTextureFragment(uint32_t* row, int x1, int x2, int lu, int ru, u
 
         // _drawMaskTexture(p, mask, dither_ramp);
         uint32_t pixels = 0;
-        for (uint32_t* i =_masks + startbit; i < _masks + endbit; ++i, lu += du) {
-            pixels += (*(dither_ramp + (lu >> 16) * 32)) & *i;
+        for (uint32_t i = startbit; i < endbit; ++i, lu += du) {
+            pixels += (*(dither_ramp + (lu>>16))) & (0x80000000 >> i);
         }
         *p = (*p & ~mask) | swap(pixels);
     }
@@ -169,8 +134,8 @@ static void drawTextureFragment(uint32_t* row, int x1, int x2, int lu, int ru, u
         if (startbit > 0)
         {
             uint32_t pixels = 0;
-            for (uint32_t* i = _masks + startbit; i < _masks + 32; ++i, lu += du) {
-                pixels += (*(dither_ramp + (lu >> 16) * 32)) & *i;
+            for (uint32_t i = startbit; i < 32; ++i, lu += du) {
+                pixels += (*(dither_ramp + (lu >> 16))) & (0x80000000 >> i);
             }
             // _drawMaskTexture(p++, startmask, dither_ramp);
             x += (32 - startbit);
@@ -182,8 +147,8 @@ static void drawTextureFragment(uint32_t* row, int x1, int x2, int lu, int ru, u
         {
             // _drawMaskTextureOpaque(p++, color);
             uint32_t pixels = 0;
-            for (uint32_t* i = _masks; i < _masks + 32; ++i, lu += du) {
-                pixels += (*(dither_ramp + (lu >> 16) * 32)) & *i;
+            for (uint32_t i = 0; i < 32; ++i, lu += du) {
+                pixels += (*(dither_ramp + (lu >> 16))) & (0x80000000 >> i);
             }
             x += 32;
             *(p++) = swap(pixels);
@@ -192,8 +157,8 @@ static void drawTextureFragment(uint32_t* row, int x1, int x2, int lu, int ru, u
         if (endbit > 0) {
             uint32_t pixels = 0;
             //_drawMaskTexture(p, endmask, color);
-            for (uint32_t* i = _masks; i < _masks + endbit; ++i, lu += du) {
-                pixels += (*(dither_ramp + (lu >> 16) * 32)) & *i;
+            for (uint32_t i = 0; i < endbit; ++i, lu += du) {
+                pixels += (*(dither_ramp + (lu >> 16))) & (0x80000000 >> i);
             }
             *p = (*p & ~endmask) | swap(pixels);
         }
@@ -316,7 +281,7 @@ void texfill(const Point3d* verts, const int n, uint32_t* dither_ramp, uint32_t*
             ru += (int)(cy * rdu);
         }
 
-        drawTextureFragment(bitmap, lx >> 16, rx >> 16, lu, ru, dither_ramp + (y&31));
+        drawTextureFragment(bitmap, lx >> 16, rx >> 16, lu, ru, dither_ramp + (y & 31) * 16);
 
         lx += ldx;
         rx += rdx;
