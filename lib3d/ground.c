@@ -804,66 +804,6 @@ void render_ground(Point3d cam_pos, float cam_angle, float* m, uint32_t* bitmap)
                 // transform
                 const GroundFace* f0 = &s0->faces[2 * i];
                 const GroundFace* f1 = f0->quad?f0:&s0->faces[2 * i + 1];
-                Point3d prev00_normal = f0->n;
-                Point3d prev01_normal = f1->n;
-                Point3d next00_normal = f0->n;
-                Point3d next01_normal = f1->n;
-                const GroundFace* f10 = &s1->faces[2 * i];
-                const GroundFace* f11 = f10->quad ? f10 : &s1->faces[2 * i + 1];
-                Point3d prev10_normal = f0->n;
-                Point3d prev11_normal = f1->n;
-                Point3d next10_normal = f0->n;
-                Point3d next11_normal = f1->n;
-                if (i > 1) {
-                    GroundFace* other_face = &s0->faces[2 * (i - 1)];
-                    if (other_face->quad) {
-                        prev00_normal = other_face->n;
-                    }
-                    else
-                    {
-                        other_face = &s0->faces[2 * (i - 1) + 1];
-                        prev01_normal = other_face->n;
-                    }
-
-                    other_face = &s1->faces[2 * (i - 1)];
-                    if (other_face->quad) {
-                        prev10_normal = other_face->n;
-                    }
-                    else
-                    {
-                        other_face = &s1->faces[2 * (i - 1) + 1];
-                        prev11_normal = other_face->n;
-                    }
-                }
-                if (i < GROUND_SIZE - 2) {
-                    GroundFace* other_face = &s0->faces[2 * (i + 1)];
-                    next00_normal = other_face->n;
-                    if (other_face->quad) {
-                        next01_normal = other_face->n;
-                    }
-                    else {
-                        other_face = &s0->faces[2 * (i + 1) + 1];
-                        next01_normal = other_face->n;
-                    }
-
-                    other_face = &s1->faces[2 * (i + 1)];
-                    next10_normal = other_face->n;
-                    if (other_face->quad) {
-                        next11_normal = other_face->n;
-                    }
-                    else {
-                        other_face = &s1->faces[2 * (i + 1) + 1];
-                        next11_normal = other_face->n;
-                    }
-                }
-                /*
-                const float normals[4] = {
-                    (prev00_normal.y + f0->n.y + f1->n.y)/3.0f,
-                    (f1->n.y + next00_normal.y + next01_normal.y) / 3.0f,
-                    (f0->n.y + f1->n.y + next00_normal.y + next10_normal.y + next11_normal.y) / 5.0f,
-                    (f0->n.y + prev00_normal.y + prev01_normal.y + prev11_normal.y) / 4.0f
-                };
-                */
                 const float normals[4] = {
                     (4.0f + s0->h[i])/8.f,
                     (4.0f + s0->h[i + 1])/8.f,

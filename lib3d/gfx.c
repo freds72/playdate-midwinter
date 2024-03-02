@@ -124,7 +124,7 @@ static void drawTextureFragment(uint8_t* row, int x1, int x2, int lu, int ru, ui
         else if (endbit > 0)
             mask = endmask;
 
-        *p = (*p & ~mask) | ((*(dither_ramp + (lu >> 16) * 8 + (col%4))) & mask);
+        *p = (*p & ~mask) | ((*(dither_ramp + (lu >> 16) * 8 + (col&3))) & mask);
     }
     else
     {
@@ -132,7 +132,7 @@ static void drawTextureFragment(uint8_t* row, int x1, int x2, int lu, int ru, ui
 
         if (startbit > 0)
         {
-            *p = (*p & ~startmask) | ((*(dither_ramp + (lu >> 16) * 8 + ((x/8) % 4))) & startmask);
+            *p = (*p & ~startmask) | ((*(dither_ramp + (lu >> 16) * 8 + ((x/8) & 3))) & startmask);
             x += (8 - startbit);
             lu += du;
             p++;
@@ -140,7 +140,7 @@ static void drawTextureFragment(uint8_t* row, int x1, int x2, int lu, int ru, ui
 
         while (x + 8 <= x2)
         {
-            *(p++) = *(dither_ramp + (lu >> 16) * 8 + ((x / 8) % 4));
+            *(p++) = *(dither_ramp + (lu >> 16) * 8 + ((x / 8) & 3));
             lu += du;
             x += 8;
         }
