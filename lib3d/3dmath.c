@@ -32,11 +32,11 @@ void v_cross(const Point3d* a, const Point3d* b, Point3d* out) {
     out->z = ax * by - ay * bx;
 }
 
-void m_x_v(const float* m, const Point3d v,Point3d *out) {
+void m_x_v(const float* m, const Point3d v,float *out) {
 	float x=v.x,y=v.y,z=v.z;
-    out->x = m[0]*x+m[4]*y+m[8]*z+m[12];
-    out->y = m[1]*x+m[5]*y+m[9]*z+m[13];
-    out->z = m[2]*x+m[6]*y+m[10]*z+m[14];	
+    out[0] = m[0] * x + m[4] * y + m[8] * z + m[12];
+    out[1] = m[1]*x+m[5]*y+m[9]*z+m[13];
+    out[2] = m[2]*x+m[6]*y+m[10]*z+m[14];
 }
 
 float v_dot(const Point3d* a, const Point3d* b) {

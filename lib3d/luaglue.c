@@ -223,8 +223,8 @@ static inline uint32_t __SADD16(uint32_t op1, uint32_t op2)
 #endif
 }
 
-// 16 32*32 bitmaps
-static uint32_t _dithers[32 * 16];
+// 16 32 * 8 bytes bitmaps (duplicated on x)
+static uint8_t _dithers[8 * 32 * 16];
 
 static int lib3d_bench_gfx(lua_State* L) {
 	volatile float a = 846.8f, b = 86.5f;
@@ -276,9 +276,10 @@ static int lib3d_bench_gfx(lua_State* L) {
 	PDButtons released;
 	pd->system->getButtonState(&buttons, &pushed, &released);
 
-	// pd->system->resetElapsedTime();
+	pd->system->resetElapsedTime();
 	float t0 = pd->system->getElapsedTime();
 
+	/*
 	for (int i = 0; i < 4; ++i) {
 		float angle = t0 - 2.f * i * PI / 4;
 		float c = cosf(angle), s = sinf(angle);
@@ -286,6 +287,7 @@ static int lib3d_bench_gfx(lua_State* L) {
 		verts[i].x = 80 + c * 64; //x * c - y * s + 80;
 		verts[i].y = 80 + s * 64; //x * s + y * c + 80;
 	}
+	*/
 
 	// do something
 	// volatile int32_t res = 0;
@@ -346,7 +348,7 @@ static int lib3d_bench_gfx(lua_State* L) {
 					polyfill(&verts, 4, dither, bitmap);
 				}
 				else {
-					texfill(&verts, 4, _dithers, bitmap);
+					texfill(&verts, 4, _dithers, bitmap8);
 				}
 			}
 		/*
@@ -460,7 +462,6 @@ static int lib3d_bench_init(lua_State* L) {
 	if (!bitmaps)
 		pd->system->logToConsole("Failed to load: %s, %s", path, err);
 
-	uint32_t* dst = _dithers;
 	for (int i = 0; i < 16; i++) {
 		LCDBitmap* bitmap = pd->graphics->getTableBitmap(bitmaps, i);
 		int w = 0, h = 0, r = 0;
@@ -469,10 +470,12 @@ static int lib3d_bench_init(lua_State* L) {
 		pd->graphics->getBitmapData(bitmap, &w, &h, &r, &mask, &data);
 		if (w != 32 || h != 32)
 			pd->system->logToConsole("Invalid noise image format: %dx%d", w, h);
-		for (int j = 0; j < 32; ++j, data += 4) {
-			int mask = (data[3] << 24) | (data[2] << 16) | (data[1] << 8) | data[0];
-			// interleaved values
-			_dithers[i + j * 16] = mask;
+		for (int j = 0; j < 32; ++j) {
+			for (int k = 0; k < 4; k++, data++) {
+				// interleaved values (4 bytes)
+				_dithers[i * 8 + j * 16 * 8 + k] = *data;
+				_dithers[i * 8 + j * 16 * 8 + k + 4] = *data;
+			}
 		}
 	}
 

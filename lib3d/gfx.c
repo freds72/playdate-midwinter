@@ -79,7 +79,7 @@ static void drawFragment(uint32_t* row, int x1, int x2, uint32_t color)
     }
 }
 
-static void drawTextureFragment(uint32_t* row, int x1, int x2, int lu, int ru, uint32_t* dither_ramp)
+static void drawTextureFragment(uint8_t* row, int x1, int x2, int lu, int ru, uint8_t* dither_ramp)
 {
     if (x2 < 0 || x1 >= LCD_COLUMNS)
         return;
@@ -92,26 +92,30 @@ static void drawTextureFragment(uint32_t* row, int x1, int x2, int lu, int ru, u
         lu -= x1 * du;
         x1 = 0;
     }
-
+    
     if (x2 > LCD_COLUMNS)
         x2 = LCD_COLUMNS;
 
     if (x1 > x2)
         return;
 
-    // Operate on 32 bits at a time
+    // Operate on 8 bits at a time
 
-    const int startbit = x1 & 31;
-    const uint32_t startmask = swap((1 << (32 - startbit)) - 1);
-    const int endbit = x2 & 31;
-    const uint32_t endmask = swap(((1 << endbit) - 1) << (32 - endbit));
+    const int startbit = x1 & 7;
+    const uint8_t startmask = (1 << (8 - startbit)) - 1;
+    const int endbit = x2 & 7;
+    const uint8_t endmask = ((1 << endbit) - 1) << (8 - endbit);
 
-    int col = x1 / 32;
-    uint32_t* p = row + col;
+    // ensure lu by step of 8*du do not overlap with invalid noise
+    dither_ramp++;
+    du *= 8;
 
-    if (col == x2 / 32)
+    int col = x1 / 8;
+    uint8_t* p = row + col;
+    
+    if (col == x2 / 8)
     {
-        uint32_t mask = 0;
+        uint8_t mask = 0;
 
         if (startbit > 0 && endbit > 0)
             mask = startmask & endmask;
@@ -120,12 +124,7 @@ static void drawTextureFragment(uint32_t* row, int x1, int x2, int lu, int ru, u
         else if (endbit > 0)
             mask = endmask;
 
-        // _drawMaskTexture(p, mask, dither_ramp);
-        uint32_t pixels = 0;
-        for (uint32_t i = startbit; i < endbit; ++i, lu += du) {
-            pixels += (*(dither_ramp + (lu>>16))) & (0x80000000 >> i);
-        }
-        *p = (*p & ~mask) | swap(pixels);
+        *p = (*p & ~mask) | ((*(dither_ramp + (lu >> 16) * 8 + (col%4))) & mask);
     }
     else
     {
@@ -133,34 +132,21 @@ static void drawTextureFragment(uint32_t* row, int x1, int x2, int lu, int ru, u
 
         if (startbit > 0)
         {
-            uint32_t pixels = 0;
-            for (uint32_t i = startbit; i < 32; ++i, lu += du) {
-                pixels += (*(dither_ramp + (lu >> 16))) & (0x80000000 >> i);
-            }
-            // _drawMaskTexture(p++, startmask, dither_ramp);
-            x += (32 - startbit);
-            *p = (*p & ~startmask) | swap(pixels);
+            *p = (*p & ~startmask) | ((*(dither_ramp + (lu >> 16) * 8 + ((x/8) % 4))) & startmask);
+            x += (8 - startbit);
+            lu += du;
             p++;
         }
 
-        while (x + 32 <= x2)
+        while (x + 8 <= x2)
         {
-            // _drawMaskTextureOpaque(p++, color);
-            uint32_t pixels = 0;
-            for (uint32_t i = 0; i < 32; ++i, lu += du) {
-                pixels += (*(dither_ramp + (lu >> 16))) & (0x80000000 >> i);
-            }
-            x += 32;
-            *(p++) = swap(pixels);
+            *(p++) = *(dither_ramp + (lu >> 16) * 8 + ((x / 8) % 4));
+            lu += du;
+            x += 8;
         }
 
         if (endbit > 0) {
-            uint32_t pixels = 0;
-            //_drawMaskTexture(p, endmask, color);
-            for (uint32_t i = 0; i < endbit; ++i, lu += du) {
-                pixels += (*(dither_ramp + (lu >> 16))) & (0x80000000 >> i);
-            }
-            *p = (*p & ~endmask) | swap(pixels);
+            *p = (*p & ~endmask) | ((*(dither_ramp + (lu >> 16) * 8 + ((x/8) % 4))) & endmask);
         }
     }
 }
@@ -224,7 +210,7 @@ void polyfill(const Point3d* verts, const int n, uint32_t* dither, uint32_t* bit
 
 // affine texturing (using dither pattern)
 // z contains dither color
-void texfill(const Point3d* verts, const int n, uint32_t* dither_ramp, uint32_t* bitmap) {
+void texfill(const Point3du* verts, const int n, uint8_t* dither_ramp, uint8_t* bitmap) {
     float miny = FLT_MAX, maxy = FLT_MIN;
     int mini = -1;
     // find extent
@@ -243,45 +229,45 @@ void texfill(const Point3d* verts, const int n, uint32_t* dither_ramp, uint32_t*
     int ly = (int)miny, ry = (int)miny;
     int lx = 0, ldx = 0, rx = 0, rdx = 0;
     int lu = 0, ldu = 0, ru = 0, rdu = 0;
-    bitmap = bitmap + (int)miny * LCD_ROWSIZE32;
-    for (int y = (int)miny; y < maxy; ++y, bitmap += LCD_ROWSIZE32) {
+    bitmap += (int)miny * LCD_ROWSIZE;
+    for (int y = (int)miny; y < maxy; ++y, bitmap += LCD_ROWSIZE) {
         // maybe update to next vert
         while (ly < y) {
-            const Point3d* p0 = &verts[lj];
+            const Point3du* p0 = &verts[lj];
             lj++;
             if (lj >= n) lj = 0;
-            const Point3d* p1 = &verts[lj];
+            const Point3du* p1 = &verts[lj];
             const float y0 = p0->y, y1 = p1->y;
             const float dy = y1 - y0;
             ly = (int)y1;
             lx = __TOFIXED16(p0->x);
-            lu = __TOFIXED16(p0->z);
+            lu = __TOFIXED16(p0->u);
             ldx = __TOFIXED16((p1->x - p0->x) / dy);
-            ldu = __TOFIXED16((p1->z - p0->z) / dy);
+            ldu = __TOFIXED16((p1->u - p0->u) / dy);
             //sub - pixel correction
             const float cy = y - y0;
             lx += (int)(cy * ldx);
             lu += (int)(cy * ldu);
         }
         while (ry < y) {
-            const Point3d* p0 = &verts[rj];
+            const Point3du* p0 = &verts[rj];
             rj--;
             if (rj < 0) rj = n - 1;
-            const Point3d* p1 = &verts[rj];
+            const Point3du* p1 = &verts[rj];
             const float y0 = p0->y, y1 = p1->y;
             const float dy = y1 - y0;
             ry = (int)y1;
             rx = __TOFIXED16(p0->x);
-            ru = __TOFIXED16(p0->z);
+            ru = __TOFIXED16(p0->u);
             rdx = __TOFIXED16((p1->x - p0->x) / dy);
-            rdu = __TOFIXED16((p1->z - p0->z) / dy);
+            rdu = __TOFIXED16((p1->u - p0->u) / dy);
             //sub - pixel correction
             const float cy = y - y0;
             rx += (int)(cy * rdx);
             ru += (int)(cy * rdu);
         }
 
-        drawTextureFragment(bitmap, lx >> 16, rx >> 16, lu, ru, dither_ramp + (y & 31) * 16);
+        drawTextureFragment(bitmap, lx >> 16, rx >> 16, lu, ru, dither_ramp + (y & 31) * 8 * 16);
 
         lx += ldx;
         rx += rdx;
