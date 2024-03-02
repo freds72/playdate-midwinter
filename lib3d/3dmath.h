@@ -27,6 +27,22 @@ typedef struct {
     };
 } Point2d;
 
+
+// 3d point with u coordinate
+typedef struct {
+    union {
+        // named access
+        struct {
+            float x;
+            float y;
+            float z;
+        };
+        // values array
+        float v[3];
+    };
+    float u;
+} Point3du;
+
 // convert a tau angle [0;1] into a radian angle
 inline float detauify(const float tau) {
     return tau * 2 * PI;
@@ -49,7 +65,7 @@ void make_v(const Point3d a, Point3d b, Point3d* out);
 float v_dot(const Point3d* a, const Point3d* b);
 void v_normz(Point3d* a);
 void v_cross(const Point3d* a, const Point3d* b, Point3d* out);
-void m_x_v(const float* m, const Point3d v,Point3d *out);
+void m_x_v(const float* m, const Point3d v,float *out);
 void v_lerp(const Point3d* a, const Point3d* b, const float t, Point3d* out);
 
 #endif

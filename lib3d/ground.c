@@ -74,6 +74,8 @@ static const char* _props_paths[] = {
     "images/generated/checkpoint_left",
 };
 
+#define MATERIAL_SNOW 0
+#define MATERIAL_ROCK 1
 
 static RotatedScaledProp _ground_props[8];
 
@@ -88,9 +90,8 @@ static Ground _ground;
 
 static GroundParams active_params;
 
-// large 32x32 pattern
-typedef uint32_t DitherPattern[32];
-static DitherPattern _dithers[16];
+// 16 32 * 8 bytes bitmaps (duplicated on x)
+static uint8_t _dithers[8 * 32 * 16];
 
 static uint32_t* _backgrounds[61];
 static int _backgrounds_heights[61];
@@ -122,12 +123,15 @@ static void mesh_slice(int j) {
         f0->n = n0;
         if (v_dot(&n0, &n1) > 0.999f) {
             f0->quad = 1;
+            f0->material = n0.y < 0.75f ? MATERIAL_ROCK : MATERIAL_SNOW;
         }
         else {
             f0->quad = 0;
+            f0->material = n0.y < 0.75f ? MATERIAL_ROCK : MATERIAL_SNOW;
             GroundFace* f1 = &s0->faces[2 * i + 1];
             f1->n = n1;
             f1->quad = 0;
+            f1->material = n1.y < 0.75f ? MATERIAL_ROCK : MATERIAL_SNOW;
         }
     }
 }
@@ -242,7 +246,7 @@ void update_ground(Point3d* p) {
         // shift back
         p->z -= GROUND_CELL_SIZE;
         _ground.max_pz -= GROUND_CELL_SIZE;
-        const GroundSlice* old_slice = _ground.slices[0];
+        GroundSlice* old_slice = _ground.slices[0];
         float old_y = old_slice->y;
         // drop slice 0
         for (int i = 1; i < GROUND_SIZE; ++i) {
@@ -330,9 +334,13 @@ static void load_noise(void* ptr,const int i, const int _) {
     pd->graphics->getBitmapData(bitmap, &w, &h, &r, &mask, &data);
     if (w != 32 || h != 32)
         pd->system->logToConsole("Invalid noise image format: %dx%d", w, h);
-    for (int j = 0; j < 32; ++j, data+=4) {
-        int mask = (data[3] << 24) | (data[2] << 16) | (data[1] << 8) | data[0];
-        _dithers[i][j] = mask;
+
+    for (int j = 0; j < 32; ++j) {
+        for (int k = 0; k < 4; k++, data++) {
+            // interleaved values (4 bytes)
+            _dithers[i * 8 + j * 16 * 8 + k] = *data;
+            _dithers[i * 8 + j * 16 * 8 + k + 4] = *data;
+        }
     }
 }
 
@@ -418,7 +426,7 @@ void ground_init(PlaydateAPI* playdate) {
 
     // read rotated & scaled sprites
     for (int prop = 1; prop < 3; prop++) {
-        path = _props_paths[prop - 1];
+        const char* path = _props_paths[prop - 1];
         pd->system->logToConsole("Loading prop: %s", path);
         bitmaps = pd->graphics->loadBitmapTable(path, &err);
         if (!bitmaps)
@@ -498,7 +506,7 @@ int ground_load_assets_async() {
 }
 
 // --------------- 3d rendering -----------------------------
-#define Z_NEAR 1
+#define Z_NEAR 0.5f
 #define OUTCODE_FAR 0
 #define OUTCODE_NEAR 2
 #define OUTCODE_RIGHT 4
@@ -515,11 +523,12 @@ typedef struct {
 static uint32_t _visible_tiles[GROUND_SIZE];
 
 typedef struct {
+    // texture type
+    int material;
     // number of points
     int n;
-    float material;
     // clipped points in camera space
-    Point3d pts[5];
+    Point3du pts[5];
 } DrawableFace;
 
 typedef struct {
@@ -561,23 +570,24 @@ static int cmp_drawable(const void* a, const void* b) {
 
 
 // clip polygon against near-z
-static int z_poly_clip(const float znear, Point3d* in, int n, Point3d* out) {
-    Point3d v0 = in[n - 1];
+static int z_poly_clip(const float znear, Point3du* in, int n, Point3du* out) {
+    Point3du v0 = in[n - 1];
     float d0 = v0.z - znear;
     int nout = 0;
     for (int i = 0; i < n; i++) {
-        Point3d v1 = in[i];
+        Point3du v1 = in[i];
         int side = d0 > 0;
-        if (side) out[nout++] = (Point3d){ .v = { v0.x, v0.y, v0.z } };
+        if (side) out[nout++] = (Point3du){ .v = { v0.x, v0.y, v0.z }, .u = v0.u };
         float d1 = v1.z - znear;
         if ((d1 > 0) != side) {
             // clip!
             float t = d0 / (d0 - d1);
-            out[nout++] = (Point3d){ .v = {
+            out[nout++] = (Point3du){ .v = {
                 lerpf(v0.x,v1.x,t),
                 lerpf(v0.y,v1.y,t),
-                znear
-            } };
+                znear},
+                .u = lerpf(v0.u,v1.u,t)
+            };
         }
         v0 = v1;
         d0 = d1;
@@ -589,31 +599,35 @@ static void draw_face(struct Drawable_s* drawable, uint32_t* bitmap) {
     DrawableFace* face = &drawable->face;
 
     const int n = face->n;
-    Point3d* pts = face->pts;
-    float depth = FLT_MAX;
+    Point3du* pts = face->pts;
+    float depth = FLT_MAX;    
     for (int i = 0; i < n; ++i) {
         // project 
         float w = 1.f / pts[i].z;
         if (w < depth) depth = w;
         pts[i].x = 199.5f + 199.5f * w * pts[i].x;
         pts[i].y = 119.5f - 199.5f * w * pts[i].y;
+        // works ok
+        float shading = face->material == MATERIAL_SNOW ? 4.0f * pts[i].u + 8.f * w : 4.0f + 4.0f * pts[i].u + 4.f * w;
+        // pts[i].u = 16.0f * powf(-pts[i].u + 0.5f * w,2);
+        if (shading > 15.f) shading = 15.0f;
+        if (shading < 0.f) shading = 0.f;
+        pts[i].u = shading;
     }
-    // todo: dither based on material + distance
-    float mat = face->material;
-    int dither_key = (int)(256.f * (mat * mat) + 64.0f * depth);
-    if (dither_key > 15) dither_key = 15;
-    if (dither_key < 0) dither_key = 0;
-    polyfill(pts, n, _dithers[15 - dither_key], bitmap);
+
+    // 
+    texfill(pts, n, _dithers, bitmap);
 
     /*
     float x0 = pts[n - 1].x, y0 = pts[n - 1].y;
     for (int i = 0; i < n; ++i) {
         float x1 = pts[i].x, y1 = pts[i].y;
-        pd->graphics->drawLine(x0,y0,x1,y1, 1, kColorWhite);
+        pd->graphics->drawLine(x0,y0,x1,y1, 1, kColorBlack);
         x0 = x1, y0 = y1;
     }
     */
 }
+
 static void draw_prop(Drawable* drawable, uint32_t* butmap) {
     DrawableProp* prop = &drawable->prop;
 
@@ -626,21 +640,24 @@ static void draw_prop(Drawable* drawable, uint32_t* butmap) {
 }
 
 // push a face to the drawing list
-static void push_face(Point3d cv, const float* m, const Point3d* p, int* indices, int n, const Point3d* normal) {
-    Point3d tmp[4];
+static void push_face(GroundFace* f, Point3d cv, const float* m, const Point3d* p, int* indices, int n, const float* normals) {
+    Point3du tmp[4];
+
     // transform
     int outcode = 0xfffffff, is_clipped = 0;
-    float min_key = FLT_MAX;
+    float min_key = FLT_MIN;
     for (int i = 0; i < n; ++i) {
-        Point3d* res = &tmp[i];
+        Point3du* res = &tmp[i];
         // project using active matrix
-        m_x_v(m, p[indices[i]], res);
+        m_x_v(m, p[indices[i]], res->v);
+        res->u = normals[indices[i]];
+        if (res->u >= 1.0f) res->u = 0.9999f;
         int code = res->z > Z_NEAR ? OUTCODE_FAR : OUTCODE_NEAR;
         if (res->x > res->z) code |= OUTCODE_RIGHT;
         if (-res->x > res->z) code |= OUTCODE_LEFT;
         outcode &= code;
         is_clipped += code & 2;
-        if (res->z < min_key) min_key = res->z;
+        if (res->z > min_key) min_key = res->z;
     }
 
     // visible?
@@ -649,8 +666,7 @@ static void push_face(Point3d cv, const float* m, const Point3d* p, int* indices
         drawable->draw = draw_face;
         drawable->key = min_key;
         DrawableFace* face = &drawable->face;
-        v_normz(&cv);
-        face->material = v_dot(normal, &cv);
+        face->material = f->material;
         if (is_clipped > 0) {
             face->n = z_poly_clip(Z_NEAR, tmp, n, face->pts);
         }
@@ -787,23 +803,90 @@ void render_ground(Point3d cam_pos, float cam_angle, float* m, uint32_t* bitmap)
                 {.v = {(float)i * GROUND_CELL_SIZE,         s1->h[i] + s1->y - y_offset,       (float)(j + 1) * GROUND_CELL_SIZE}} };
                 // transform
                 const GroundFace* f0 = &s0->faces[2 * i];
+                const GroundFace* f1 = f0->quad?f0:&s0->faces[2 * i + 1];
+                Point3d prev00_normal = f0->n;
+                Point3d prev01_normal = f1->n;
+                Point3d next00_normal = f0->n;
+                Point3d next01_normal = f1->n;
+                const GroundFace* f10 = &s1->faces[2 * i];
+                const GroundFace* f11 = f10->quad ? f10 : &s1->faces[2 * i + 1];
+                Point3d prev10_normal = f0->n;
+                Point3d prev11_normal = f1->n;
+                Point3d next10_normal = f0->n;
+                Point3d next11_normal = f1->n;
+                if (i > 1) {
+                    GroundFace* other_face = &s0->faces[2 * (i - 1)];
+                    if (other_face->quad) {
+                        prev00_normal = other_face->n;
+                    }
+                    else
+                    {
+                        other_face = &s0->faces[2 * (i - 1) + 1];
+                        prev01_normal = other_face->n;
+                    }
+
+                    other_face = &s1->faces[2 * (i - 1)];
+                    if (other_face->quad) {
+                        prev10_normal = other_face->n;
+                    }
+                    else
+                    {
+                        other_face = &s1->faces[2 * (i - 1) + 1];
+                        prev11_normal = other_face->n;
+                    }
+                }
+                if (i < GROUND_SIZE - 2) {
+                    GroundFace* other_face = &s0->faces[2 * (i + 1)];
+                    next00_normal = other_face->n;
+                    if (other_face->quad) {
+                        next01_normal = other_face->n;
+                    }
+                    else {
+                        other_face = &s0->faces[2 * (i + 1) + 1];
+                        next01_normal = other_face->n;
+                    }
+
+                    other_face = &s1->faces[2 * (i + 1)];
+                    next10_normal = other_face->n;
+                    if (other_face->quad) {
+                        next11_normal = other_face->n;
+                    }
+                    else {
+                        other_face = &s1->faces[2 * (i + 1) + 1];
+                        next11_normal = other_face->n;
+                    }
+                }
+                /*
+                const float normals[4] = {
+                    (prev00_normal.y + f0->n.y + f1->n.y)/3.0f,
+                    (f1->n.y + next00_normal.y + next01_normal.y) / 3.0f,
+                    (f0->n.y + f1->n.y + next00_normal.y + next10_normal.y + next11_normal.y) / 5.0f,
+                    (f0->n.y + prev00_normal.y + prev01_normal.y + prev11_normal.y) / 4.0f
+                };
+                */
+                const float normals[4] = {
+                    (4.0f + s0->h[i])/8.f,
+                    (4.0f + s0->h[i + 1])/8.f,
+                    (4.0f + s1->h[i + 1])/8.f,
+                    (4.0f + s1->h[i])/8.f
+                };
+
                 // camera to face point
                 const Point3d cv = { .x = verts[0].x - cam_pos.x,.y = verts[0].y - cam_pos.y,.z = verts[0].z - cam_pos.z };
                 if (f0->quad) {
                     if (v_dot(&f0->n, &cv) < 0.f)
                     {
-                        push_face(cv, m, verts, (int[]) { 0, 1, 2, 3 }, 4, &f0->n);
+                        push_face(f0, cv, m, verts, (int[]) { 0, 1, 2, 3 }, 4, normals);
                     }
                 }
                 else {
-                    const GroundFace* f1 = &s0->faces[2 * i + 1];
                     if (v_dot(&f0->n, &cv) < 0.f)
                     {
-                        push_face(cv, m, verts, (int[]) { 0, 2, 3 }, 3, &f0->n);
+                        push_face(f0, cv, m, verts, (int[]) { 0, 2, 3 }, 3, normals);
                     }
                     if (v_dot(&f1->n, &cv) < 0.f)
                     {
-                        push_face(cv, m, verts, (int[]) { 0, 1, 2 }, 3, &f0->n);
+                        push_face(f1, cv, m, verts, (int[]) { 0, 1, 2 }, 3, normals);
                     }
                 }
                 // draw prop (if any)
@@ -811,7 +894,7 @@ void render_ground(Point3d cam_pos, float cam_angle, float* m, uint32_t* bitmap)
                 if (prop_id != 0) {
                     Point3d pos, res;
                     v_lerp(&verts[0], &verts[2], s0->prop_t[i], &pos);
-                    m_x_v(m, pos, &res);
+                    m_x_v(m, pos, res.v);
                     if (res.z > Z_NEAR && res.z < GROUND_CELL_SIZE * 16) {
                         push_prop(&res, angle, prop_id);
                     }

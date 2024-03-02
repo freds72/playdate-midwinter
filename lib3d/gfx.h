@@ -6,6 +6,7 @@
 
 void gfx_init(PlaydateAPI* playdate);
 void polyfill(const Point3d* verts, const int n, uint32_t* dither, uint32_t* bitmap);
+void texfill(const Point3du* verts, const int n, uint8_t* dither_ramp, uint8_t* bitmap);
 void trifill(const Point2di* v0, const Point2di* v1, const Point2di* v2, uint8_t* bitmap);
 void sspr(int x, int y, int w, uint8_t* src, int sw, uint8_t* bitmap);
 void upscale_image(int x, int y, int w, int h, uint8_t* src, int sw, int sh, uint8_t* bitmap);

@@ -223,6 +223,9 @@ static inline uint32_t __SADD16(uint32_t op1, uint32_t op2)
 #endif
 }
 
+// 16 32 * 8 bytes bitmaps (duplicated on x)
+static uint8_t _dithers[8 * 32 * 16];
+
 static int lib3d_bench_gfx(lua_State* L) {
 	volatile float a = 846.8f, b = 86.5f;
 
@@ -231,7 +234,7 @@ static int lib3d_bench_gfx(lua_State* L) {
 	volatile int32_t ia2 = 95, ib2 = 981;
 	volatile int32_t ia3 = 95, ib3 = 981;
 
-	const Point3d verts[] = {
+	Point3d verts[] = {
 		(Point3d) {
  .v = {52.f,52.f,0.f}
 },
@@ -239,7 +242,7 @@ static int lib3d_bench_gfx(lua_State* L) {
 		.v = { 76,120.f,0.f }
 	},
 	(Point3d) {
-	.v = { 196.f,150.f,0.f }
+	.v = { 196.f,150.f,15.f }
 },
 (Point3d) {
 .v = { 150.f,96.f,0.f }
@@ -275,6 +278,16 @@ static int lib3d_bench_gfx(lua_State* L) {
 
 	pd->system->resetElapsedTime();
 	float t0 = pd->system->getElapsedTime();
+
+	/*
+	for (int i = 0; i < 4; ++i) {
+		float angle = t0 - 2.f * i * PI / 4;
+		float c = cosf(angle), s = sinf(angle);
+		// float x = verts[i].x - 80, y = verts[i].y - 80;
+		verts[i].x = 80 + c * 64; //x * c - y * s + 80;
+		verts[i].y = 80 + s * 64; //x * s + y * c + 80;
+	}
+	*/
 
 	// do something
 	// volatile int32_t res = 0;
@@ -326,18 +339,25 @@ static int lib3d_bench_gfx(lua_State* L) {
 		cycles: 0.005774
 		cycles: 0.007292
 		*/
-		if (buttons & kButtonA) {
-			if (buttons & kButtonB) {
+		//if (buttons & kButtonA) {
+			if (buttons & kButtonA) {
 				pd->graphics->fillPolygon(4, (int*)&vertsi, kColorWhite, 0);
 			}
 			else {
-				polyfill(&verts, 4, dither, bitmap);
+				if (buttons & kButtonB) {
+					polyfill(&verts, 4, dither, bitmap);
+				}
+				else {
+					texfill(&verts, 4, _dithers, bitmap8);
+				}
 			}
+		/*
 		}
 		else {
 			trifill(&vertsi[0], &vertsi[2], &vertsi[1], bitmap8);
 			trifill(&vertsi[0], &vertsi[3], &vertsi[2], bitmap8);
 		}
+		*/
 	}
 
 	// print the counter value
@@ -431,6 +451,37 @@ static int lib3d_bench_scaler(lua_State* L) {
 	return 0;
 }
 
+// load bench assets
+static int lib3d_bench_init(lua_State* L) {
+	const char* err;
+	char* path = NULL;
+
+	pd->system->formatString(&path, "images/generated/noise32x32");
+	
+	LCDBitmapTable* bitmaps = pd->graphics->loadBitmapTable(path, &err);
+	if (!bitmaps)
+		pd->system->logToConsole("Failed to load: %s, %s", path, err);
+
+	for (int i = 0; i < 16; i++) {
+		LCDBitmap* bitmap = pd->graphics->getTableBitmap(bitmaps, i);
+		int w = 0, h = 0, r = 0;
+		uint8_t* mask = NULL;
+		uint8_t* data = NULL;
+		pd->graphics->getBitmapData(bitmap, &w, &h, &r, &mask, &data);
+		if (w != 32 || h != 32)
+			pd->system->logToConsole("Invalid noise image format: %dx%d", w, h);
+		for (int j = 0; j < 32; ++j) {
+			for (int k = 0; k < 4; k++, data++) {
+				// interleaved values (4 bytes)
+				_dithers[i * 8 + j * 16 * 8 + k] = *data;
+				_dithers[i * 8 + j * 16 * 8 + k + 4] = *data;
+			}
+		}
+	}
+
+	return 0;
+}
+
 // async load asset function
 static int lib3d_load_assets_async(lua_State* L) {
 	const int res = ground_load_assets_async();
@@ -477,7 +528,10 @@ void lib3d_register(PlaydateAPI* playdate)
 	if (!pd->lua->addFunction(lib3d_update_ground, "lib3d.update_ground", &err))
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
-	if (!pd->lua->addFunction(lib3d_bench_scaler, "lib3d.bench", &err))
+	if (!pd->lua->addFunction(lib3d_bench_gfx, "lib3d.bench", &err))
+		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
+
+	if (!pd->lua->addFunction(lib3d_bench_init, "lib3d.bench_init", &err))
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
 	if (!pd->lua->registerClass("lib3d.GroundParams", lib3D_GroundParams, NULL, 0, &err))

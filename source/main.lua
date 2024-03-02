@@ -274,7 +274,7 @@ function make_cam()
 			local m=make_m_from_v_angle(up,self.angle)
 			-- 1.8m player
 			-- v_add(pos,v_up,64)
-			v_add(pos,m_up(m),1.6)
+			v_add(pos,m_up(m),1.2)
 			
 			-- inverse view matrix
 			m_inv(m)
@@ -894,7 +894,7 @@ function play_state(params)
 				end
 
 				if plyr.gps then
-					local idx=flr(((plyr.gps%1+1)%1)*360)
+					local idx=flr(((plyr.gps%1+1)%1)*359)
 					local gps=_gps_sprites:getImage(idx)
 					local w,h=gps:getSize()
 					gps:draw(199.5-w/2,32-h/2)
