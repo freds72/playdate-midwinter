@@ -522,7 +522,7 @@ function make_plyr(p,params)
 			spin_prev=nil
 		end
 
-		local hit_type,hit_actor=ground:collide(pos,0.2)
+		local hit_type=ground:collide(pos,0.2)
 		if hit_type==2 then
 			-- walls: insta-death
 			cam:shake()
@@ -533,7 +533,7 @@ function make_plyr(p,params)
 			sfx(8)
 		elseif hit_ttl<0 and hit_type==1 then
 			-- props: 
-			sfx(pick(hit_actor.sfx))
+			-- sfx(pick(hit_actor.sfx))
 			cam:shake()
 			-- temporary invincibility
 			hit_ttl=20
@@ -646,7 +646,7 @@ function loading_state()
 			cabin2:draw(
 				lerp(400,188,t),
 				lerp(82,0,t))
-			print("Altitude: "..(step*10).."m",4,220)
+			print_regular("Altitude: "..(step*10).."m",4,220)
 		end,
 		-- update
 		update=function()
@@ -685,12 +685,12 @@ function menu_state()
 			end
 		end
 		spr(32,x-24,y-6,7,2)
-		print(s,x-20,y-2,6)
+		print_regular(s,x-20,y-2,6)
 
 		if freeride==true then
 			spr(234,x-8,y-29,2,2)
 			rectfill(x-18,y-13,x+24,y-8,10)
-			print("FREERIDING",x-16,y-13,0)
+			print_regular("FREERIDING",x-16,y-13,0)
 		end
 		pal()
 	end
@@ -735,7 +735,7 @@ function menu_state()
 
 			ground:draw(cam)
 
-			local a,da=00,-1/#panels
+			local a,da=0,-1/#panels
 			for i=1,#panels do
 				local v={8*cos(a+0.1),0.8,-8*sin(a+0.1)}
 				v_add(v,cam.pos)
@@ -752,15 +752,15 @@ function menu_state()
 			-- ski mask
 			_mask:draw(0,0)
 			
-			print("select: crank",4,4)
+			print_regular("select: crank",4,4)
 			if (time()%1)<0.5 then 
 				local s="go: A B"
-				print(s,396-gfx.getTextSize(s),4)
+				print_regular(s,396-gfx.getTextSize(s),4)
 			end
 
 			if sel==sel_tgt and panels[sel+1].params then
 				local s="best: "..time_tostr(panels[sel+1].params.record_t)
-				print(s,nil,4)
+				print_regular(s,nil,4)
 			end
 
 			-- todo: snow particles
@@ -875,7 +875,7 @@ function play_state(params)
 					if t%30==0 then sfx(2) end
 					if t%8<4 then bk=8 end
 				end
-				printb(time_tostr(t),nil,4,10,9,bk)
+				print_bold(time_tostr(t),nil,4,10,9,bk)
 
 				--[[
 				tt="total time:\n"..time_tostr(tt)
@@ -887,15 +887,15 @@ function play_state(params)
 					local b=bonus[i]					
 					
 					if b.ttl/b.duration>0.5 or t%2==0 then
-						printb(b.t,64+b.x-#b.t/1.5,40+b.ttl,10,9,1)
+						print_bold(b.t,64+b.x-#b.t/1.5,40+b.ttl,10,9,1)
 					end
 					-- handle edge case if multiple tricks!
-					if b.msg then printb(b.msg,nil,y_trick,6,5,1) y_trick-=9 end
+					if b.msg then print_bold(b.msg,nil,y_trick,6,5,1) y_trick-=9 end
 				end
 
 				if plyr.gps then
-					local idx=flr(((plyr.gps%1+1)%1)*359)
-					local gps=_gps_sprites:getImage(idx)
+					local idx=flr(((plyr.gps%1+1)%1)*360)
+					local gps=_gps_sprites:getImage(idx+1)
 					local w,h=gps:getSize()
 					gps:draw(199.5-w/2,32-h/2)
 				end
@@ -911,8 +911,8 @@ function play_state(params)
 					
 				-- help msg?
 				if total_t<90 then
-					printb("🅾️ charge jump",nil,102,6,5,1)
-					printb("❎ restart",nil,112,8,2,1)
+					print_bold("🅾️ charge jump",nil,102,6,5,1)
+					print_bold("❎ restart",nil,112,8,2,1)
 				end
 			end			
 		end,
@@ -984,17 +984,17 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 	return {
 		draw=function()
 			local c=msg_colors[active_msg+1]
-			printb(msgs[active_msg+1],nil,msg_y,c[1],c[2],c[3])
+			print_bold(msgs[active_msg+1],nil,msg_y,c[1],c[2],c[3])
 			local x,y=rnd(4)-2,msg_y+8+rnd(4)-2
-			if active_msg==0 and total_t>params.record_t then print("★new record★",x+250,y,c[2]) end
-			if active_msg==1 then print(tricks_rating[min(flr(total_tricks/5)+1,4)],x+270,y,c[2]) end
+			if active_msg==0 and total_t>params.record_t then print_regular("★new record★",x+250,y,c[2]) end
+			if active_msg==1 then print_regular(tricks_rating[min(flr(total_tricks/5)+1,4)],x+270,y,c[2]) end
 
 			if text_ttl>0 and not time_over then
-				print(active_text,60,50+text_ttl,8)
+				print_regular(active_text,60,50+text_ttl,8)
 			end
-			printb("game over!",nil,38,8,2,7)
+			print_bold("game over!",nil,38,8,2,7)
 
-			if (time()%1)<0.5 then printb("❎/🅾️ retry",42,120,10,5,1) end
+			if (time()%1)<0.5 then print_bold("❎/🅾️ retry",42,120,10,5,1) end
 		end,
 		update=function()
 			msg_y=lerp(msg_y,msg_tgt_y[msg_tgt_i+1],0.08)
@@ -1281,7 +1281,8 @@ function make_ground(params)
 		end,
 		-- find all actors within a given radius from given position
 		collide=function(self,p,r)
-			
+			local hit_type = lib3d.collide(p[1],p[2],p[3],r)
+			return hit_type>0 and hit_type
 		end
 	}
 end
@@ -1316,14 +1317,14 @@ function time_tostr(t)
 	return s
 end
 
-function printb(s,x,y,cf,cs,cb)
+function print_bold(s,x,y,cf,cs,cb)
   -- todo: use bold font
-	print(s,x,y,cs)
+	print_regular(s,x,y,cs)
 end
 
 -->8
 
-function print(s,x,y)
+function print_regular(s,x,y)
   gfx.setFont(memoFont)
   gfx.drawTextAligned(s,x or 200,y,x and kTextAlignment.left or kTextAlignment.center)
 end

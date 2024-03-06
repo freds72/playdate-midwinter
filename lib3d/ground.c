@@ -74,6 +74,14 @@ static const char* _props_paths[] = {
     "images/generated/checkpoint_left",
 };
 
+typedef struct {
+    int hitable;
+    int single_use;
+    float radius;
+} PropProperties;
+
+static PropProperties _props_properties[2];
+
 #define MATERIAL_SNOW 0
 #define MATERIAL_ROCK 1
 
@@ -314,6 +322,59 @@ void clear_checkpoint(Point3d pos) {
     s0->is_checkpoint = 0;
 }
 
+void collide(Point3d pos, float radius, int* hit_type)
+{
+    // z slice
+    int i0 = (int)(pos.x / GROUND_CELL_SIZE), j0 = (int)(pos.z / GROUND_CELL_SIZE);
+
+    // default
+    *hit_type = 0;
+
+    // out of track
+    if (i0 <= 0 || i0 >= GROUND_SIZE - 2) {
+        *hit_type = 2;
+        return;
+    }
+
+    // square radius
+    radius *= radius;
+
+    // check all 9 cells(overkill but faster)
+    for (int j = j0 - 1; j < j0 + 2; j++) {
+        if (j >= 0 && j < GROUND_SIZE) {
+            GroundSlice* s0 = _ground.slices[j];
+            for (int i = i0 - 1; i < i0 + 2; i++) {
+                if (i >= 0 && i < GROUND_SIZE) {
+                    int id = s0->props[i];
+                    // collidable actor ?
+                    if (id) {
+                        PropProperties* props = &_props_properties[id - 1];
+                        if (props->hitable) {
+
+                            // generate vertex
+                            Point3d v0 = (Point3d){ .v = {i * GROUND_CELL_SIZE,s0->h[i] + s0->y - _ground.y_offset,j * GROUND_CELL_SIZE} };
+                            Point3d v2 = (Point3d){ .v = {(i + 1) * GROUND_CELL_SIZE,s0->h[i + 1] + s0->y - _ground.y_offset,(j + 1) * GROUND_CELL_SIZE} };
+                            Point3d res;
+                            v_lerp(&v0, &v2, s0->prop_t[i], &res);
+                            make_v(pos, res, &res);
+                            if (res.x * res.x + res.z * res.z < radius + props->radius * props->radius) {
+                                if (props->single_use) {
+                                    // "collect" prop
+                                    s0->props[i] = 0;
+                                    *hit_type = 3;
+                                    return;
+                                }
+                                *hit_type = 1;
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /*
 * loading assets helpers
 */
@@ -491,6 +552,12 @@ void ground_init(PlaydateAPI* playdate) {
     for(int i=0;i<RAYCAST_PRECISION;++i) {
         _raycast_angles[i] = atan2f(31.5f,(float)(i-63.5f)) - PI/2.f;
     }
+
+    // props config (todo: get from lua?)
+    // 1: pine tree
+    _props_properties[0] = (PropProperties){ .hitable = 1, .single_use = 0, .radius = 1.4f };
+    // 2: checkpoint flag
+    _props_properties[1] = (PropProperties){ .hitable = 0, .single_use = 0, .radius = 0.f };
 }
 
 int ground_load_assets_async() {
@@ -831,7 +898,7 @@ void render_ground(Point3d cam_pos, float cam_angle, float* m, uint32_t* bitmap)
                 }
                 // draw prop (if any)
                 int prop_id = s0->props[i];
-                if (prop_id != 0) {
+                if (prop_id) {
                     Point3d pos, res;
                     v_lerp(&verts[0], &verts[2], s0->prop_t[i], &pos);
                     m_x_v(m, pos, res.v);
