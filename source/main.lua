@@ -252,11 +252,11 @@ function make_cam()
 		angle=0,
 		m=make_m_from_v_angle(v_up,0),
 		shake=function()
-			shkx,shkx=min(4,shkx+rnd(8)),min(4,shky+rnd(8))
+			shkx,shkx=min(8,shkx+rnd(16)),min(8,shky+rnd(16))
 		end,
 		update=function()
-			shkx=shkx*-0.7-rnd(0.2)
-			shky=shky*-0.7-rnd(0.2)
+			shkx=shkx*-0.7-rnd(0.4)
+			shky=shky*-0.7-rnd(0.4)
 			if abs(shkx)<0.5 and abs(shky)<0.5 then
 				shkx,shky=0,0
 			end
@@ -597,6 +597,7 @@ function make_snowball(pos)
 	local body_update=body.update
 
 	body.sx,body.sy=112,0
+
 	body.update=function(self)		
 
 		-- physic update
@@ -969,7 +970,7 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 	local msg_y,msg_tgt_y,msg_tgt_i=-20,{16,-20},0
 
 	-- snowballing!!!
-	local snowball_sprite,snowball=make_rspr(112,0,32,0),add(actors,make_snowball(pos))
+	local snowball=add(actors,make_snowball(pos))
 	local turn_side,tricks_rating=pick({-1,1}),{"    meh","rookie","junior🐱","★master★"}
 	local text_ttl,active_text,text=10,"yikes!",{
 		"ouch!","aie!","pok!","weee!"
@@ -1002,9 +1003,10 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 			if msg_tgt_i>#msg_tgt_y-1 then msg_tgt_i=0 active_msg=(active_msg+1)%2 end
 
 			text_ttl-=1
-			snowball_sprite(turn_side*time()*2)
+
 			-- adjust ground
 			local p=snowball.pos
+			ground:update_snowball(p,turn_side*time()*512)
 			ground:update(p)
 
 			if text_ttl<0 and ground:collide(p,0.2) then
@@ -1283,6 +1285,9 @@ function make_ground(params)
 		collide=function(self,p,r)
 			local hit_type = lib3d.collide(p[1],p[2],p[3],r)
 			return hit_type>0 and hit_type
+		end,
+		update_snowball=function(self,p,r)
+			lib3d.update_snowball(p[1],p[2],p[3],r)
 		end
 	}
 end

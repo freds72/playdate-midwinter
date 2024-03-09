@@ -211,6 +211,17 @@ static int lib3d_update_ground(lua_State* L) {
 	return 1;
 }
 
+static int lib3d_update_snowball(lua_State* L) {
+	Point3d pos;
+	for (int i = 0; i < 3; ++i) {
+		pos.v[i] = pd->lua->getArgFloat(i + 1);
+	}
+	float angle = pd->lua->getArgFloat(4);
+	update_snowball(pos,(int)angle);
+
+	return 0;
+}
+
 static int lib3d_collide(lua_State* L) {
 	Point3d pos;
 	for (int i = 0; i < 3; ++i) {
@@ -535,6 +546,9 @@ void lib3d_register(PlaydateAPI* playdate)
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
 	if (!pd->lua->addFunction(lib3d_get_track_info, "lib3d.get_track_info", &err))
+		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
+
+	if (!pd->lua->addFunction(lib3d_update_snowball, "lib3d.update_snowball", &err))
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
 	if (!pd->lua->addFunction(lib3d_collide, "lib3d.collide", &err))

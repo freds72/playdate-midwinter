@@ -44,13 +44,17 @@ typedef struct {
     float y_offset;
     int plyr_z_index;
     int max_pz;
-
     // active tracks
     Tracks* tracks;
 
     GroundSlice* slices[GROUND_SIZE];
 } Ground;
 
+struct {
+    int is_active;
+    int angle;
+    Point3d pos;
+} _snowball;
 
 typedef struct {
     int w, h;
@@ -86,6 +90,7 @@ static PropProperties _props_properties[2];
 #define MATERIAL_ROCK 1
 
 static RotatedScaledProp _ground_props[8];
+static PropImage _snowball_frames[360];
 
 // raycasting angles
 #define RAYCAST_PRECISION 128
@@ -105,7 +110,9 @@ static uint32_t* _backgrounds[61];
 static int _backgrounds_heights[61];
 
 // compute normal and assign material for faces
+static int _z_offset = 0;
 static void mesh_slice(int j) {
+    _z_offset++;
     GroundSlice* s0 = _ground.slices[j];
     GroundSlice* s1 = _ground.slices[j + 1];
 
@@ -225,6 +232,8 @@ void make_ground(GroundParams params) {
 
     active_params = params;
     // reset global params
+    _snowball.is_active = 0;
+
     _ground.slice_id = 0;
     _ground.slice_y = 0;
     _ground.y_offset = 0;
@@ -244,6 +253,12 @@ void make_ground(GroundParams params) {
     for (int i = 0; i < GROUND_SIZE - 1; ++i) {
         mesh_slice(i);
     }
+}
+
+void update_snowball(Point3d pos, int rotation) {
+    _snowball.is_active = 1;
+    _snowball.pos = pos;
+    _snowball.angle = ((rotation%360)+360)%360;
 }
 
 void update_ground(Point3d* p) {
@@ -456,6 +471,25 @@ static void load_prop(void* ptr, const int prop, const int _) {
     }
 }
 
+static void load_snowball(void* ptr, const int prop, const int _) {
+    memset(&_snowball_frames, 0, sizeof(_snowball_frames));
+    for (int angle = 0; angle < 360; angle++) {
+        int w, h, stride;
+        uint8_t* data, * alpha;
+        LCDBitmap* bitmap = pd->graphics->getTableBitmap((LCDBitmapTable*)ptr, angle);
+        if (!bitmap) {
+            pd->system->error("Missing prop %i angle: %i", prop, angle);
+        }
+        pd->graphics->getBitmapData(bitmap, &w, &h, &stride, &alpha, &data);
+
+        _snowball_frames[angle] = (PropImage){
+            .w = w,
+            .h = h,
+            .image = bitmap
+        };
+    }
+}
+
 typedef void(* unit_of_work_callback)(void*, const int, const int);
 typedef struct {
     unit_of_work_callback callback;
@@ -497,6 +531,21 @@ void ground_init(PlaydateAPI* playdate) {
             .callback = load_prop,
             .param0 = bitmaps,
             .param1 = prop,
+            .param2 = -1
+        };
+    }
+    // read snowball
+    {
+        const char* path = "images/generated/tumbling";
+        pd->system->logToConsole("Loading prop: %s", path);
+        bitmaps = pd->graphics->loadBitmapTable(path, &err);
+        if (!bitmaps)
+            pd->system->logToConsole("Failed to load: %s, %s", path, err);
+
+        _work.todo[_work.n++] = (UnitOfWork){
+            .callback = load_snowball,
+            .param0 = bitmaps,
+            .param1 = 4,
             .param2 = -1
         };
     }
@@ -695,7 +744,7 @@ static void draw_face(struct Drawable_s* drawable, uint32_t* bitmap) {
     */
 }
 
-static void draw_prop(Drawable* drawable, uint32_t* butmap) {
+static void draw_prop(Drawable* drawable, uint32_t* bitmap) {
     DrawableProp* prop = &drawable->prop;
 
     float w = 199.5f / prop->pos.z;
@@ -704,6 +753,19 @@ static void draw_prop(Drawable* drawable, uint32_t* butmap) {
     PropImage* image = &_ground_props[prop->material - 1].rotated[prop->angle + 30].scaled[_scaled_by_z[(int)(16.0f * (prop->pos.z - 1.f) / GROUND_CELL_SIZE)]];
     pd->graphics->drawBitmap(image->image, (int)(x - image->w / 2), (int)(y - image->h), 0);
 
+}
+
+static void draw_snowball(Drawable* drawable, uint32_t* bitmap) {
+    DrawableProp* prop = &drawable->prop;
+
+    float w = 199.5f / prop->pos.z;
+    float x = 199.5f + w * prop->pos.x;
+    float y = 119.5f - w * prop->pos.y;
+    PropImage* image = &_snowball_frames[prop->angle];
+    if (!image->image) {
+        pd->system->logToConsole("missing snowball image: %i", prop->angle);
+    }
+    pd->graphics->drawBitmap(image->image, (int)(x - image->w / 2), (int)(y - image->h), 0);
 }
 
 // push a face to the drawing list
@@ -754,6 +816,16 @@ static void push_prop(const Point3d* p, int angle, int material) {
     drawable->prop.pos = *p;
     drawable->prop.angle = angle;
 }
+
+static void push_snowball(const Point3d* p, int angle) {
+    Drawable* drawable = &_drawables.all[_drawables.n++];
+    drawable->draw = draw_snowball;
+    drawable->key = p->z;
+    drawable->prop.material = 4;
+    drawable->prop.pos = *p;
+    drawable->prop.angle = angle%360;
+}
+
 
 int render_sky(float* m, uint32_t* bitmap) {
     // cam up in world space
@@ -858,6 +930,8 @@ void render_ground(Point3d cam_pos, float cam_angle, float* m, uint32_t* bitmap)
     // transform
     for (int j = 0; j < GROUND_SIZE - 1; ++j) {
         uint32_t visible_tiles = _visible_tiles[j];
+        // slightly alter shading of even/odd slices
+        const float shading_band = 2.f * ((j + _z_offset) & 1) + 2.0f;
         for (int i = 0; i < GROUND_SIZE; ++i) {
             // is the tile bit enabled?
             if (visible_tiles & (1 << i)) {
@@ -872,10 +946,10 @@ void render_ground(Point3d cam_pos, float cam_angle, float* m, uint32_t* bitmap)
                 const GroundFace* f0 = &s0->faces[2 * i];
                 const GroundFace* f1 = f0->quad?f0:&s0->faces[2 * i + 1];
                 const float normals[4] = {
-                    (4.0f + s0->h[i])/8.f,
-                    (4.0f + s0->h[i + 1])/8.f,
-                    (4.0f + s1->h[i + 1])/8.f,
-                    (4.0f + s1->h[i])/8.f
+                    (shading_band + s0->h[i]) / 8.f,
+                    (shading_band + s0->h[i + 1]) / 8.f,
+                    (shading_band + s1->h[i + 1]) / 8.f,
+                    (shading_band + s1->h[i]) / 8.f
                 };
 
                 // camera to face point
@@ -908,6 +982,13 @@ void render_ground(Point3d cam_pos, float cam_angle, float* m, uint32_t* bitmap)
                 }
             }
         }
+    }
+
+    // "death" animation?
+    if (_snowball.is_active) {
+        Point3d res;
+        m_x_v(m, _snowball.pos, res.v);
+        push_snowball(&res, _snowball.angle);
     }
 
     // sort & renders back to front
