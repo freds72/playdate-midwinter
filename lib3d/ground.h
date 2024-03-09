@@ -45,6 +45,12 @@ void clear_checkpoint(Point3d pos);
 // update ground, create new slice as necessary and adjust position
 void update_ground(Point3d* pos);
 
+// death animation
+void update_snowball(Point3d pos, int rotation);
+
+// check collision
+void collide(Point3d pos, float radius, int* hit_type);
+
 // render ground
 void render_ground(Point3d pos, float angle, float*m, uint32_t* bitmap);
 

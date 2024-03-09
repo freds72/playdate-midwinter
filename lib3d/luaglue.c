@@ -211,6 +211,32 @@ static int lib3d_update_ground(lua_State* L) {
 	return 1;
 }
 
+static int lib3d_update_snowball(lua_State* L) {
+	Point3d pos;
+	for (int i = 0; i < 3; ++i) {
+		pos.v[i] = pd->lua->getArgFloat(i + 1);
+	}
+	float angle = pd->lua->getArgFloat(4);
+	update_snowball(pos,(int)angle);
+
+	return 0;
+}
+
+static int lib3d_collide(lua_State* L) {
+	Point3d pos;
+	for (int i = 0; i < 3; ++i) {
+		pos.v[i] = pd->lua->getArgFloat(i + 1);
+	}
+	float radius = pd->lua->getArgFloat(4);
+
+	int out = 0;
+	collide(pos, radius, &out);
+
+	pd->lua->pushInt(out);
+	return 1;
+}
+
+
 static inline uint32_t __SADD16(uint32_t op1, uint32_t op2)
 {
 #if TARGET_PLAYDATE
@@ -439,7 +465,7 @@ static int lib3d_bench_scaler(lua_State* L) {
 			pd->graphics->drawScaledBitmap(_mire_bitmap, _x - w / 2 + i * 2, 96 - w / 2 + i % 32, w / 32.f, w / 32.f);
 		}
 		else {
-			sspr(_x - w / 2 + i *2, 96 - w / 2 + i%32, w, _mire_data, 32, bitmap8);
+			// sspr(_x - w / 2 + i *2, 96 - w / 2 + i%32, w, _mire_data, 32, bitmap8);
 		}
 		// upscale_image(41, 96, 60, 60, _mire_data, 32, 32, bitmap8);
 	}
@@ -520,6 +546,12 @@ void lib3d_register(PlaydateAPI* playdate)
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
 	if (!pd->lua->addFunction(lib3d_get_track_info, "lib3d.get_track_info", &err))
+		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
+
+	if (!pd->lua->addFunction(lib3d_update_snowball, "lib3d.update_snowball", &err))
+		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
+
+	if (!pd->lua->addFunction(lib3d_collide, "lib3d.collide", &err))
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
 	if (!pd->lua->addFunction(lib3d_load_assets_async, "lib3d.load_assets_async", &err))
