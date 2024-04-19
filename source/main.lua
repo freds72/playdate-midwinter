@@ -6,7 +6,10 @@ import 'CoreLibs/graphics'
 import 'CoreLibs/nineslice'
 local gfx = playdate.graphics
 local font = gfx.font.new('font/whiteglove-stroked')
-local memoFont = gfx.font.new('font/Memo')
+local memoFont = {
+	[gfx.kColorBlack]=gfx.font.new('font/Memo-Black'),
+	[gfx.kColorWhite]=gfx.font.new('font/Memo-White')
+}
 local panelFont = gfx.font.new('font/Roobert-10-Bold')
 local panelFontFigures = gfx.font.new('font/Roobert-24-Medium-Numerals-White')
 local _angle=0
@@ -411,7 +414,7 @@ function make_body(p)
 			local pos=self.pos
 
 			local newy,newn,gps=ground:find_face(pos)
-			self.gps=gps-angle
+			self.gps=gps+angle
 			-- stop at ground
 			self.on_ground=false
 			local tgt_height=1
@@ -530,10 +533,10 @@ function make_plyr(p,params)
 		elseif hit_type==3 then
 			-- coins: bonus time
 			add_time_bonus(1)
-			sfx(8)
+			_coin_sfx:play()
 		elseif hit_ttl<0 and hit_type==1 then
 			-- props: 
-			-- sfx(pick(hit_actor.sfx))
+			_treehit_sfx:play()
 			cam:shake()
 			-- temporary invincibility
 			hit_ttl=20
@@ -548,7 +551,7 @@ function make_plyr(p,params)
 			if slice.is_checkpoint then
 				if pos[3]>slice.z then
 					add_time_bonus(params.bonus_t)
-					sfx(1)
+					_checkpoint_sfx:play()
 					ground:clear_checkpoint(pos)
 				end
 			end
@@ -706,14 +709,14 @@ function menu_state()
 
 	local tree_prop,bush_prop,cow_prop={sx=112,sy=16,r=1.4,sfx={9,10}},{sx=96,sy=32,r=1,sfx={9,10}},{sx=112,sy=48,r=1,sfx={4}}
 	local panels={
-		{panel=make_panel("MARMOTTES","piste verte",12),c=1,params={dslot=0,slope=1.5,tracks=1,bonus_t=2,total_t=30*30,record_t=records[1],props={tree_prop},props_rate=0.95}},
-		{panel=make_panel("BIQUETTES","piste rouge",18),c=8,params={dslot=1,slope=2,tracks=2,bonus_t=1.5,total_t=20*30,record_t=records[2],props={tree_prop,bush_prop},props_rate=0.97,}},
-		{panel=make_panel("CHAMOIS","piste noire",21),c=0,params={dslot=2,slope=3,tracks=3,bonus_t=1.5,total_t=15*30,record_t=records[3],props={tree_prop,tree_prop,tree_prop,cow_prop},props_rate=0.92,}},
-		{panel=make_direction("Shop")}
+		{state=play_state,panel=make_panel("MARMOTTES","piste verte",12),c=1,params={dslot=0,slope=1.5,tracks=1,bonus_t=2,total_t=30*30,record_t=records[1],props={tree_prop},props_rate=0.95}},
+		{state=play_state,panel=make_panel("BIQUETTES","piste rouge",18),c=8,params={dslot=1,slope=2,tracks=2,bonus_t=1.5,total_t=20*30,record_t=records[2],props={tree_prop,bush_prop},props_rate=0.97,}},
+		{state=play_state,panel=make_panel("CHAMOIS","piste noire",21),c=0,params={dslot=2,slope=3,tracks=3,bonus_t=1.5,total_t=15*30,record_t=records[3],props={tree_prop,tree_prop,tree_prop,cow_prop},props_rate=0.92,}},
+		{state=shop_state,panel=make_direction("Shop")}
 	}
 	local sel,sel_tgt,blink=0,0,false
 
-	ground=make_ground({slope=0,tracks=0,props_rate=0.86,props={tree_prop}})
+	ground=make_ground({slope=0,tracks=0,props_rate=0.76,props={tree_prop}})
 
 	-- reset cam	
 	cam=make_cam()
@@ -736,16 +739,17 @@ function menu_state()
 
 			ground:draw(cam)
 
-			local a,da=0,-1/#panels
+			local a,da=0.25-0.05,-1/#panels
 			for i=1,#panels do
-				local v={8*cos(a+0.1),0.8,-8*sin(a+0.1)}
+				local v={8*cos(a),0.8,-8*sin(a)}
 				v_add(v,cam.pos)
 				v=m_x_v(cam.m,v)
 				if v[3]>0 then
 					local x0,y0=cam:project2d(v)
 					local p=panels[i]
-					_panel_pole:draw(x0+40,y0+25)
-					p.panel:draw(x0,y0-16)
+					local w,h=p.panel:getSize()
+					_panel_pole:draw(x0-4,y0+20)
+					p.panel:draw(x0-w/2,y0-16)
 				end
 				a+=da
 			end
@@ -792,7 +796,8 @@ function menu_state()
 					pop_state()
 					-- restore random seed
 					srand(time())
-					push_state(zoomin_state,play_state,panels[sel+1].params)
+					local p=panels[sel+1]
+					push_state(zoomin_state,p.state,p.params)
 				end)
 			end
 
@@ -832,6 +837,110 @@ function zoomin_state(next,params)
 	}
 end
 
+-- buy collectibles
+function shop_state()
+	local background = gfx.image.new("images/ski_shop")
+	local left_button={
+		up=gfx.image.new("images/shop_lbutton_up"),
+		down=gfx.image.new("images/shop_lbutton"),
+		ttl=0
+	}
+	local right_button={
+		up=gfx.image.new("images/shop_rbutton_up"),
+		down=gfx.image.new("images/shop_rbutton"),
+		ttl=0
+	}
+	local function draw_button(btn,x)
+		-- pressed?
+		if btn.ttl>0 then
+			btn.down:draw(x,19)
+		else
+			btn.up:draw(x,17)
+		end
+	end
+
+	-- shop items
+	local items={
+		{image="images/mask",title="Classic",text="Mint condition",price=0},
+		{image="images/mask_style",title="Modern",text="Want an aviator look?\nSearch no more",price=100},
+		{image="images/mask_love",title="Love Love!",text="For smooth rides...",price=200},
+		{image="images/mask_shades",title="Star System",text="To go incognito...\nor not!",price=400},
+	}
+	-- load preview
+	for i=1,#items do
+		items[i].preview = gfx.image.new(items[i].image.."_preview")
+	end
+	-- todo: remove price for items already bought
+
+	local selection = 1
+	local action_ttl=0
+
+	return {
+		draw=function()
+			background:draw(0,0)
+			gfx.setColor(gfx.kColorBlack)
+			gfx.fillRect(228,10,167,225)
+			local item=items[selection]
+
+			gfx.setFont(memoFont[gfx.kColorWhite])
+			-- title
+			gfx.drawTextAligned(item.title,312,17,kTextAlignment.center)
+			-- back menu
+			gfx.drawTextAligned("(B) Back",387,215,kTextAlignment.right)
+			
+			local w,h=item.preview:getSize()
+			item.preview:draw(312-w/2,32)
+			print_bold(item.text,232,108,gfx.kColorWhite)
+
+			if item.price>0 then
+				print_bold("Price: "..item.price.."$",232,156,gfx.kColorWhite)
+			end
+
+			-- buttons (pressed?)
+			draw_button(left_button,232)
+			draw_button(right_button,379)
+
+			local y_offset = action_ttl>0 and 2 or 0
+    	gfx.setPattern({ 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55 })
+			gfx.fillRect(232,208,72,23)
+			gfx.setColor(gfx.kColorWhite)
+			gfx.fillRect(232,206+y_offset,72,23)
+			local buy_text
+			if item.price>0 then
+				buy_text = "(A) BUY"
+			else
+				buy_text = "(A) EQUIP"
+			end
+			print_bold(buy_text,240,210+y_offset,gfx.kColorBlack)
+		end,
+		update=function()
+			left_button.ttl=max(0,left_button.ttl-1)
+			right_button.ttl=max(0,right_button.ttl-1)
+			if action_ttl==0 then
+				if playdate.buttonJustReleased(playdate.kButtonLeft) then left_button.ttl=15 selection-=1 end
+				if playdate.buttonJustReleased(playdate.kButtonRight) then right_button.ttl=15 selection+=1 end
+				if selection<1 then selection=#items-1 end
+				if selection>#items then selection=1 end
+			end
+
+			if not playdate.buttonIsPressed(playdate.kButtonA) then 
+				action_ttl=0
+			end
+			if playdate.buttonIsPressed(playdate.kButtonA) then
+				if action_ttl==0 then
+					action_ttl = 30
+				elseif action_ttl==1 then
+					print("buy or equip: "..items[selection].title)
+				end
+				action_ttl=max(0,action_ttl-1)
+			end
+			if playdate.buttonJustReleased(playdate.kButtonB) then
+				push_state(menu_state)
+			end
+		end
+	}
+end
+
 function play_state(params)
 
 	-- stop music
@@ -848,6 +957,9 @@ function play_state(params)
 	-- reset cam	
 	cam=make_cam()
 
+	-- 
+	_ski_sfx:play(0)
+
 	return {
 		-- draw
 		draw=function()
@@ -858,8 +970,8 @@ function play_state(params)
 				local pos,a,steering=plyr:get_pos()
 				local dy=plyr.height*24
 				-- ski
-				_ski:draw(180+6*cos(time()/4),220+dy-steering*14)
-				_ski:draw(240-6*cos(time()/4),220+dy+steering*14)
+				_ski:draw(170+6*cos(time()/4),210+dy-steering*14,gfx.kImageFlippedX)
+				_ski:draw(250-6*cos(time()/4),210+dy+steering*14)
 
 				--spr(9,34+3*cos(time()/4),128+dy-steering*14,4,4)
 				--spr(9,74-2*cos(time()/5),128+dy+steering*14,4,4,true)
@@ -871,12 +983,12 @@ function play_state(params)
 				-- 
 				local t,bonus,total_t=plyr:score()
 				-- warning sound under 5s
-				local bk,y_trick=1,110
+				local bk,y_trick=gfx.kColorWhite,110
 				if t<150 then
 					if t%30==0 then sfx(2) end
-					if t%8<4 then bk=8 end
+					if t%8<4 then bk=gfx.kColorWhite end
 				end
-				print_bold(time_tostr(t),nil,4,10,9,bk)
+				print_bold(time_tostr(t),nil,4,bk)
 
 				--[[
 				tt="total time:\n"..time_tostr(tt)
@@ -888,10 +1000,10 @@ function play_state(params)
 					local b=bonus[i]					
 					
 					if b.ttl/b.duration>0.5 or t%2==0 then
-						print_bold(b.t,64+b.x-#b.t/1.5,40+b.ttl,10,9,1)
+						print_bold(b.t,64+b.x-#b.t/1.5,40+b.ttl,gfx.kColorWhite)
 					end
 					-- handle edge case if multiple tricks!
-					if b.msg then print_bold(b.msg,nil,y_trick,6,5,1) y_trick-=9 end
+					if b.msg then print_bold(b.msg,nil,y_trick,gfx.kColorWhite) y_trick-=9 end
 				end
 
 				if plyr.gps then
@@ -899,6 +1011,7 @@ function play_state(params)
 					local gps=_gps_sprites:getImage(idx+1)
 					local w,h=gps:getSize()
 					gps:draw(199.5-w/2,32-h/2)
+					print_bold(plyr.gps,nil,48)
 				end
 				if plyr.on_track and (32*time())%8<4 then
 					local dx=plyr.gps-0.75
@@ -912,10 +1025,11 @@ function play_state(params)
 					
 				-- help msg?
 				if total_t<90 then
-					print_bold("🅾️ charge jump",nil,102,6,5,1)
-					print_bold("❎ restart",nil,112,8,2,1)
+					print_bold("🅾️ charge jump",nil,102)
+					print_bold("❎ restart",nil,112)
 				end
-			end			
+			end		
+
 		end,
 		-- update
 		update=function()
@@ -928,10 +1042,12 @@ function play_state(params)
 				-- adjust ground
 				ground:update(plyr.pos)
 
-				local pos,a=plyr:get_pos()
+				local pos,a,steering=plyr:get_pos()
 				cam:track(pos,a,plyr:get_up())
 
 				if plyr.dead then
+					_ski_sfx:stop()
+					
 					sfx(3)
 					cam:shake()
 
@@ -941,7 +1057,12 @@ function play_state(params)
 					-- not active
 					plyr=nil
 				else	
-					-- reset
+					local volume=plyr.on_ground and 0.25-2*plyr.height or 0
+					print(steering)
+					_ski_sfx:setVolume(volume)
+					_ski_sfx:setRate(1-abs(steering/2))
+
+					-- reset?
 					if playdate.buttonJustReleased(playdate.kButtonB) then
 						pop_state()
 						push_state(zoomin_state,play_state,params)
@@ -964,9 +1085,6 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 	local active_msg,msgs=0,{
 		"total time: "..time_tostr(total_t),
 		"total tricks: "..total_tricks}	
-	local msg_colors={
-		{10,9,1},{7,5,1}
-	}
 	local msg_y,msg_tgt_y,msg_tgt_i=-20,{16,-20},0
 
 	-- snowballing!!!
@@ -984,18 +1102,17 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 	
 	return {
 		draw=function()
-			local c=msg_colors[active_msg+1]
-			print_bold(msgs[active_msg+1],nil,msg_y,c[1],c[2],c[3])
+			print_bold(msgs[active_msg+1],nil,msg_y,gfx.kColorWhite)
 			local x,y=rnd(4)-2,msg_y+8+rnd(4)-2
-			if active_msg==0 and total_t>params.record_t then print_regular("★new record★",x+250,y,c[2]) end
-			if active_msg==1 then print_regular(tricks_rating[min(flr(total_tricks/5)+1,4)],x+270,y,c[2]) end
+			if active_msg==0 and total_t>params.record_t then print_regular("★new record★",x+250,y) end
+			if active_msg==1 then print_regular(tricks_rating[min(flr(total_tricks/5)+1,4)],x+270,y) end
 
 			if text_ttl>0 and not time_over then
-				print_regular(active_text,60,50+text_ttl,8)
+				print_regular(active_text,60,50+text_ttl)
 			end
-			print_bold("game over!",nil,38,8,2,7)
+			print_bold("game over!",nil,38)
 
-			if (time()%1)<0.5 then print_bold("❎/🅾️ retry",42,120,10,5,1) end
+			if (time()%1)<0.5 then print_bold("❎/🅾️ retry",42,120) end
 		end,
 		update=function()
 			msg_y=lerp(msg_y,msg_tgt_y[msg_tgt_i+1],0.08)
@@ -1006,7 +1123,6 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 
 			-- adjust ground
 			local p=snowball.pos
-			ground:update_snowball(p,turn_side*time()*512)
 			ground:update(p)
 
 			if text_ttl<0 and ground:collide(p,0.2) then
@@ -1018,6 +1134,7 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 			if time_over then
 				cam:track(p,0,v_up)
 			else
+				ground:update_snowball(p,turn_side*time()*512)
 				cam:track({mid(p[1],8,29*4),p[2],p[3]+16},0.5,v_up,0.2)
 			end
 
@@ -1034,7 +1151,7 @@ end
 function make_direction(text)
 	gfx.setFont(panelFont)
 	local w,h = gfx.getTextSize(text)
-	w = min(64,w)
+	w = min(128,w)
 
 	local panel = gfx.image.new(w+32,40,gfx.kColorClear)
 	gfx.lockFocus(panel)
@@ -1126,6 +1243,10 @@ function _init()
 	_mask = gfx.image.new("images/mask")
 	_sun = gfx.image.new("images/sun")
 	_ski = gfx.image.new("images/ski")
+	_ski_sfx = playdate.sound.sampleplayer.new("sounds/skiing_loop")
+	_coin_sfx = playdate.sound.sampleplayer.new("sounds/coin")
+	_checkpoint_sfx = playdate.sound.sampleplayer.new("sounds/checkpoint")
+	_treehit_sfx = playdate.sound.sampleplayer.new("sounds/tree-impact-1")
 	_panel_pole = gfx.image.new("images/panel_pole")
 	_panel_slices = gfx.nineSlice.new("images/panel",6,5,10,30)
 
@@ -1322,15 +1443,15 @@ function time_tostr(t)
 	return s
 end
 
-function print_bold(s,x,y,cf,cs,cb)
+function print_bold(s,x,y,c)
   -- todo: use bold font
-	print_regular(s,x,y,cs)
+	print_regular(s,x,y,c)
 end
 
 -->8
 
-function print_regular(s,x,y)
-  gfx.setFont(memoFont)
+function print_regular(s,x,y,c)
+  gfx.setFont(memoFont[c or gfx.kColorBlack])
   gfx.drawTextAligned(s,x or 200,y,x and kTextAlignment.left or kTextAlignment.center)
 end
 
