@@ -10,6 +10,21 @@ local memoFont = {
 	[gfx.kColorBlack]=gfx.font.new('font/Memo-Black'),
 	[gfx.kColorWhite]=gfx.font.new('font/Memo-White')
 }
+local _inputs={
+	-- crank docked
+	[true]={
+		action={id=playdate.kButtonA,glyph="Ⓐ"},
+		back={id=playdate.kButtonB,glyph="Ⓑ"}
+	},
+	-- undocked
+	[false]={
+		action={id=playdate.kButtonB,glyph="Ⓑ"},
+		back={id=playdate.kButtonA,glyph="Ⓐ"}
+	}
+}
+local _input=_inputs[true]
+
+
 local panelFont = gfx.font.new('font/Roobert-10-Bold')
 local panelFontFigures = gfx.font.new('font/Roobert-24-Medium-Numerals-White')
 local _angle=0
@@ -463,8 +478,13 @@ function make_plyr(p,params)
 	body.hp = 3
 	body.control=function(self)	
 		local da=0
-		if playdate.buttonIsPressed(playdate.kButtonLeft) then da=1 end
-		if playdate.buttonIsPressed(playdate.kButtonRight) then da=-1 end
+		if playdate.isCrankDocked() then
+			if playdate.buttonIsPressed(playdate.kButtonLeft) then da=1 end
+			if playdate.buttonIsPressed(playdate.kButtonRight) then da=-1 end
+		else
+			local change, acceleratedChange = playdate.getCrankChange()
+			da = acceleratedChange
+		end
 
 		local do_jump
 		if self.on_ground==true then
@@ -479,7 +499,7 @@ function make_plyr(p,params)
 			end
 			air_t=0
 
-			if playdate.buttonIsPressed(playdate.kButtonA) then
+			if playdate.buttonIsPressed(_input.action.id) then
 				if not jump_pressed then jump_pressed,jump_ttl=true,0 end
 				jump_ttl=min(jump_ttl+1,9)
 			elseif jump_pressed then
@@ -782,7 +802,7 @@ function menu_state()
    		-- snap when close to target
 			if abs(sel_tgt-sel)<0.01 then
 				sel_tgt=sel
-			end
+			end			
 
 			if not starting and playdate.buttonJustReleased(playdate.kButtonA) then
 				-- snap track
@@ -1030,7 +1050,8 @@ function play_state(params)
 					_ski_sfx:setRate(1-abs(steering/2))
 
 					-- reset?
-					if playdate.buttonJustReleased(playdate.kButtonB) then
+					if playdate.buttonJustReleased(_input.back.id) then
+						_ski_sfx:stop()
 						next_state(zoomin_state,play_state,params)
 					end
 				end
@@ -1115,8 +1136,8 @@ function play_state(params)
 					
 				-- help msg?
 				if total_t<90 then
-					print_regular("Ⓐ charge jump",nil,102)
-					print_regular("Ⓑ restart",nil,118)
+					print_regular(_input.action.glyph.." charge jump",nil,102)
+					print_regular(_input.back.glyph.." restart",nil,118)
 				end
 			end
 		end		
@@ -1127,22 +1148,24 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 	local active_msg,msgs=0,{
 		"total time: "..time_tostr(total_t),
 		"total tricks: "..total_tricks}	
-	local gameover_y,msg_y,msg_tgt_y,msg_tgt_i=-50,-20,{16,-20},0
+	local gameover_y,msg_y,msg_tgt_y,msg_tgt_i=260,-20,{16,-20},0
 
 	local prev_update,prev_draw = _update_state,_draw_state
 
 	-- snowballing!!!
 	local snowball=add(actors,make_snowball(pos))
-	local turn_side,tricks_rating=pick({-1,1}),{"    meh","rookie","junior","★master★"}
+	local turn_side,tricks_rating=pick({-1,1}),{"meh","rookie","junior","★master★"}
 	local text_ttl,active_text,text=10,"yikes!",{"ouch!","aie!","pok!","weee!"}
 
-	local transition
 	-- save records (if any)
 	if total_t>params.record_t then
     -- todo: save record
 		-- dset(params.dslot,total_t)
 	end
 	
+	-- stop ski sfx
+	_ski_sfx:stop()
+
 	return
 		-- update
 		function()
@@ -1171,12 +1194,10 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 				cam:track({mid(p[1],8,29*4),p[2],p[3]+16},0.5,v_up,0.2)
 			end
 
-			if not transition and playdate.buttonJustReleased(playdate.kButtonA) then
-				transition=true
+			if playdate.buttonJustReleased(_input.back.id) then
 				next_state(zoomin_state,menu_state)
 			end
-			if not transition and playdate.buttonJustReleased(playdate.kButtonB) then
-				transition=true
+			if playdate.buttonJustReleased(_input.action.id) then
 				next_state(zoomin_state,play_state,params)
 			end
 
@@ -1192,13 +1213,13 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 			if active_msg==1 then print_bold(tricks_rating[min(flr(total_tricks/5)+1,4)],x+270,y) end
 
 			if text_ttl>0 and not time_over then
-				print_regular(active_text,60,50+text_ttl)
+				print_regular(active_text,120,50+text_ttl)
 			end
 			_game_over:draw(200-211/2,gameover_y)
 
-			if (time()%1)<0.5 then 
-				print_regular("Ⓐ menu",nil,162)
-				print_regular("Ⓑ restart",nil,178)
+			if (time()%1)<0.5 then
+				print_regular(_input.back.glyph.." menu",nil,162)
+				print_regular(_input.action.glyph.."restart",nil,178)
 			end
 		end
 end
@@ -1525,6 +1546,8 @@ end
 _init()
 
 function playdate.update()
+	-- switch input using crank state
+	_input=_inputs[playdate.isCrankDocked()]
   _update()
   if _draw_state then _draw_state() end
   playdate.drawFPS(0,228)
