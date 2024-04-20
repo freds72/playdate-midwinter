@@ -83,19 +83,20 @@ function wait_async(t)
 	end
 end
 
--- transition to next state
-local states={}
-
-function pop_state()
-	assert(#states>0,"missing base state")	
-	states[#states]=nil
-end
-
-function push_state(state,...)
-	add(states,state(...))
-end
-function clear_states()
-	states={}
+-- install next state
+local _update_state,_draw_state
+-- note: won't be active before next frame
+function next_state(state,...)
+	local u,d,i=state(...)
+	-- ensure update/draw pair is consistent
+	_update_state=function()
+			-- init function (if any)
+			if i then i() end
+			-- 
+			_update_state,_draw_state=u,d
+			-- actually run the update
+			u()
+	end
 end
 
 -- vector & tools
@@ -631,13 +632,19 @@ function loading_state()
 				coroutine.yield()
 			end
 		end
-		pop_state()
-		push_state(menu_state)
+		next_state(menu_state)
 	end)
 
-	return {
+	return 
+		-- update
+		function()
+			t+=1/30
+			if t>3 then
+				t = -1
+			end
+		end,
 		-- draw
-		draw=function()
+		function()
 			cls()
 			gfx.setColor(gfx.kColorWhite)
 			gfx.setLineWidth(2)
@@ -651,15 +658,45 @@ function loading_state()
 				lerp(400,188,t),
 				lerp(82,0,t))
 			print_regular("Altitude: "..(step*10).."m",4,220)
-		end,
+		end
+end
+
+function station_state(state,...)
+	local step = 0
+	local cabin=gfx.image.new("images/cabin")
+	local cabin2=gfx.image.new("images/cabin2")
+	local t=-1
+	local args={...}
+	do_async(function()
+		for i=1,90 do
+			coroutine.yield()
+		end
+		next_state(state,table.unpack(args))
+	end)
+
+	return 
 		-- update
-		update=function()
+		function()
 			t+=1/30
 			if t>3 then
 				t = -1
 			end
+		end,
+		-- draw
+		function()
+			cls()
+			gfx.setColor(gfx.kColorWhite)
+			gfx.setLineWidth(2)
+			gfx.drawLine(16,0, 399, 128)
+			gfx.drawLine(188,0, 399, 82)
+			gfx.setLineWidth(1)
+			cabin:draw(
+				lerp(16,400,t),
+				lerp(0,128,t))
+			cabin2:draw(
+				lerp(400,188,t),
+				lerp(82,0,t))
 		end
-	}
 end
 
 function menu_state()
@@ -712,7 +749,7 @@ function menu_state()
 		{state=play_state,panel=make_panel("MARMOTTES","piste verte",12),c=1,params={dslot=0,slope=1.5,tracks=1,bonus_t=2,total_t=30*30,record_t=records[1],props={tree_prop},props_rate=0.95}},
 		{state=play_state,panel=make_panel("BIQUETTES","piste rouge",18),c=8,params={dslot=1,slope=2,tracks=2,bonus_t=1.5,total_t=20*30,record_t=records[2],props={tree_prop,bush_prop},props_rate=0.97,}},
 		{state=play_state,panel=make_panel("CHAMOIS","piste noire",21),c=0,params={dslot=2,slope=3,tracks=3,bonus_t=1.5,total_t=15*30,record_t=records[3],props={tree_prop,tree_prop,tree_prop,cow_prop},props_rate=0.92,}},
-		{state=shop_state,panel=make_direction("Shop")}
+		{state=shop_state,panel=make_direction("Shop"),transition=station_state}
 	}
 	local sel,sel_tgt,blink=0,0,false
 
@@ -729,13 +766,45 @@ function menu_state()
 	menu:removeAllMenuItems()
 	local menuItem, error = menu:addMenuItem("start menu", function()
 			_futures={}
-			clear_states()
-			push_state(menu_state)
+			next_state(menu_state)
 	end)	
 
-	return {
+	return
+		-- update
+		function()
+			if playdate.buttonJustReleased(playdate.kButtonLeft) then sel-=1 end
+			if playdate.buttonJustReleased(playdate.kButtonRight) then sel+=1 end
+			sel=mid(sel,0,#panels-1)
+
+  		sel_tgt=lerp(sel_tgt,sel,0.18)
+   		-- snap when close to target
+			if abs(sel_tgt-sel)<0.01 then
+				sel_tgt=sel
+			end
+
+			if not starting and playdate.buttonJustReleased(playdate.kButtonA) then
+				-- snap track
+				sel_tgt=sel
+				sfx(8)
+				-- sub-state
+        starting=true
+				do_async(function()
+					for i=1,15 do
+						blink=i%2==0 and true
+						coroutine.yield()
+					end
+					-- restore random seed
+					srand(time())
+					local p=panels[sel+1]
+					next_state(p.transition or zoomin_state,p.state,p.params)
+				end)
+			end
+
+			--
+			cam:track({64,0,64},sel_tgt/#panels,v_up)
+		end,
 		-- draw
-		draw=function()
+		function()
 
 			ground:draw(cam)
 
@@ -769,72 +838,38 @@ function menu_state()
 			end
 
 			-- todo: snow particles
-		end,
-		-- update
-		update=function()
-			if playdate.buttonJustReleased(playdate.kButtonLeft) then sel-=1 end
-			if playdate.buttonJustReleased(playdate.kButtonRight) then sel+=1 end
-			sel=mid(sel,0,#panels-1)
-
-  		sel_tgt=lerp(sel_tgt,sel,0.18)
-   		-- snap when close to target
-			if abs(sel_tgt-sel)<0.01 then
-				sel_tgt=sel
-			end
-
-			if not starting and playdate.buttonJustReleased(playdate.kButtonA) then
-				-- snap track
-				sel_tgt=sel
-				sfx(8)
-				-- sub-state
-        starting=true
-				do_async(function()
-					for i=1,15 do
-						blink=i%2==0 and true
-						coroutine.yield()
-					end
-					pop_state()
-					-- restore random seed
-					srand(time())
-					local p=panels[sel+1]
-					push_state(zoomin_state,p.state,p.params)
-				end)
-			end
-
-			--
-			cam:track({64,0,64},sel_tgt/#panels,v_up)
-		end
-	}
+		end		
 end
 
-function zoomin_state(next,params)
+function zoomin_state(next,...)
 	local ttl,dttl=30,0.01
   local starting
-  -- todo: zoom effect
-	return {
-		-- draw
-		draw=function()
-			-- zoom effect
-			local s=3*(30-ttl)/30+1
-			palt(0,false)
-			local dx=-abs(64*s-64)		
-			sspr(0,0,128,128,dx,dx,128*s,128*s)
-		end,
-		update=function(self)
-			ttl-=dttl
-			dttl+=0.08
-
-      -- todo: fade to black
-      if not starting then
-        starting=true
-        do_async(function()
-          -- done with white out?
-          pop_state()
-          push_state(next,params)
-        end)
-      end
+	local fade=0
+	local args={...}
+	do_async(function()
+		while fade<15 do
+			coroutine.yield()
+			fade+=1
 		end
-	}
+		next_state(next,table.unpack(args))
+	end)	
+	return
+		-- update
+		function(self)
+		end,
+		-- draw
+		function()
+			local screen=gfx.getDisplayImage()
+			local screenWidth, screenHeight = screen:getSize()
+			gfx.lockFocus(screen)
+			for i=1,4 do
+				gfx.setColor(gfx.kColorWhite)
+				gfx.fillCircleAtPoint(rnd(screenWidth), rnd(screenHeight), 8 + rnd(32))
+			end
+			gfx.unlockFocus()
+
+			screen:drawBlurred(0,0,8,1,gfx.image.kDitherTypeAtkinson)
+		end
 end
 
 -- buy collectibles
@@ -875,8 +910,35 @@ function shop_state()
 	local selection = 1
 	local action_ttl=0
 
-	return {
-		draw=function()
+	return
+		-- update
+		function()
+			left_button.ttl=max(0,left_button.ttl-1)
+			right_button.ttl=max(0,right_button.ttl-1)
+			if action_ttl==0 then
+				if playdate.buttonJustReleased(playdate.kButtonLeft) then left_button.ttl=15 selection-=1 end
+				if playdate.buttonJustReleased(playdate.kButtonRight) then right_button.ttl=15 selection+=1 end
+				if selection<1 then selection=#items-1 end
+				if selection>#items then selection=1 end
+			end
+
+			if not playdate.buttonIsPressed(playdate.kButtonA) then 
+				action_ttl=0
+			end
+			if playdate.buttonIsPressed(playdate.kButtonA) then
+				if action_ttl==0 then
+					action_ttl = 30
+				elseif action_ttl==1 then
+					print("buy or equip: "..items[selection].title)
+				end
+				action_ttl=max(0,action_ttl-1)
+			end
+			if playdate.buttonJustReleased(playdate.kButtonB) then
+				next_state(station_state,menu_state)
+			end
+		end,
+		-- draw
+		function()
 			background:draw(0,0)
 			gfx.setColor(gfx.kColorBlack)
 			gfx.fillRect(228,10,167,225)
@@ -912,33 +974,7 @@ function shop_state()
 				buy_text = "(A) EQUIP"
 			end
 			print_bold(buy_text,240,210+y_offset,gfx.kColorBlack)
-		end,
-		update=function()
-			left_button.ttl=max(0,left_button.ttl-1)
-			right_button.ttl=max(0,right_button.ttl-1)
-			if action_ttl==0 then
-				if playdate.buttonJustReleased(playdate.kButtonLeft) then left_button.ttl=15 selection-=1 end
-				if playdate.buttonJustReleased(playdate.kButtonRight) then right_button.ttl=15 selection+=1 end
-				if selection<1 then selection=#items-1 end
-				if selection>#items then selection=1 end
-			end
-
-			if not playdate.buttonIsPressed(playdate.kButtonA) then 
-				action_ttl=0
-			end
-			if playdate.buttonIsPressed(playdate.kButtonA) then
-				if action_ttl==0 then
-					action_ttl = 30
-				elseif action_ttl==1 then
-					print("buy or equip: "..items[selection].title)
-				end
-				action_ttl=max(0,action_ttl-1)
-			end
-			if playdate.buttonJustReleased(playdate.kButtonB) then
-				push_state(menu_state)
-			end
-		end
-	}
+		end		
 end
 
 function play_state(params)
@@ -960,10 +996,54 @@ function play_state(params)
 	-- 
 	_ski_sfx:play(0)
 
-	return {
+	return
+		-- update
+		function()
+			cam:update()
+			if plyr then
+				plyr:control()	
+				plyr:integrate()
+				plyr:update()
+
+				-- adjust ground
+				ground:update(plyr.pos)
+
+				local pos,a,steering=plyr:get_pos()
+				cam:track(pos,a,plyr:get_up())
+
+				if plyr.dead then
+					_ski_sfx:stop()
+					
+					sfx(3)
+					cam:shake()
+
+					-- latest score
+					local _,_,total_t,total_tricks=plyr:score()
+					next_state(plyr_death_state,plyr:get_pos(),total_t,total_tricks,params,plyr.time_over)
+					-- not active
+					plyr=nil
+				else	
+					local volume=plyr.on_ground and 0.25-2*plyr.height or 0
+					print(steering)
+					_ski_sfx:setVolume(volume)
+					_ski_sfx:setRate(1-abs(steering/2))
+
+					-- reset?
+					if playdate.buttonJustReleased(playdate.kButtonB) then
+						next_state(zoomin_state,play_state,params)
+					end
+				end
+			end
+
+      for i=#actors,1,-1 do
+        local a=actors[i]
+        if not a:update() then
+          table.remove(actors,i)
+        end
+			end
+		end,
 		-- draw
-		draw=function()
-			
+		function()			
 			ground:draw(cam)			 
 
 			if plyr then
@@ -1025,59 +1105,11 @@ function play_state(params)
 					
 				-- help msg?
 				if total_t<90 then
-					print_bold("🅾️ charge jump",nil,102)
-					print_bold("❎ restart",nil,112)
-				end
-			end		
-
-		end,
-		-- update
-		update=function()
-			cam:update()
-			if plyr then
-				plyr:control()	
-				plyr:integrate()
-				plyr:update()
-
-				-- adjust ground
-				ground:update(plyr.pos)
-
-				local pos,a,steering=plyr:get_pos()
-				cam:track(pos,a,plyr:get_up())
-
-				if plyr.dead then
-					_ski_sfx:stop()
-					
-					sfx(3)
-					cam:shake()
-
-					-- latest score
-					local _,_,total_t,total_tricks=plyr:score()
-					push_state(plyr_death_state,plyr:get_pos(),total_t,total_tricks,params,plyr.time_over)
-					-- not active
-					plyr=nil
-				else	
-					local volume=plyr.on_ground and 0.25-2*plyr.height or 0
-					print(steering)
-					_ski_sfx:setVolume(volume)
-					_ski_sfx:setRate(1-abs(steering/2))
-
-					-- reset?
-					if playdate.buttonJustReleased(playdate.kButtonB) then
-						pop_state()
-						push_state(zoomin_state,play_state,params)
-					end
+					print_bold("(A) charge jump",nil,102)
+					print_bold("(B) restart",nil,112)
 				end
 			end
-
-      for i=#actors,1,-1 do
-        local a=actors[i]
-        if not a:update() then
-          table.remove(actors,i)
-        end
-			end
-		end
-	}
+		end		
 end
 
 function plyr_death_state(pos,total_t,total_tricks,params,time_over)
@@ -1086,6 +1118,8 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 		"total time: "..time_tostr(total_t),
 		"total tricks: "..total_tricks}	
 	local msg_y,msg_tgt_y,msg_tgt_i=-20,{16,-20},0
+
+	local prev_update,prev_draw = _update_state,_draw_state
 
 	-- snowballing!!!
 	local snowball=add(actors,make_snowball(pos))
@@ -1100,21 +1134,9 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 		-- dset(params.dslot,total_t)
 	end
 	
-	return {
-		draw=function()
-			print_bold(msgs[active_msg+1],nil,msg_y,gfx.kColorWhite)
-			local x,y=rnd(4)-2,msg_y+8+rnd(4)-2
-			if active_msg==0 and total_t>params.record_t then print_regular("★new record★",x+250,y) end
-			if active_msg==1 then print_regular(tricks_rating[min(flr(total_tricks/5)+1,4)],x+270,y) end
-
-			if text_ttl>0 and not time_over then
-				print_regular(active_text,60,50+text_ttl)
-			end
-			print_bold("game over!",nil,38)
-
-			if (time()%1)<0.5 then print_bold("❎/🅾️ retry",42,120) end
-		end,
-		update=function()
+	return
+		-- update
+		function()
 			msg_y=lerp(msg_y,msg_tgt_y[msg_tgt_i+1],0.08)
 			if abs(msg_y-msg_tgt_y[msg_tgt_i+1])<1 then msg_tgt_i+=1 end
 			if msg_tgt_i>#msg_tgt_y-1 then msg_tgt_i=0 active_msg=(active_msg+1)%2 end
@@ -1139,12 +1161,27 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 			end
 
 			if playdate.buttonJustReleased(playdate.kButtonA) then
-				pop_state()
-				pop_state()
-				push_state(menu_state)
+				next_state(zoomin_state,menu_state)
 			end
-		end		
-	}
+
+			prev_update()
+		end,
+		-- draw
+		function()
+			prev_draw()
+
+			print_bold(msgs[active_msg+1],nil,msg_y,gfx.kColorWhite)
+			local x,y=rnd(4)-2,msg_y+8+rnd(4)-2
+			if active_msg==0 and total_t>params.record_t then print_regular("★new record★",x+250,y) end
+			if active_msg==1 then print_regular(tricks_rating[min(flr(total_tricks/5)+1,4)],x+270,y) end
+
+			if text_ttl>0 and not time_over then
+				print_regular(active_text,60,50+text_ttl)
+			end
+			print_bold("game over!",nil,38)
+
+			if (time()%1)<0.5 then print_bold("❎/🅾️ retry",42,120) end
+		end
 end
 
 -- helper to create a direction panel
@@ -1251,7 +1288,7 @@ function _init()
 	_panel_slices = gfx.nineSlice.new("images/panel",6,5,10,30)
 
 	-- init state machine
-	push_state(loading_state)
+	next_state(loading_state)
 end
 
 function _update()
@@ -1269,15 +1306,8 @@ function _update()
   end
 
 	-- state mgt
-	for _,state in ipairs(states) do
-		state:update()
-	end
-end
-
-function _draw()
-	for _,state in ipairs(states) do
-		state:draw()
-	end
+	if _update_state then _update_state() end
+	
 end
 
 -->8
@@ -1463,6 +1493,6 @@ _init()
 
 function playdate.update()
   _update()
-  _draw()	
+  if _draw_state then _draw_state() end
   playdate.drawFPS(0,228)
 end
