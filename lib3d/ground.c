@@ -187,7 +187,7 @@ static void make_slice(GroundSlice* slice, float y) {
         }
     }
     // todo: control roughness from slope?
-    _ground.noise_y_offset += (active_params.slope + randf()) / 2.f;
+    _ground.noise_y_offset += (active_params.slope + randf()) / 4.f;
     // side walls
     slice->h[0] = 15.f + 5.f * randf();
     slice->h[GROUND_SIZE - 1] = 15.f + 5.f * randf();
