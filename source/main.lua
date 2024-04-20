@@ -305,7 +305,7 @@ function make_body(p)
 
 	local velocity,angularv,forces,torque={0,0,0},0,{0,0,0},0
 
-	local angle,steering_angle,on_air_ttl=0,0,0
+	local angle,steering_angle,on_air_ttl,was_on_air=0,0,0
 
 	local g={0,-4,0}
 	return {
@@ -408,8 +408,8 @@ function make_body(p)
 			end			
 		end,
 		update=function(self)
-			steering_angle=steering_angle*0.8
-			on_air_ttl=on_air_ttl-1
+			steering_angle*=0.8
+			on_air_ttl-=1
 
 			-- find ground
 			local pos=self.pos
@@ -439,7 +439,7 @@ function make_body(p)
 end
 
 function make_plyr(p,params)
-	local body,hp=make_body(p),3
+	local body=make_body(p)
 
 	local body_update=body.update
 
@@ -460,10 +460,12 @@ function make_plyr(p,params)
 		if msg then sfx(pick(whoa_sfx)) total_tricks=total_tricks+1 end
 	end
 
+	body.hp = 3
 	body.control=function(self)	
 		local da=0
 		if playdate.buttonIsPressed(playdate.kButtonLeft) then da=1 end
 		if playdate.buttonIsPressed(playdate.kButtonRight) then da=-1 end
+
 		local do_jump
 		if self.on_ground==true then
 			-- was flying?			
@@ -541,7 +543,7 @@ function make_plyr(p,params)
 			cam:shake()
 			-- temporary invincibility
 			hit_ttl=20
-			hp=hp-1
+			self.hp-=1
 			-- kill tricks
 			reverse_t,spin_prev=0
 		end
@@ -577,7 +579,7 @@ function make_plyr(p,params)
 			if b.ttl<0 then del(bonus,b) end
 		end
 
-		if hp<=0 then
+		if self.hp<=0 then
 			self.dead=true			
 		elseif t<0 then
 			self.time_over,self.dead=true,true
@@ -826,22 +828,22 @@ function menu_state()
 			-- ski mask
 			_mask:draw(0,0)
 			
-			print_regular("select: crank",4,4)
+			print_regular("Select: ⬅️ ➡️",4,4,gfx.kColorWhite)
 			if (time()%1)<0.5 then 
-				local s="go: A B"
-				print_regular(s,396-gfx.getTextSize(s),4)
+				local s="Go: Ⓐ Ⓑ"
+				print_regular(s,396-gfx.getTextSize(s),4,gfx.kColorWhite)
 			end
 
 			if sel==sel_tgt and panels[sel+1].params then
-				local s="best: "..time_tostr(panels[sel+1].params.record_t)
-				print_regular(s,nil,4)
+				local s="Best: "..time_tostr(panels[sel+1].params.record_t)
+				print_regular(s,nil,4,gfx.kColorWhite)
 			end
 
 			-- todo: snow particles
 		end		
 end
 
-function zoomin_state(next,...)
+function zoomin_state(go_state,...)
 	local ttl,dttl=30,0.01
   local starting
 	local fade=0
@@ -851,7 +853,7 @@ function zoomin_state(next,...)
 			coroutine.yield()
 			fade+=1
 		end
-		next_state(next,table.unpack(args))
+		next_state(go_state,table.unpack(args))
 	end)	
 	return
 		-- update
@@ -948,14 +950,14 @@ function shop_state()
 			-- title
 			gfx.drawTextAligned(item.title,312,17,kTextAlignment.center)
 			-- back menu
-			gfx.drawTextAligned("(B) Back",387,215,kTextAlignment.right)
+			gfx.drawTextAligned("Ⓑ Back",387,215,kTextAlignment.right)
 			
 			local w,h=item.preview:getSize()
 			item.preview:draw(312-w/2,32)
 			print_bold(item.text,232,108,gfx.kColorWhite)
 
 			if item.price>0 then
-				print_bold("Price: "..item.price.."$",232,156,gfx.kColorWhite)
+				print_regular("Price: "..item.price.."$",232,156,gfx.kColorWhite)
 			end
 
 			-- buttons (pressed?)
@@ -969,11 +971,11 @@ function shop_state()
 			gfx.fillRect(232,206+y_offset,72,23)
 			local buy_text
 			if item.price>0 then
-				buy_text = "(A) BUY"
+				buy_text = "Ⓐ BUY"
 			else
-				buy_text = "(A) EQUIP"
+				buy_text = "Ⓐ EQUIP"
 			end
-			print_bold(buy_text,240,210+y_offset,gfx.kColorBlack)
+			print_regular(buy_text,240,210+y_offset,gfx.kColorBlack)
 		end		
 end
 
@@ -1024,7 +1026,6 @@ function play_state(params)
 					plyr=nil
 				else	
 					local volume=plyr.on_ground and 0.25-2*plyr.height or 0
-					print(steering)
 					_ski_sfx:setVolume(volume)
 					_ski_sfx:setRate(1-abs(steering/2))
 
@@ -1060,7 +1061,17 @@ function play_state(params)
 				spr(140,abs(steering)*16-24,90-dy/3,4,4)
 				spr(140,96-abs(steering)*16+24,90-dy/3,4,4,true)
 			
-				-- 
+				-- seiko watch!
+				_seiko:draw(2,2)
+				-- draw hp
+				local hp=""
+				for i=1,plyr.hp do
+					hp=hp.."."
+				end
+				print_regular(hp,23,1,gfx.kColorWhite)
+				print_regular(hp,23,2,gfx.kColorWhite)
+				print_regular(hp,24,1,gfx.kColorWhite)
+				print_regular(hp,24,2,gfx.kColorWhite)
 				local t,bonus,total_t=plyr:score()
 				-- warning sound under 5s
 				local bk,y_trick=gfx.kColorWhite,110
@@ -1068,7 +1079,7 @@ function play_state(params)
 					if t%30==0 then sfx(2) end
 					if t%8<4 then bk=gfx.kColorWhite end
 				end
-				print_bold(time_tostr(t),nil,4,bk)
+				print_regular(time_tostr(t,":"),9,16,bk)
 
 				--[[
 				tt="total time:\n"..time_tostr(tt)
@@ -1080,7 +1091,7 @@ function play_state(params)
 					local b=bonus[i]					
 					
 					if b.ttl/b.duration>0.5 or t%2==0 then
-						print_bold(b.t,64+b.x-#b.t/1.5,40+b.ttl,gfx.kColorWhite)
+						print_bold(b.t,56+b.x-#b.t/1.5,24+b.ttl,gfx.kColorWhite)
 					end
 					-- handle edge case if multiple tricks!
 					if b.msg then print_bold(b.msg,nil,y_trick,gfx.kColorWhite) y_trick-=9 end
@@ -1090,8 +1101,7 @@ function play_state(params)
 					local idx=flr(((plyr.gps%1+1)%1)*360)
 					local gps=_gps_sprites:getImage(idx+1)
 					local w,h=gps:getSize()
-					gps:draw(199.5-w/2,32-h/2)
-					print_bold(plyr.gps,nil,48)
+					gps:draw(199.5-w/2,24-h/2)
 				end
 				if plyr.on_track and (32*time())%8<4 then
 					local dx=plyr.gps-0.75
@@ -1105,8 +1115,8 @@ function play_state(params)
 					
 				-- help msg?
 				if total_t<90 then
-					print_bold("(A) charge jump",nil,102)
-					print_bold("(B) restart",nil,112)
+					print_regular("Ⓐ charge jump",nil,102)
+					print_regular("Ⓑ restart",nil,118)
 				end
 			end
 		end		
@@ -1117,17 +1127,16 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 	local active_msg,msgs=0,{
 		"total time: "..time_tostr(total_t),
 		"total tricks: "..total_tricks}	
-	local msg_y,msg_tgt_y,msg_tgt_i=-20,{16,-20},0
+	local gameover_y,msg_y,msg_tgt_y,msg_tgt_i=-50,-20,{16,-20},0
 
 	local prev_update,prev_draw = _update_state,_draw_state
 
 	-- snowballing!!!
 	local snowball=add(actors,make_snowball(pos))
-	local turn_side,tricks_rating=pick({-1,1}),{"    meh","rookie","junior🐱","★master★"}
-	local text_ttl,active_text,text=10,"yikes!",{
-		"ouch!","aie!","pok!","weee!"
-	}
+	local turn_side,tricks_rating=pick({-1,1}),{"    meh","rookie","junior","★master★"}
+	local text_ttl,active_text,text=10,"yikes!",{"ouch!","aie!","pok!","weee!"}
 
+	local transition
 	-- save records (if any)
 	if total_t>params.record_t then
     -- todo: save record
@@ -1138,6 +1147,8 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 		-- update
 		function()
 			msg_y=lerp(msg_y,msg_tgt_y[msg_tgt_i+1],0.08)
+			gameover_y=lerp(gameover_y,42+8*sin(time()/4),0.06)
+
 			if abs(msg_y-msg_tgt_y[msg_tgt_i+1])<1 then msg_tgt_i+=1 end
 			if msg_tgt_i>#msg_tgt_y-1 then msg_tgt_i=0 active_msg=(active_msg+1)%2 end
 
@@ -1160,8 +1171,13 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 				cam:track({mid(p[1],8,29*4),p[2],p[3]+16},0.5,v_up,0.2)
 			end
 
-			if playdate.buttonJustReleased(playdate.kButtonA) then
+			if not transition and playdate.buttonJustReleased(playdate.kButtonA) then
+				transition=true
 				next_state(zoomin_state,menu_state)
+			end
+			if not transition and playdate.buttonJustReleased(playdate.kButtonB) then
+				transition=true
+				next_state(zoomin_state,play_state,params)
 			end
 
 			prev_update()
@@ -1172,15 +1188,18 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 
 			print_bold(msgs[active_msg+1],nil,msg_y,gfx.kColorWhite)
 			local x,y=rnd(4)-2,msg_y+8+rnd(4)-2
-			if active_msg==0 and total_t>params.record_t then print_regular("★new record★",x+250,y) end
-			if active_msg==1 then print_regular(tricks_rating[min(flr(total_tricks/5)+1,4)],x+270,y) end
+			if active_msg==0 and total_t>params.record_t then print_bold("★new record★",x+250,y) end
+			if active_msg==1 then print_bold(tricks_rating[min(flr(total_tricks/5)+1,4)],x+270,y) end
 
 			if text_ttl>0 and not time_over then
 				print_regular(active_text,60,50+text_ttl)
 			end
-			print_bold("game over!",nil,38)
+			_game_over:draw(200-211/2,gameover_y)
 
-			if (time()%1)<0.5 then print_bold("❎/🅾️ retry",42,120) end
+			if (time()%1)<0.5 then 
+				print_regular("Ⓐ menu",nil,162)
+				print_regular("Ⓑ restart",nil,178)
+			end
 		end
 end
 
@@ -1286,6 +1305,9 @@ function _init()
 	_treehit_sfx = playdate.sound.sampleplayer.new("sounds/tree-impact-1")
 	_panel_pole = gfx.image.new("images/panel_pole")
 	_panel_slices = gfx.nineSlice.new("images/panel",6,5,10,30)
+
+	_seiko = gfx.image.new("images/watch")
+	_game_over = gfx.image.new("images/game_over")
 
 	-- init state machine
 	next_state(loading_state)
@@ -1465,24 +1487,35 @@ function padding(n)
 	return string.sub("00",1,2-#n)..n
 end
 
-function time_tostr(t)
+function time_tostr(t,sep)
 	-- frames per sec
-	local s=padding(flr(t/30)%60).."''"..padding(flr(10*t/3)%100)
+	sep=sep or "''"
+	local s=padding(flr(t/30)%60)..sep..padding(flr(10*t/3)%100)
 	-- more than a minute?
 	if t>1800 then s=padding(flr(t/1800)).."'"..s end
 	return s
 end
 
-function print_bold(s,x,y,c)
-  -- todo: use bold font
-	print_regular(s,x,y,c)
+function print_bold(s,x,y,c)  
+	c=c or gfx.kColorBlack
+	local align=not x and kTextAlignment.center
+	x=x or 200	
+	local cnot=c==gfx.kColorBlack and gfx.kColorWhite or gfx.kColorBlack
+	for i=-1,1 do
+		for j=-1,1 do
+			print_regular(s,x+i,y+j,cnot,align)
+		end
+	end
+
+	print_regular(s,x,y,c,align)
 end
 
 -->8
 
-function print_regular(s,x,y,c)
+function print_regular(s,x,y,c,align)
   gfx.setFont(memoFont[c or gfx.kColorBlack])
-  gfx.drawTextAligned(s,x or 200,y,x and kTextAlignment.left or kTextAlignment.center)
+	align = align or x and kTextAlignment.left or kTextAlignment.center
+  gfx.drawTextAligned(s,x or 200,y,align)
 end
 
 -- *********************
