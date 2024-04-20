@@ -105,7 +105,7 @@ static RotatedScaledProp _ground_props[8];
 static PropImage _snowball_frames[360];
 
 // raycasting angles
-#define RAYCAST_PRECISION 128
+#define RAYCAST_PRECISION 256
 static float _raycast_angles[RAYCAST_PRECISION];
 
 // global buffer to store slices
@@ -174,7 +174,7 @@ static void make_slice(GroundSlice* slice, float y) {
 
     // generate height
     for (int i = 0; i < GROUND_SIZE; ++i) {
-        slice->h[i] = (8.f*perlin2d((16.f * i) / GROUND_SIZE, _ground.noise_y_offset, 0.1f, 4) - 4.f) * active_params.slope;
+        slice->h[i] = perlin2d((16.f * i) / GROUND_SIZE, _ground.noise_y_offset, 0.5f, 2) * 2.f * active_params.slope;
         // avoid props on side walls
         slice->props[i] = 0;
         if (i > 0 && i < GROUND_SIZE - 2) {
@@ -187,10 +187,10 @@ static void make_slice(GroundSlice* slice, float y) {
         }
     }
     // todo: control roughness from slope?
-    _ground.noise_y_offset += 0.5f;
+    _ground.noise_y_offset += (active_params.slope + randf()) / 2.f;
     // side walls
-    slice->h[0] = slice->h[1]/2 + 16.0f;
-    slice->h[GROUND_SIZE - 1] = slice->h[GROUND_SIZE - 2]/2 + 16.0f;
+    slice->h[0] = 15.f + 5.f * randf();
+    slice->h[GROUND_SIZE - 1] = 15.f + 5.f * randf();
 
     float xmin = 2 * GROUND_CELL_SIZE, xmax = (GROUND_SIZE - 2) * GROUND_CELL_SIZE;
     float main_track_x = (xmin + xmax) / 2.f;
@@ -219,9 +219,9 @@ static void make_slice(GroundSlice* slice, float y) {
             }
         }
         else {
-            // side tracks
+            // side tracks are less obvious
             for (int i = i0; i < i1; ++i) {
-                slice->h[i] = (t->h + slice->h[i]) / 2.f;
+                slice->h[i] = (t->h + slice->h[i]) / 3.f;
             }
             // coins
             if (_ground.slice_id % 2 == 0) {
@@ -647,7 +647,7 @@ void ground_init(PlaydateAPI* playdate) {
 
     // raycasting angles
     for(int i=0;i<RAYCAST_PRECISION;++i) {
-        _raycast_angles[i] = atan2f(31.5f,(float)(i-63.5f)) - PI/2.f;
+        _raycast_angles[i] = atan2f((RAYCAST_PRECISION - 1) / 4.f, (float)(i - (RAYCAST_PRECISION - 1) / 2.f)) - PI / 2.f;
     }
 
     // props config (todo: get from lua?)
@@ -673,7 +673,9 @@ int ground_load_assets_async() {
 
 // --------------- 3d rendering -----------------------------
 #define Z_NEAR 0.5f
-#define OUTCODE_FAR 0
+#define Z_FAR 64.f
+#define OUTCODE_IN 0
+#define OUTCODE_FAR 1
 #define OUTCODE_NEAR 2
 #define OUTCODE_RIGHT 4
 #define OUTCODE_LEFT 8
@@ -771,6 +773,32 @@ static int z_poly_clip(const float znear, Point3du* in, int n, Point3du* out) {
     return nout;
 }
 
+static int z_poly_clip_far(const float zfar, Point3du* in, int n, Point3du* out) {
+    Point3du v0 = in[n - 1];
+    float d0 = zfar - v0.z;
+    int nout = 0;
+    for (int i = 0; i < n; i++) {
+        Point3du v1 = in[i];
+        int side = d0 > 0;
+        if (side) out[nout++] = (Point3du){ .v = { v0.x, v0.y, v0.z }, .u = v0.u };
+        const float d1 = zfar - v1.z;
+        if ((d1 > 0) != side) {
+            // clip!
+            const float t = d0 / (d0 - d1);
+            out[nout++] = (Point3du){ .v = {
+                lerpf(v0.x,v1.x,t),
+                lerpf(v0.y,v1.y,t),
+                zfar},
+                .u = lerpf(v0.u,v1.u,t)
+            };
+        }
+        v0 = v1;
+        d0 = d1;
+    }
+    return nout;
+}
+
+
 static void draw_face(struct Drawable_s* drawable, uint32_t* bitmap) {
     DrawableFace* face = &drawable->face;
 
@@ -843,7 +871,7 @@ static void push_face(GroundFace* f, Point3d cv, const float* m, const Point3d* 
     Point3du tmp[4];
 
     // transform
-    int outcode = 0xfffffff, is_clipped = 0;
+    int outcode = 0xfffffff, is_clipped_near = 0, is_clipped_far = 0;
     float min_key = FLT_MIN;
     for (int i = 0; i < n; ++i) {
         Point3du* res = &tmp[i];
@@ -851,11 +879,13 @@ static void push_face(GroundFace* f, Point3d cv, const float* m, const Point3d* 
         m_x_v(m, p[indices[i]], res->v);
         res->u = normals[indices[i]];
         if (res->u >= 1.0f) res->u = 1.0f;
-        int code = res->z > Z_NEAR ? OUTCODE_FAR : OUTCODE_NEAR;
+        int code = res->z > Z_NEAR ? OUTCODE_IN : OUTCODE_NEAR;
+        if (res->z > Z_FAR) code |= OUTCODE_FAR;
         if (res->x > res->z) code |= OUTCODE_RIGHT;
         if (-res->x > res->z) code |= OUTCODE_LEFT;
         outcode &= code;
-        is_clipped += code & 2;
+        is_clipped_near += code & 2;
+        is_clipped_far += code & 1;
         if (res->z > min_key) min_key = res->z;
     }
 
@@ -867,8 +897,10 @@ static void push_face(GroundFace* f, Point3d cv, const float* m, const Point3d* 
         DrawableFace* face = &drawable->face;
         face->material = f->material;
         face->light = shading;
-        if (is_clipped > 0) {
+        if (is_clipped_near) {
             face->n = z_poly_clip(Z_NEAR, tmp, n, face->pts);
+        } else if(is_clipped_far) {
+            face->n = z_poly_clip_far(Z_FAR, tmp, n, face->pts);
         }
         else {
             face->n = n;
@@ -980,7 +1012,9 @@ static void collect_tiles(const Point3d pos, float base_angle) {
             disty = (mapy + 1 - y) * ddy;
         }
 
-        for (int dist = 0; dist < 16; ++dist) {
+        // for (int dist = 0; dist < 24; ++dist) {
+        const float dmax = 24.f * 24.f * ddy * ddy;
+        while ((distx*distx + disty*disty) < dmax ) {
             if (distx < disty) {
                 distx += ddx;
                 mapx += mapdx;
