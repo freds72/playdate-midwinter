@@ -16,8 +16,10 @@ typedef struct {
   int age;
   int is_main;
   int is_dead;
+  // slope positions
   float x;
   float h;
+  // dx
   float u;
   TrackTimers timers;
 } Track;
@@ -26,12 +28,13 @@ typedef struct {
   int xmin;
   int xmax;
   int max_tracks;
+  float twist;
   Track tracks[3];
   // active tracks
   int n;
 } Tracks;
 
-void make_tracks(const int xmin, const int xmax, const int max_tracks, Tracks** out);
+void make_tracks(const int xmin, const int xmax, const int max_tracks, const float twist, Tracks** out);
 void update_tracks();
 void tracks_init(PlaydateAPI* playdate);
 

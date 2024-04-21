@@ -61,10 +61,12 @@ static int ground_params_index(lua_State* L)
 	
 	if ( strcmp(arg, "slope") == 0 )
 		pd->lua->pushFloat(p->slope);
-	else if ( strcmp(arg, "num_tracks") == 0 )
+	else if ( strcmp(arg, "tracks") == 0 )
 		pd->lua->pushInt(p->num_tracks);
 	else if ( strcmp(arg, "props_rate") == 0 )
 		pd->lua->pushFloat(p->props_rate);
+	else if (strcmp(arg, "twist") == 0)
+		pd->lua->pushFloat(p->twist);
 	else
 		pd->lua->pushNil();
 	
@@ -78,11 +80,13 @@ static int ground_params_newindex(lua_State* L)
 	
 	if ( strcmp(arg, "slope") == 0 )
 		p->slope = pd->lua->getArgFloat(3);
-	else if ( strcmp(arg, "num_tracks") == 0 )
-		p->num_tracks = pd->lua->getArgFloat(3);
+	else if ( strcmp(arg, "tracks") == 0 )
+		p->num_tracks = pd->lua->getArgInt(3);
 	else if ( strcmp(arg, "props_rate") == 0 )
 		p->props_rate = pd->lua->getArgFloat(3);
-	
+	else if (strcmp(arg, "twist") == 0)
+		p->twist = pd->lua->getArgFloat(3);
+
 	return 0;
 }
 
