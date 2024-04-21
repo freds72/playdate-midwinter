@@ -58,7 +58,7 @@ float randf();
 
 // lerp between 2 float values
 inline float lerpf(const float a, const float b, const float t) {
-  return a*(1.f-t)+b*t;
+  return a + (b - a) * t;
 }
 
 void make_v(const Point3d a, Point3d b, Point3d* out);

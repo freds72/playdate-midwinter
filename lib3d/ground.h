@@ -16,6 +16,7 @@ typedef struct {
   float bonus_t;
   float total_t;
   float props_rate;
+  float twist;
   int props[16];
   int num_tracks;
 } GroundParams;

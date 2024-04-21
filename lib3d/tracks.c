@@ -9,7 +9,7 @@ static Tracks _tracks;
 
 static void reset_track_timers(TrackTimers *timers)
 {
-  timers->ttl = 12 + 20 * randf();
+  timers->ttl = 12 + 8 * randf();
   timers->trick_ttl = 4 + 4 * randf();
   timers->trick_type = randf() > 0.5f ? 0.f : 1.f;
 }
@@ -58,14 +58,14 @@ static int update_track(Track *track)
   {
     // reset
     reset_track_timers(&track->timers);
-    track->u = cosf(detauify(0.05f + 0.45f * randf()));
+    track->u = cosf(detauify(0.25f + 0.45f * randf()));
     // offshoot?
-    if (randf() < 0.5f && _tracks.n < _tracks.max_tracks - 1)
+    if (randf() < 0.25f && _tracks.n < _tracks.max_tracks)
     {
-      add_track(track->x, -track->u, 0);
+        add_track(track->x, -track->u, 0);
     }
   }
-  track->x += track->u;
+  track->x += _tracks.twist * track->u;
   if (track->x < _tracks.xmin)
   {
     track->x = _tracks.xmin;
@@ -82,15 +82,16 @@ static int update_track(Track *track)
 
 // generate ski tracks
 // xmin/xmax: min/max world coordinates for track
-void make_tracks(const int xmin, const int xmax, const int max_tracks, Tracks **out)
+void make_tracks(const int xmin, const int xmax, const int max_tracks, const float twist, Tracks **out)
 {
-  float angle = 0.05f + 0.45f * randf();
+  float angle = 0.25f + 0.45f * randf();
 
   // set global range
   _tracks.xmin = xmin;
   _tracks.xmax = xmax;
   _tracks.max_tracks = max_tracks;
   _tracks.n = 0;
+  _tracks.twist = twist;
   
   add_track(lerpf(xmin, xmax, randf()), cosf(detauify(angle)), 1);
 

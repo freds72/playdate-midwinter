@@ -174,7 +174,7 @@ static void make_slice(GroundSlice* slice, float y) {
 
     // generate height
     for (int i = 0; i < GROUND_SIZE; ++i) {
-        slice->h[i] = perlin2d((16.f * i) / GROUND_SIZE, _ground.noise_y_offset, 0.5f, 2) * 2.f * active_params.slope;
+        slice->h[i] = (2.f * perlin2d((16.f * i) / GROUND_SIZE, _ground.noise_y_offset, 0.25f, 4) - 1.0f) * 2.f * active_params.slope;
         // avoid props on side walls
         slice->props[i] = 0;
         if (i > 0 && i < GROUND_SIZE - 2) {
@@ -190,9 +190,11 @@ static void make_slice(GroundSlice* slice, float y) {
     _ground.noise_y_offset += (active_params.slope + randf()) / 4.f;
     // side walls
     slice->h[0] = 15.f + 5.f * randf();
+    slice->h[1] = (slice->h[0] + slice->h[1]) / 2.f;
     slice->h[GROUND_SIZE - 1] = 15.f + 5.f * randf();
+    slice->h[GROUND_SIZE - 2] = (slice->h[GROUND_SIZE - 1] + slice->h[GROUND_SIZE - 2]) / 2.f;
 
-    float xmin = 2 * GROUND_CELL_SIZE, xmax = (GROUND_SIZE - 2) * GROUND_CELL_SIZE;
+    float xmin = 3 * GROUND_CELL_SIZE, xmax = (GROUND_SIZE - 3) * GROUND_CELL_SIZE;
     float main_track_x = (xmin + xmax) / 2.f;
     int is_checkpoint = 0;
     Tracks* tracks = _ground.tracks;
@@ -206,7 +208,7 @@ static void make_slice(GroundSlice* slice, float y) {
             xmax = (float)i1 * GROUND_CELL_SIZE;
             for (int i = i0; i < i1; ++i) {
                 // smooth track
-                slice->h[i] = t->h + slice->h[i] / 4.f;
+                slice->h[i] = (t->h + slice->h[i-1] + slice->h[i] + slice->h[i+1]) / 4.f;
                 // remove props from track
                 slice->props[i] = 0;
             }
@@ -215,13 +217,13 @@ static void make_slice(GroundSlice* slice, float y) {
                 is_checkpoint = 1;
                 // checkoint pole
                 slice->props[i0] = PROP_CHECKPOINT;
-                slice->props[i1] = PROP_CHECKPOINT;
+                slice->props[i1] = -PROP_CHECKPOINT;
             }
         }
         else {
             // side tracks are less obvious
             for (int i = i0; i < i1; ++i) {
-                slice->h[i] = (t->h + slice->h[i]) / 3.f;
+                slice->h[i] = (t->h + slice->h[i]) / 2.f;
             }
             // coins
             if (_ground.slice_id % 2 == 0) {
@@ -240,8 +242,6 @@ static void make_slice(GroundSlice* slice, float y) {
 }
 
 void make_ground(GroundParams params) {
-    pd->system->logToConsole("Ground params:\nslope:%f", params.slope);
-
     active_params = params;
     // reset global params
     _snowball.is_active = 0;
@@ -254,8 +254,7 @@ void make_ground(GroundParams params) {
     _ground.max_pz = INT_MIN;
 
     // init track generator
-    int num_tracks = params.num_tracks > 0 ? params.num_tracks : 3;
-    make_tracks(2 * GROUND_CELL_SIZE, (GROUND_SIZE - 2)*GROUND_CELL_SIZE, num_tracks, &_ground.tracks);
+    make_tracks(3 * GROUND_CELL_SIZE, (GROUND_SIZE - 3)*GROUND_CELL_SIZE, params.num_tracks, params.twist, &_ground.tracks);
     update_tracks();
 
     for (int i = 0; i < GROUND_SIZE; ++i) {
@@ -652,7 +651,7 @@ void ground_init(PlaydateAPI* playdate) {
 
     // props config (todo: get from lua?)
     // pine tree
-    _props_properties[PROP_TREE - 1] = (PropProperties){ .hitable = 1, .single_use = 0, .radius = 1.4f };
+    _props_properties[PROP_TREE - 1] = (PropProperties){ .hitable = 1, .single_use = 0, .radius = 1.8f };
     // checkpoint flag
     _props_properties[PROP_CHECKPOINT - 1] = (PropProperties){ .hitable = 0, .single_use = 0, .radius = 0.f };
     // coin
@@ -836,8 +835,14 @@ static void draw_prop(Drawable* drawable, uint32_t* bitmap) {
     float w = 199.5f / prop->pos.z;
     float x = 199.5f + w * prop->pos.x;
     float y = 119.5f - w * prop->pos.y;
+    int mat = prop->material;
+    // flipped?
+    if (mat < 0) {
+        prop->material = -mat;
+        prop->angle = -prop->angle;
+    }
     PropImage* image = &_ground_props[prop->material - 1].rotated[prop->angle + 30].scaled[_scaled_by_z[(int)(16.0f * (prop->pos.z - Z_NEAR) / GROUND_CELL_SIZE)]];
-    pd->graphics->drawBitmap(image->image, (int)(x - image->w / 2), (int)(y - image->h), 0);
+    pd->graphics->drawBitmap(image->image, (int)(x - image->w / 2), (int)(y - image->h), mat<0);
 
 }
 
