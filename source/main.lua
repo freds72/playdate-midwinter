@@ -890,7 +890,7 @@ function zoomin_state(go_state,...)
 			end
 			gfx.unlockFocus()
 
-			screen:drawBlurred(0,0,8,1,gfx.image.kDitherTypeAtkinson)
+			screen:drawBlurred(0,0,4,1,gfx.image.kDitherTypeScreen)
 		end
 end
 
@@ -1112,7 +1112,7 @@ function play_state(params)
 					local b=bonus[i]					
 					
 					if b.ttl/b.duration>0.5 or t%2==0 then
-						print_bold(b.t,56+b.x-#b.t/1.5,24+b.ttl,gfx.kColorWhite)
+						print_bold(b.t,200+b.x-#b.t/1.5,95 + b.ttl,gfx.kColorWhite)
 					end
 					-- handle edge case if multiple tricks!
 					if b.msg then print_bold(b.msg,nil,y_trick,gfx.kColorWhite) y_trick-=9 end
