@@ -1038,8 +1038,10 @@ static void collect_tiles(const Point3d pos, float base_angle) {
 }
 
 // render ground
-void render_ground(Point3d cam_pos, float cam_angle, float* m, uint32_t* bitmap) {
-    int angle = render_sky(m, bitmap);
+void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_t* bitmap) {
+    const float cam_angle = cam_tau_angle * 2.f * PI;
+    const int angle = render_sky(m, bitmap);
+    const int flip_sprite = ((int)(cam_tau_angle * 360.f) + 90) % 360 > 180 ? -1 : 1;
 
     // collect visible tiles
     _drawables.n = 0;
@@ -1100,8 +1102,8 @@ void render_ground(Point3d cam_pos, float cam_angle, float* m, uint32_t* bitmap)
                         if (prop_id == PROP_COIN) {
                             push_coin(&res, time_offset + j + _z_offset);
                         }
-                        else {
-                            push_prop(&res, angle, prop_id);
+                        else {                            
+                            push_prop(&res, angle, prop_id * flip_sprite);
                         }
                     }
                 }

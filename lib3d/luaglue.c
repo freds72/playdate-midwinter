@@ -13,13 +13,6 @@
 #include "ground.h"
 #include "tracks.h"
 
-// to remove
-#include "gfx.h"
-#include "3dmath.h"
-#include "3dmathi.h"
-
-#define fswap(a,b) {float tmp = b; b=a; a=tmp;}
-
 static PlaydateAPI* pd = NULL;
 
 static void* getArgObject(int n, char* type)
@@ -114,7 +107,7 @@ static int lib3d_render_ground(lua_State* L)
 		pos.v[i] = pd->lua->getArgFloat(argc++);
 	}
 	// cam angle
-	float angle = 2.f * PI * pd->lua->getArgFloat(argc++);
+	const float tau_angle = pd->lua->getArgFloat(argc++);
 
     // camera matrix
     float m[16];
@@ -126,7 +119,7 @@ static int lib3d_render_ground(lua_State* L)
 
     uint32_t* bitmap = (uint32_t*)pd->graphics->getFrame();
 
-	render_ground(pos, angle, m, bitmap);
+	render_ground(pos, tau_angle, m, bitmap);
 
     pd->graphics->markUpdatedRows(0, LCD_ROWS - 1);
 
