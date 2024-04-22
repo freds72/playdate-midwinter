@@ -53,7 +53,7 @@ void update_snowball(Point3d pos, int rotation);
 void collide(Point3d pos, float radius, int* hit_type);
 
 // render ground
-void render_ground(Point3d pos, float angle, float*m, uint32_t* bitmap);
+void render_ground(Point3d pos, const float tau_angle, float*m, uint32_t* bitmap);
 
 // load stuff (to be called until returns 0)
 int ground_load_assets_async();

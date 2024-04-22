@@ -1457,7 +1457,7 @@ function make_ground(params)
 			p[3] = lib3d.update_ground(table.unpack(p))
 		end,
 		draw=function(self,cam)
-			lib3d.render_ground(cam.pos[1],cam.pos[2],cam.pos[3],cam.angle,table.unpack(cam.m))
+			lib3d.render_ground(cam.pos[1],cam.pos[2],cam.pos[3],cam.angle%1,table.unpack(cam.m))
 		end,
 		find_face=function(self,p)
 			local y,nx,ny,nz,angle=lib3d.get_face(table.unpack(p))
@@ -1484,21 +1484,6 @@ function make_ground(params)
 			lib3d.update_snowball(p[1],p[2],p[3],r)
 		end
 	}
-end
-
--->8 
--- rotation cache builder
--- returns a function that copies rotated version in place
--- n: number of cache entries
--- tc: transparent color
-function make_rspr(sx,sy,n,tc)
-  -- todo: port to playdate
-
-	-- update spritesheet with rotated version
-	return function(angle)
-		-- 
-		_angle=-180*angle+90
-	end
 end
 
 -->8
@@ -1530,8 +1515,6 @@ function print_bold(s,x,y,c)
 
 	print_regular(s,x,y,c,align)
 end
-
--->8
 
 function print_regular(s,x,y,c,align)
   gfx.setFont(memoFont[c or gfx.kColorBlack])
