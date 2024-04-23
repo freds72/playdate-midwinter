@@ -498,7 +498,7 @@ function make_plyr(p,params)
 			end
 			air_t=0
 
-			if jump_ttl>8 and playdate.buttonJustReleased(_input.action.id) then
+			if jump_ttl>8 and playdate.buttonJustPressed(_input.action.id) then
 				self:apply_force_and_torque({0,63,0},0)
 				jump_ttl=0
 			end
@@ -885,7 +885,7 @@ function zoomin_state(go_state,...)
 			end
 			gfx.unlockFocus()
 
-			screen:drawBlurred(0,0,4,1,gfx.image.kDitherTypeScreen)
+			screen:drawBlurred(0,0,2,1,gfx.image.kDitherTypeScreen)
 		end
 end
 
@@ -995,6 +995,7 @@ function shop_state()
 end
 
 function play_state(params)
+	local help_ttl=0
 
 	-- stop music
 	music(-1,250)
@@ -1045,9 +1046,8 @@ function play_state(params)
 					_ski_sfx:setRate(1-abs(steering/2))
 
 					-- reset?
-					if playdate.buttonJustReleased(_input.back.id) then
-						_ski_sfx:stop()
-						next_state(zoomin_state,play_state,params)
+					if help_ttl>90 and playdate.buttonJustPressed(_input.back.id) then						
+						next_state(restart_state,params)
 					end
 				end
 			end
@@ -1058,6 +1058,8 @@ function play_state(params)
           table.remove(actors,i)
         end
 			end
+
+			help_ttl+=1
 		end,
 		-- draw
 		function()			
@@ -1124,9 +1126,9 @@ function play_state(params)
 				spr(108,56,12,2,2)
 					
 				-- help msg?
-				if total_t<90 then
+				if help_ttl<90 then
 					print_regular(_input.action.glyph.." Jump",nil,102)
-					print_regular(_input.back.glyph.." Restart (hold)",nil,118)
+					print_regular(_input.back.glyph.." Restart (hold)",nil,118)					
 				end
 			end
 		end		
@@ -1143,7 +1145,7 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 
 	-- snowballing!!!
 	local snowball=add(actors,make_snowball(pos))
-	local turn_side,tricks_rating=pick({-1,1}),{"meh","rookie","junior","★master★"}
+	local turn_side,tricks_rating=pick({-1,1}),{"meh","rookie","junior","master"}
 	local text_ttl,active_text,text=10,"yikes!",{"ouch!","aie!","pok!","weee!"}
 
 	-- save records (if any)
@@ -1198,7 +1200,7 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 
 			print_bold(msgs[active_msg+1],nil,msg_y,gfx.kColorWhite)
 			local x,y=rnd(4)-2,msg_y+8+rnd(4)-2
-			if active_msg==0 and total_t>params.record_t then print_bold("★new record★",x+250,y) end
+			if active_msg==0 and total_t>params.record_t then print_bold("!new record!",x+250,y) end
 			if active_msg==1 then print_bold(tricks_rating[min(flr(total_tricks/5)+1,4)],x+270,y) end
 
 			if text_ttl>0 and not time_over then
@@ -1210,6 +1212,42 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 				print_regular(_input.back.glyph.." menu",nil,162)
 				print_regular(_input.action.glyph.."restart",nil,178)
 			end
+		end
+end
+
+function restart_state(params)
+	local prev_update,prev_draw = _update_state,_draw_state
+	local screen=gfx.getDisplayImage()
+	local screenWidth, screenHeight = screen:getSize()
+
+	local ttl,max_ttl=0,24
+	return
+		-- update
+		function()
+			if ttl>max_ttl then
+				-- reset game (without the zoom effect)
+				next_state(play_state,params)
+			elseif not playdate.buttonIsPressed(_input.back.id) then
+				-- back to game ("unpause")
+				_update_state,_draw_state=prev_update,prev_draw
+			end
+			ttl+=1
+		end,
+		-- draw
+		function()
+			screen = screen:blurredImage(2,1,gfx.image.kDitherTypeScreen)
+			gfx.lockFocus(screen)
+			for i=1,4 do
+				gfx.setColor(gfx.kColorWhite)
+				gfx.fillCircleAtPoint(rnd(screenWidth), rnd(screenHeight), 8 + rnd(32))
+			end
+			gfx.unlockFocus()
+			screen:draw(0,0)
+
+			print_bold("Reset? ".._input.back.glyph,nil,110,gfx.kColorBlack)
+			gfx.setLineWidth(3)
+			gfx.setColor(gfx.kColorBlack)
+			gfx.drawArc(225,118,12,0,(360*ttl)/max_ttl)
 		end
 end
 
