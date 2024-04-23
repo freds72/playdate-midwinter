@@ -458,7 +458,7 @@ function make_plyr(p,params)
 
 	local body_update=body.update
 
-	local hit_ttl,jump_ttl,jump_pressed=0,0
+	local hit_ttl,jump_ttl=8
 	
 	local spin_angle,spin_prev=0
 
@@ -486,7 +486,6 @@ function make_plyr(p,params)
 			da = _flip_crank * acceleratedChange
 		end
 
-		local do_jump
 		if self.on_ground==true then
 			-- was flying?			
 			if air_t>23 then
@@ -499,24 +498,17 @@ function make_plyr(p,params)
 			end
 			air_t=0
 
-			if playdate.buttonIsPressed(_input.action.id) then
-				if not jump_pressed then jump_pressed,jump_ttl=true,0 end
-				jump_ttl=min(jump_ttl+1,9)
-			elseif jump_pressed then
-				-- button released?
-				do_jump=true
+			if jump_ttl>8 and playdate.buttonJustReleased(_input.action.id) then
+				self:apply_force_and_torque({0,63,0},0)
+				jump_ttl=0
 			end
 		else
-			-- kill jump
-			jump_ttl,jump_pressed,do_jump=0
+			-- avoid auto-jump on land
+			jump_ttl=4
 			-- record flying time
-			air_t=air_t+1
+			air_t+=1
 		end
-
-		if do_jump then
-			self:apply_force_and_torque({0,jump_ttl*7,0},0)
-			jump_ttl,jump_pressed,do_jump=0
-		end
+		jump_ttl=min(jump_ttl+1,9)
 
 		self:steer(da/8)
 	end
@@ -1133,8 +1125,8 @@ function play_state(params)
 					
 				-- help msg?
 				if total_t<90 then
-					print_regular(_input.action.glyph.." charge jump",nil,102)
-					print_regular(_input.back.glyph.." restart",nil,118)
+					print_regular(_input.action.glyph.." Jump",nil,102)
+					print_regular(_input.back.glyph.." Restart (hold)",nil,118)
 				end
 			end
 		end		
