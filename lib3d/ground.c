@@ -208,7 +208,7 @@ static void make_slice(GroundSlice* slice, float y) {
             xmax = (float)i1 * GROUND_CELL_SIZE;
             for (int i = i0; i < i1; ++i) {
                 // smooth track
-                slice->h[i] = (t->h + slice->h[i-1] + slice->h[i] + slice->h[i+1]) / 4.f;
+                // slice->h[i] = (t->h + slice->h[i-1] + slice->h[i] + slice->h[i+1]) / 9.f;
                 // remove props from track
                 slice->props[i] = 0;
             }
@@ -223,7 +223,7 @@ static void make_slice(GroundSlice* slice, float y) {
         else {
             // side tracks are less obvious
             for (int i = i0; i < i1; ++i) {
-                slice->h[i] = (t->h + slice->h[i]) / 2.f;
+                slice->h[i] = (t->h + slice->h[i - 1] + slice->h[i] + slice->h[i + 1]) / 4.f;
             }
             // coins
             if (_ground.slice_id % 2 == 0) {
@@ -655,7 +655,7 @@ void ground_init(PlaydateAPI* playdate) {
     // checkpoint flag
     _props_properties[PROP_CHECKPOINT - 1] = (PropProperties){ .hitable = 0, .single_use = 0, .radius = 0.f };
     // coin
-    _props_properties[PROP_COIN - 1] = (PropProperties){ .hitable = 1, .single_use = 1, .radius = 1.f };
+    _props_properties[PROP_COIN - 1] = (PropProperties){ .hitable = 1, .single_use = 1, .radius = 1.5f };
 }
 
 int ground_load_assets_async() {
@@ -853,8 +853,6 @@ static void draw_coin(Drawable* drawable, uint32_t* bitmap) {
     float x = 199.5f + w * prop->pos.x;
     float y = 119.5f - w * prop->pos.y;
     PropImage* image = &_coin_frames.frames[prop->frame].scaled[_scaled_by_z[(int)(16.0f * (prop->pos.z - Z_NEAR) / GROUND_CELL_SIZE)]];
-    if (!image->image)
-        pd->system->logToConsole("invalid frame: %i", prop->frame);
     pd->graphics->drawBitmap(image->image, (int)(x - image->w / 2), (int)(y - image->h), 0);
 }
 
@@ -865,9 +863,6 @@ static void draw_snowball(Drawable* drawable, uint32_t* bitmap) {
     float x = 199.5f + w * prop->pos.x;
     float y = 119.5f - w * prop->pos.y;
     PropImage* image = &_snowball_frames[prop->angle];
-    if (!image->image) {
-        pd->system->logToConsole("missing snowball image: %i", prop->angle);
-    }
     pd->graphics->drawBitmap(image->image, (int)(x - image->w / 2), (int)(y - image->h), 0);
 }
 
@@ -975,7 +970,7 @@ int render_sky(float* m, uint32_t* bitmap) {
     if (h1 < 0) h1 = 0;
     if (h1 > LCD_ROWS) h1 = LCD_ROWS;
     
-    memset(bitmap, 0x00, h0 * LCD_ROWSIZE);
+    memset(bitmap, 0xff, h0 * LCD_ROWSIZE);
     memcpy(bitmap + h0 * LCD_ROWSIZE / sizeof(uint32_t), src, (h1-h0) * LCD_ROWSIZE);
     memset(bitmap + h1 * LCD_ROWSIZE / sizeof(uint32_t), 0xff, (LCD_ROWS - h1) * LCD_ROWSIZE);
 

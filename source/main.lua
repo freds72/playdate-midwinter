@@ -1072,15 +1072,9 @@ function play_state(params)
 				local pos,a,steering=plyr:get_pos()
 				local dy=plyr.height*24
 				-- ski
-				_ski:draw(170+6*cos(time()/4),210+dy-steering*14,gfx.kImageFlippedX)
-				_ski:draw(250-6*cos(time()/4),210+dy+steering*14)
-
-				--spr(9,34+3*cos(time()/4),128+dy-steering*14,4,4)
-				--spr(9,74-2*cos(time()/5),128+dy+steering*14,4,4,true)
-			
-				-- hands
-				spr(140,abs(steering)*16-24,90-dy/3,4,4)
-				spr(140,96-abs(steering)*16+24,90-dy/3,4,4,true)
+				local xoffset=6*cos(time()/4)
+				_ski:draw(152+xoffset,210+dy-steering*14,gfx.kImageFlippedX)
+				_ski:draw(228-xoffset,210+dy+steering*14)
 			
 				-- seiko watch!
 				_seiko:draw(2,2)
