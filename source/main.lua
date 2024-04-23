@@ -23,7 +23,7 @@ local _inputs={
 	}
 }
 local _input=_inputs[true]
-
+local _flip_crank=1
 
 local panelFont = gfx.font.new('font/Roobert-10-Bold')
 local panelFontFigures = gfx.font.new('font/Roobert-24-Medium-Numerals-White')
@@ -483,7 +483,7 @@ function make_plyr(p,params)
 			if playdate.buttonIsPressed(playdate.kButtonRight) then da=-1 end
 		else
 			local change, acceleratedChange = playdate.getCrankChange()
-			da = acceleratedChange
+			da = _flip_crank * acceleratedChange
 		end
 
 		local do_jump
@@ -789,6 +789,9 @@ function menu_state()
 	local menuItem, error = menu:addMenuItem("start menu", function()
 			_futures={}
 			next_state(menu_state)
+	end)	
+	local menuItem, error = menu:addCheckmarkMenuItem("flip crank", false, function(value)
+		_flip_crank = value and -1 or 1
 	end)	
 
 	return

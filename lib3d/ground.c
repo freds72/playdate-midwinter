@@ -947,7 +947,7 @@ int render_sky(float* m, uint32_t* bitmap) {
     Point3d p = { .v = { 0.f, -n.z / n.y, 1.f } };
 
     float w = 199.5f / p.z;
-    float y0 = 119.5f - w * p.y;
+    float y0 = 169.5f - w * p.y;
 
     // horizon 'normal'
     n.z = 0;
