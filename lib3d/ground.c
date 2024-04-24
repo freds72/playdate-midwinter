@@ -17,6 +17,14 @@
 static PlaydateAPI* pd;
 
 typedef struct {
+    Point3d n;
+    // 0: triangle
+    // 1: quad
+    int quad;
+    int material;
+} GroundFace;
+
+typedef struct {
     float y;
     // faces (normal + material only)
     GroundFace faces[GROUND_SIZE * 2];
@@ -90,6 +98,13 @@ typedef struct {
 } PropProperties;
 
 static PropProperties _props_properties[5];
+
+// max number of props on a given slice (e.g. number of tracks + 1)
+#define MAX_PROPS 4
+static struct {
+    int n;
+    PropInfo props[MAX_PROPS];
+} _props_info;
 
 #define MATERIAL_SNOW 0
 #define MATERIAL_ROCK 1
@@ -340,6 +355,36 @@ void get_track_info(Point3d pos, float* xmin, float *xmax, float*z, int*checkpoi
     // activate checkpoint at middle of cell
     *z = (j + 0.5f) * GROUND_CELL_SIZE;
     *checkpoint = s0->is_checkpoint;
+}
+
+void get_props(Point3d pos, PropInfo** info, int* nout) {
+    const int ii = (int)(pos.x / GROUND_CELL_SIZE);
+    int i0 = ii - 4, i1 = ii + 4;
+    if (i0 < 0) i0 = 0;
+    if (i1 > GROUND_SIZE) i1 = GROUND_SIZE;
+
+    const int j0 = (int)(pos.z / GROUND_CELL_SIZE) + 1;
+    const float y_offset = _ground.y_offset;
+    _props_info.n = 0;
+    for (int j = j0; j < j0 + 3 && _props_info.n < MAX_PROPS; ++j) {
+        const GroundSlice* s0 = _ground.slices[j];
+        const GroundSlice* s1 = _ground.slices[j + 1];
+        for (int i = i0; i < i1 && _props_info.n < MAX_PROPS; ++i) {
+            int prop_id = s0->props[i];
+            if (prop_id == PROP_COIN) {
+                PropInfo* info = &_props_info.props[_props_info.n++];
+                info->type = prop_id;                
+                v_lerp(
+                    &(Point3d) { {.v = { (float)i * GROUND_CELL_SIZE,         s0->h[i] + s0->y - y_offset,       (float)j * GROUND_CELL_SIZE } } },
+                    &(Point3d) { {.v = { (float)(i + 1) * GROUND_CELL_SIZE,   s1->h[i + 1] + s1->y - y_offset,   (float)(j + 1) * GROUND_CELL_SIZE } } },
+                    s0->prop_t[i], 
+                    &info->pos);
+                info->pos.z += 2.f;
+            }
+        }
+    }    
+    *nout = _props_info.n;
+    *info = _props_info.props;
 }
 
 // clear checkpoint
@@ -729,8 +774,8 @@ typedef struct Drawable_s {
 } Drawable;
 
 static struct {
-    Drawable all[GROUND_SIZE * GROUND_SIZE * 3];
     int n;
+    Drawable all[GROUND_SIZE * GROUND_SIZE * 3];
 } _drawables;
 
 static Drawable* _sortables[GROUND_SIZE * GROUND_SIZE * 3];
@@ -1092,6 +1137,9 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
                 if (prop_id) {
                     Point3d pos, res;
                     v_lerp(&verts[0], &verts[2], s0->prop_t[i], &pos);
+                    if (prop_id == PROP_COIN) {
+                        pos.z += 2.f;
+                    }
                     m_x_v(m, pos, res.v);
                     if (res.z > Z_NEAR && res.z < GROUND_CELL_SIZE * 16) {
                         if (prop_id == PROP_COIN) {

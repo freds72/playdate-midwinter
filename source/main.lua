@@ -1081,6 +1081,7 @@ function play_state(params)
 				for i=1,plyr.hp do
 					hp=hp.."."
 				end
+				-- todo: use rects?
 				print_regular(hp,23,1,gfx.kColorWhite)
 				print_regular(hp,23,2,gfx.kColorWhite)
 				print_regular(hp,24,1,gfx.kColorWhite)
@@ -1126,10 +1127,20 @@ function play_state(params)
 				end
 				spr(108,56,12,2,2)
 					
-				-- help msg?
 				if help_ttl<90 then
+					-- help msg?
 					print_regular(_input.action.glyph.." Jump",nil,102)
 					print_regular(_input.back.glyph.." Restart (hold)",nil,118)					
+				else
+					-- trackers
+					local props = ground:get_props(pos)
+					for _,p in pairs(props) do
+						local v=m_x_v(cam.m,p.pos)
+						if v[3]>0 then
+							local x0,y0=cam:project2d(v)
+							_target_lock:draw(x0-19,y0-19)
+						end
+					end
 				end
 			end
 		end		
@@ -1357,6 +1368,7 @@ function _init()
 
 	_seiko = gfx.image.new("images/watch")
 	_game_over = gfx.image.new("images/game_over")
+	_target_lock = gfx.image.new("images/coin_lock")
 
 	-- init state machine
 	next_state(loading_state)
@@ -1499,6 +1511,20 @@ function make_ground(params)
 				z=z,
 				is_checkpoint=checkpoint
 			}
+		end,
+		get_props=function(self,p)
+			-- layout: 
+			-- type: int
+			-- coords float x 3
+			local props = {lib3d.get_props(table.unpack(p))}
+			local out={}
+			for i=1,#props,4 do
+				add(out,{
+					type = props[i],
+					pos = {props[i+1],props[i+2],props[i+3]}
+				})				
+			end
+			return out
 		end,
 		clear_checkpoint=function(self,p)
 			lib3d.clear_checkpoint(table.unpack(p))

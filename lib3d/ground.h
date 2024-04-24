@@ -4,14 +4,6 @@
 #include "3dmath.h"
 
 typedef struct {
-  Point3d n;  
-  // 0: triangle
-  // 1: quad
-  int quad;
-  int material;
-} GroundFace;
-
-typedef struct {
   float slope;
   float bonus_t;
   float total_t;
@@ -22,12 +14,9 @@ typedef struct {
 } GroundParams;
 
 typedef struct {
-	int is_checkpoint;
-	float xmin;
-	float xmax;
-
-	void* impl;
-} TrackInfo;
+	int type;
+	Point3d pos;
+} PropInfo;
 
 // create a new ground
 void make_ground(GroundParams params);
@@ -40,6 +29,10 @@ void get_face(Point3d pos, Point3d* n, float* y,float* angle);
 
 // get track extent
 void get_track_info(Point3d pos, float* xmin, float* xmax, float*z, int* checkpoint);
+
+// get nearest props
+void get_props(Point3d pos, PropInfo** props, int* n);
+
 // clear checkpoint flag at pos
 void clear_checkpoint(Point3d pos);
 
