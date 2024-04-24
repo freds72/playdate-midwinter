@@ -1046,7 +1046,8 @@ function play_state(params)
 					_ski_sfx:setRate(1-abs(steering/2))
 
 					-- reset?
-					if help_ttl>90 and playdate.buttonJustPressed(_input.back.id) then						
+					if help_ttl>90 and playdate.buttonJustPressed(_input.back.id) then				
+						_ski_sfx:setVolume(volume/2)		
 						next_state(restart_state,params)
 					end
 				end
