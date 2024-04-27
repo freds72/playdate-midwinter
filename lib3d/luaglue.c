@@ -12,6 +12,7 @@
 #include "realloc.h"
 #include "ground.h"
 #include "tracks.h"
+#include "gfx.h"
 
 static PlaydateAPI* pd = NULL;
 
@@ -184,6 +185,24 @@ static int lib3d_get_track_info(lua_State* L) {
 	return 4;
 }
 
+static int lib3d_get_props(lua_State* L) {
+	Point3d pos;
+	for (int i = 0; i < 3; ++i) {
+		pos.v[i] = pd->lua->getArgFloat(i + 1);
+	}
+	int n = 0;
+	PropInfo* props;
+	get_props(pos, &props, &n);
+	for (int i = 0; i < n; ++i) {
+		PropInfo* prop = &props[i];
+		pd->lua->pushInt(prop->type);
+		pd->lua->pushFloat(prop->pos.x);
+		pd->lua->pushFloat(prop->pos.y);
+		pd->lua->pushFloat(prop->pos.z);
+	}
+	return n * 4;
+}
+
 static int lib3d_clear_checkpoint(lua_State* L) {
 	Point3d pos;
 	for (int i = 0; i < 3; ++i) {
@@ -270,6 +289,9 @@ void lib3d_register(PlaydateAPI* playdate)
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
 	if (!pd->lua->addFunction(lib3d_get_track_info, "lib3d.get_track_info", &err))
+		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
+
+	if (!pd->lua->addFunction(lib3d_get_props, "lib3d.get_props", &err))
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
 	if (!pd->lua->addFunction(lib3d_update_snowball, "lib3d.update_snowball", &err))

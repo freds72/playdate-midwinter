@@ -17,6 +17,14 @@
 static PlaydateAPI* pd;
 
 typedef struct {
+    Point3d n;
+    // 0: triangle
+    // 1: quad
+    int quad;
+    int material;
+} GroundFace;
+
+typedef struct {
     float y;
     // faces (normal + material only)
     GroundFace faces[GROUND_SIZE * 2];
@@ -91,6 +99,13 @@ typedef struct {
 
 static PropProperties _props_properties[5];
 
+// max number of props on a given slice (e.g. number of tracks + 1)
+#define MAX_PROPS 4
+static struct {
+    int n;
+    PropInfo props[MAX_PROPS];
+} _props_info;
+
 #define MATERIAL_SNOW 0
 #define MATERIAL_ROCK 1
 
@@ -105,7 +120,7 @@ static RotatedScaledProp _ground_props[8];
 static PropImage _snowball_frames[360];
 
 // raycasting angles
-#define RAYCAST_PRECISION 256
+#define RAYCAST_PRECISION 196
 static float _raycast_angles[RAYCAST_PRECISION];
 
 // global buffer to store slices
@@ -174,7 +189,7 @@ static void make_slice(GroundSlice* slice, float y) {
 
     // generate height
     for (int i = 0; i < GROUND_SIZE; ++i) {
-        slice->h[i] = (2.f * perlin2d((16.f * i) / GROUND_SIZE, _ground.noise_y_offset, 0.25f, 4) - 1.0f) * 2.f * active_params.slope;
+        slice->h[i] = (perlin2d((16.f * i) / GROUND_SIZE, _ground.noise_y_offset, 0.25f, 4) ) * 4.f * active_params.slope;
         // avoid props on side walls
         slice->props[i] = 0;
         if (i > 0 && i < GROUND_SIZE - 2) {
@@ -186,13 +201,12 @@ static void make_slice(GroundSlice* slice, float y) {
             }
         }
     }
-    // todo: control roughness from slope?
     _ground.noise_y_offset += (active_params.slope + randf()) / 4.f;
-    // side walls
+    // side walls + nice transition
     slice->h[0] = 15.f + 5.f * randf();
-    slice->h[1] = (slice->h[0] + slice->h[1]) / 2.f;
+    slice->h[1] = lerpf(slice->h[0],slice->h[1],0.666f);
     slice->h[GROUND_SIZE - 1] = 15.f + 5.f * randf();
-    slice->h[GROUND_SIZE - 2] = (slice->h[GROUND_SIZE - 1] + slice->h[GROUND_SIZE - 2]) / 2.f;
+    slice->h[GROUND_SIZE - 2] = lerpf(slice->h[GROUND_SIZE - 1], slice->h[GROUND_SIZE - 2], 0.666f);
 
     float xmin = 3 * GROUND_CELL_SIZE, xmax = (GROUND_SIZE - 3) * GROUND_CELL_SIZE;
     float main_track_x = (xmin + xmax) / 2.f;
@@ -206,9 +220,10 @@ static void make_slice(GroundSlice* slice, float y) {
             main_track_x = t->x;
             xmin = (float)i0 * GROUND_CELL_SIZE;
             xmax = (float)i1 * GROUND_CELL_SIZE;
-            for (int i = i0; i < i1; ++i) {
+            for (int i = i0; i <= i1; ++i) {
                 // smooth track
-                // slice->h[i] = (t->h + slice->h[i-1] + slice->h[i] + slice->h[i+1]) / 9.f;
+                // slice->h[i] += t->h;
+                // slice->h[i] = t->h + (slice->h[i-1] + slice->h[i] + slice->h[i+1]) / 4.0f;
                 // remove props from track
                 slice->props[i] = 0;
             }
@@ -217,16 +232,22 @@ static void make_slice(GroundSlice* slice, float y) {
                 is_checkpoint = 1;
                 // checkoint pole
                 slice->props[i0] = PROP_CHECKPOINT;
+                slice->prop_t[i0] = 0.5f;
                 slice->props[i1] = -PROP_CHECKPOINT;
+                slice->prop_t[i1] = 0.5f;
             }
         }
         else {
             // side tracks are less obvious
-            for (int i = i0; i < i1; ++i) {
-                slice->h[i] = (t->h + slice->h[i - 1] + slice->h[i] + slice->h[i + 1]) / 4.f;
+            for (int i = i0; i <= i1; ++i) {
+                // slice->h[i] = t->h + slice->h[i] / 2.0f;
+                // slice->h[i] = t->h;
+                // remove props
+                if(slice->props[i]==PROP_TREE) slice->props[i] = 0;
             }
             // coins
-            if (_ground.slice_id % 2 == 0) {
+            if (_ground.slice_id % 4 == 0) {
+                slice->prop_t[ii] = 0.5f;
                 slice->props[ii] = PROP_COIN;
             }
         }
@@ -254,7 +275,7 @@ void make_ground(GroundParams params) {
     _ground.max_pz = INT_MIN;
 
     // init track generator
-    make_tracks(3 * GROUND_CELL_SIZE, (GROUND_SIZE - 3)*GROUND_CELL_SIZE, params.num_tracks, params.twist, &_ground.tracks);
+    make_tracks(4 * GROUND_CELL_SIZE, (GROUND_SIZE - 5)*GROUND_CELL_SIZE, params.num_tracks, params.twist, &_ground.tracks);
     update_tracks();
 
     for (int i = 0; i < GROUND_SIZE; ++i) {
@@ -327,8 +348,19 @@ void get_face(Point3d pos, Point3d* nout, float* yout,float* angleout) {
     *yout = pos.y - v_dot(&ptOnFace, &f->n) / f->n.y;
     // face normal
     *nout = f->n;
+
+    // find nearest checkpoint
+    float x = _ground.slices[j + 2]->center, y=2;
+    for (int k = j + 2; k < j + 10 && k< GROUND_SIZE; ++k) {
+        GroundSlice* s = _ground.slices[k];
+        if (s->is_checkpoint) {
+            x = s->center;
+            y = k - j;
+            break;
+        }
+    }
     // direction to track ahead (rebase to half circle)
-    *angleout = 0.5f * atan2f(2 * GROUND_CELL_SIZE, _ground.slices[j + 2]->center - pos.x) / PI - 0.25f;
+    *angleout = 0.5f * atan2f(y * GROUND_CELL_SIZE, x - pos.x) / PI - 0.25f;
 }
 
 // get slice extents
@@ -340,6 +372,36 @@ void get_track_info(Point3d pos, float* xmin, float *xmax, float*z, int*checkpoi
     // activate checkpoint at middle of cell
     *z = (j + 0.5f) * GROUND_CELL_SIZE;
     *checkpoint = s0->is_checkpoint;
+}
+
+void get_props(Point3d pos, PropInfo** info, int* nout) {
+    const int ii = (int)(pos.x / GROUND_CELL_SIZE);
+    int i0 = ii - 4, i1 = ii + 4;
+    if (i0 < 0) i0 = 0;
+    if (i1 > GROUND_SIZE) i1 = GROUND_SIZE;
+
+    const int j0 = (int)(pos.z / GROUND_CELL_SIZE) + 1;
+    const float y_offset = _ground.y_offset;
+    _props_info.n = 0;
+    for (int j = j0; j < j0 + 3 && _props_info.n < MAX_PROPS; ++j) {
+        const GroundSlice* s0 = _ground.slices[j];
+        const GroundSlice* s1 = _ground.slices[j + 1];
+        for (int i = i0; i < i1 && _props_info.n < MAX_PROPS; ++i) {
+            int prop_id = s0->props[i];
+            if (prop_id == PROP_COIN) {
+                PropInfo* info = &_props_info.props[_props_info.n++];
+                info->type = prop_id;                
+                v_lerp(
+                    &(Point3d) { {.v = { (float)i * GROUND_CELL_SIZE,         s0->h[i] + s0->y - y_offset,       (float)j * GROUND_CELL_SIZE } } },
+                    &(Point3d) { {.v = { (float)(i + 1) * GROUND_CELL_SIZE,   s1->h[i + 1] + s1->y - y_offset,   (float)(j + 1) * GROUND_CELL_SIZE } } },
+                    s0->prop_t[i], 
+                    &info->pos);
+                info->pos.z += 2.f;
+            }
+        }
+    }    
+    *nout = _props_info.n;
+    *info = _props_info.props;
 }
 
 // clear checkpoint
@@ -655,7 +717,7 @@ void ground_init(PlaydateAPI* playdate) {
     // checkpoint flag
     _props_properties[PROP_CHECKPOINT - 1] = (PropProperties){ .hitable = 0, .single_use = 0, .radius = 0.f };
     // coin
-    _props_properties[PROP_COIN - 1] = (PropProperties){ .hitable = 1, .single_use = 1, .radius = 1.5f };
+    _props_properties[PROP_COIN - 1] = (PropProperties){ .hitable = 1, .single_use = 1, .radius = 2.0f };
 }
 
 int ground_load_assets_async() {
@@ -729,8 +791,8 @@ typedef struct Drawable_s {
 } Drawable;
 
 static struct {
-    Drawable all[GROUND_SIZE * GROUND_SIZE * 3];
     int n;
+    Drawable all[GROUND_SIZE * GROUND_SIZE * 3];
 } _drawables;
 
 static Drawable* _sortables[GROUND_SIZE * GROUND_SIZE * 3];
@@ -843,7 +905,6 @@ static void draw_prop(Drawable* drawable, uint32_t* bitmap) {
     }
     PropImage* image = &_ground_props[prop->material - 1].rotated[prop->angle + 30].scaled[_scaled_by_z[(int)(16.0f * (prop->pos.z - Z_NEAR) / GROUND_CELL_SIZE)]];
     pd->graphics->drawBitmap(image->image, (int)(x - image->w / 2), (int)(y - image->h), mat<0);
-
 }
 
 static void draw_coin(Drawable* drawable, uint32_t* bitmap) {
@@ -852,8 +913,9 @@ static void draw_coin(Drawable* drawable, uint32_t* bitmap) {
     float w = 199.5f / prop->pos.z;
     float x = 199.5f + w * prop->pos.x;
     float y = 119.5f - w * prop->pos.y;
-    PropImage* image = &_coin_frames.frames[prop->frame].scaled[_scaled_by_z[(int)(16.0f * (prop->pos.z - Z_NEAR) / GROUND_CELL_SIZE)]];
-    pd->graphics->drawBitmap(image->image, (int)(x - image->w / 2), (int)(y - image->h), 0);
+    int scale = _scaled_by_z[(int)(16.0f * (prop->pos.z - Z_NEAR) / GROUND_CELL_SIZE)];
+    PropImage* image = &_coin_frames.frames[prop->frame].scaled[scale];
+    pd->graphics->drawBitmap(image->image, (int)(x - image->w / 2), (int)(y - image->h / 2), 0);
 }
 
 static void draw_snowball(Drawable* drawable, uint32_t* bitmap) {
@@ -880,7 +942,6 @@ static void push_face(GroundFace* f, Point3d cv, const float* m, const Point3d* 
         res->u = normals[indices[i]];
         if (res->u >= 1.0f) res->u = 1.0f;
         int code = res->z > Z_NEAR ? OUTCODE_IN : OUTCODE_NEAR;
-        if (res->z > Z_FAR) code |= OUTCODE_FAR;
         if (res->x > res->z) code |= OUTCODE_RIGHT;
         if (-res->x > res->z) code |= OUTCODE_LEFT;
         outcode &= code;
@@ -899,8 +960,6 @@ static void push_face(GroundFace* f, Point3d cv, const float* m, const Point3d* 
         face->light = shading;
         if (is_clipped_near) {
             face->n = z_poly_clip(Z_NEAR, tmp, n, face->pts);
-        } else if(is_clipped_far) {
-            face->n = z_poly_clip_far(Z_FAR, tmp, n, face->pts);
         }
         else {
             face->n = n;
@@ -1012,9 +1071,7 @@ static void collect_tiles(const Point3d pos, float base_angle) {
             disty = (mapy + 1 - y) * ddy;
         }
 
-        // for (int dist = 0; dist < 24; ++dist) {
-        const float dmax = 24.f * 24.f * ddy * ddy;
-        while ((distx*distx + disty*disty) < dmax ) {
+        for (int dist = 0; dist < 18; ++dist) {
             if (distx < disty) {
                 distx += ddx;
                 mapx += mapdx;
@@ -1092,6 +1149,9 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
                 if (prop_id) {
                     Point3d pos, res;
                     v_lerp(&verts[0], &verts[2], s0->prop_t[i], &pos);
+                    if (prop_id == PROP_COIN) {
+                        pos.z += 2.f;
+                    }
                     m_x_v(m, pos, res.v);
                     if (res.z > Z_NEAR && res.z < GROUND_CELL_SIZE * 16) {
                         if (prop_id == PROP_COIN) {
