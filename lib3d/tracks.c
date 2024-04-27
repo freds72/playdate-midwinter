@@ -7,18 +7,19 @@ static PlaydateAPI* pd;
 
 static Tracks _tracks;
 
-static void reset_track_timers(TrackTimers *timers)
+static void reset_track_timers(TrackTimers *timers, int is_main)
 {
   timers->ttl = 12 + 8 * randf();
-  timers->trick_ttl = 4 + 4 * randf();
-  timers->trick_type = randf() > 0.5f ? 0.f : 1.f;
+  // make sure coins are not spawned at start
+  timers->trick_ttl = is_main?60 + 15 * randf(): 8 + 4 * randf();
+  timers->trick_type = randf() > 0.5f;
 }
 
 static Track *add_track(const int x, const float u, int is_main)
 {
   Track *new_track = &_tracks.tracks[_tracks.n++];
 
-  reset_track_timers(&new_track->timers);
+  reset_track_timers(&new_track->timers, is_main); 
 
   new_track->age = 0;
   new_track->h = 0;
@@ -57,15 +58,15 @@ static int update_track(Track *track)
   if (track->timers.ttl < 0)
   {
     // reset
-    reset_track_timers(&track->timers);
-    track->u = cosf(detauify(0.25f + 0.45f * randf()));
+    reset_track_timers(&track->timers, 0);
+    track->u = _tracks.twist * sinf(detauify(0.45f * randf()));
     // offshoot?
-    if (randf() < 0.25f && _tracks.n < _tracks.max_tracks)
+    if (_tracks.n < _tracks.max_tracks && randf() < 0.25f)
     {
         add_track(track->x, -track->u, 0);
     }
   }
-  track->x += _tracks.twist * track->u;
+  track->x +=track->u;
   if (track->x < _tracks.xmin)
   {
     track->x = _tracks.xmin;
@@ -147,8 +148,8 @@ void update_tracks()
       Track* t = &_tracks.tracks[i];
       buffer[(int)(t->x / 4)] = t->is_main ? '*' : '$';
   }
-  pd->system->logToConsole("%s",buffer);
-  */
+  pd->system->logToConsole("%s [%i %i]",buffer,_tracks.xmin,_tracks.xmax);
+  */  
 }
 
 // init module

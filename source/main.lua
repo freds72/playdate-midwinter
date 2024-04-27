@@ -10,6 +10,7 @@ local memoFont = {
 	[gfx.kColorBlack]=gfx.font.new('font/Memo-Black'),
 	[gfx.kColorWhite]=gfx.font.new('font/Memo-White')
 }
+
 local _inputs={
 	-- crank docked
 	[true]={
@@ -398,12 +399,12 @@ function make_body(p)
 					v_normz(vn)
 					local grip=1-abs(v_dot(fwd,vn))
 					-- more turn: more grip
-					sa=sa*60*grip
+					sa*=60*grip
 
 					--grip*=grip
 
 					-- todo: review
-					sa=mid(sa,-3,3)
+					-- sa=mid(sa,-3,3)
 				
 					-- ski length for torque
 					local ski_len=0.8
@@ -458,7 +459,8 @@ function make_plyr(p,params)
 
 	local body_update=body.update
 
-	local hit_ttl,jump_ttl=8
+	local coins,combo_ttl,combo=0,0,1
+	local hit_ttl,jump_ttl=8,0
 	
 	local spin_angle,spin_prev=0
 
@@ -514,9 +516,9 @@ function make_plyr(p,params)
 	end
 
 	body.update=function(self)
-		t=t-1
-		hit_ttl=hit_ttl-1
-		total_t=total_t+1
+		t-=1
+		hit_ttl-=1
+		total_t+=1
 
 		-- collision detection
 		local pos,angle,_,velocity=self:get_pos()
@@ -546,8 +548,12 @@ function make_plyr(p,params)
 			cam:shake()
 			self.dead=true
 		elseif hit_type==3 then
-			-- coins: bonus time
-			add_time_bonus(1)
+			coins += combo
+			if combo_ttl>0 then
+				combo = min(combo+1,99)
+			end
+			-- reset ttl
+			combo_ttl = 45
 			_coin_sfx:play()
 		elseif hit_ttl<0 and hit_type==1 then
 			-- props: 
@@ -559,7 +565,13 @@ function make_plyr(p,params)
 			-- kill tricks
 			reverse_t,spin_prev=0
 		end
-		
+				
+		combo_ttl -= 1
+		if combo_ttl<=0 then			
+			combo_ttl = 0
+			combo = 1
+		end
+
 		self.on_track=true
 		local slice=ground:get_track(pos)
 		if pos[1]>=slice.xmin and pos[1]<=slice.xmax then			
@@ -602,7 +614,7 @@ function make_plyr(p,params)
 	end
 
 	body.score=function()
-		return t,bonus,total_t,total_tricks
+		return t,bonus,total_t,total_tricks,coins,combo,combo_ttl/45
 	end
 
 	-- wrapper
@@ -633,8 +645,6 @@ function loading_state()
 	local cabin=gfx.image.new("images/cabin")
 	local cabin2=gfx.image.new("images/cabin2")
 	local t=-1
-	-- load gps cursor
-	_gps_sprites = gfx.imagetable.new("images/generated/arrow")
 	
 	do_async(function()
 		local t0 = playdate.getCurrentTimeMilliseconds()
@@ -760,9 +770,9 @@ function menu_state()
 
 	local tree_prop,bush_prop,cow_prop={sx=112,sy=16,r=1.4,sfx={9,10}},{sx=96,sy=32,r=1,sfx={9,10}},{sx=112,sy=48,r=1,sfx={4}}
 	local panels={
-		{state=play_state,panel=make_panel("MARMOTTES","piste verte",12),c=1,params={dslot=0,slope=1.5,twist=1.5,tracks=1,bonus_t=2,total_t=30*30,record_t=records[1],props={tree_prop},props_rate=0.95}},
-		{state=play_state,panel=make_panel("BIQUETTES","piste rouge",18),c=8,params={dslot=1,slope=2,twist=3,tracks=2,bonus_t=1.5,total_t=20*30,record_t=records[2],props={tree_prop,bush_prop},props_rate=0.97,}},
-		{state=play_state,panel=make_panel("CHAMOIS","piste noire",21),c=0,params={dslot=2,slope=3,twist=3.5,tracks=3,bonus_t=1.5,total_t=15*30,record_t=records[3],props={tree_prop,tree_prop,tree_prop,cow_prop},props_rate=0.92,}},
+		{state=play_state,panel=make_panel("MARMOTTES","piste verte",12),c=1,params={name="Marmottes",dslot=0,slope=1.5,twist=1.5,tracks=1,bonus_t=2,total_t=30*30,record_t=records[1],props={tree_prop},props_rate=0.95}},
+		{state=play_state,panel=make_panel("BIQUETTES","piste rouge",18),c=8,params={name="Biquettes",dslot=1,slope=2,twist=3,tracks=2,bonus_t=1.5,total_t=20*30,record_t=records[2],props={tree_prop,bush_prop},props_rate=0.97,}},
+		{state=play_state,panel=make_panel("CHAMOIS","piste noire",21),c=0,params={name="Chamois",dslot=2,slope=3,twist=3.5,tracks=3,bonus_t=1.5,total_t=15*30,record_t=records[3],props={tree_prop,tree_prop,tree_prop,cow_prop},props_rate=0.92,}},
 		{state=shop_state,panel=make_direction("Shop"),transition=station_state}
 	}
 	local sel,sel_tgt,blink=0,0,false
@@ -996,6 +1006,7 @@ end
 
 function play_state(params)
 	local help_ttl=0
+	local time_img = gfx.image.new(32,9)
 
 	-- stop music
 	music(-1,250)
@@ -1068,38 +1079,46 @@ function play_state(params)
 
 			if plyr then
 				local pos,a,steering=plyr:get_pos()
+				local t,bonus,total_t,_,coins,combo,combo_ttl=plyr:score()
 				local dy=plyr.height*24
 				-- ski
 				local xoffset=6*cos(time()/4)
 				_ski:draw(152+xoffset,210+dy-steering*14,gfx.kImageFlippedX)
 				_ski:draw(228-xoffset,210+dy+steering*14)
 			
-				-- seiko watch!
+				-- seiko(tm) watch!
 				_seiko:draw(2,2)
-				-- draw hp
-				local hp=""
-				for i=1,plyr.hp do
-					hp=hp.."."
+				-- draw hp				
+				gfx.setColor(plyr.hp==1 and t%8<4 and gfx.kColorBlack or gfx.kColorWhite)
+				for i=0,plyr.hp-1 do
+					gfx.fillRect(23+i*6,12,4,3)
 				end
-				-- todo: use rects?
-				print_regular(hp,23,1,gfx.kColorWhite)
-				print_regular(hp,23,2,gfx.kColorWhite)
-				print_regular(hp,24,1,gfx.kColorWhite)
-				print_regular(hp,24,2,gfx.kColorWhite)
-				local t,bonus,total_t=plyr:score()
+				-- combo counter
+				print_regular(combo.."x",41,16,gfx.kColorWhite,kTextAlignment.right)
+				-- combo timer
+				gfx.setColor(gfx.kColorWhite)
+				gfx.fillRect(11,33,28*combo_ttl,2)
+
+				-- coins
+				print_regular("$"..coins,48,5,gfx.kColorBlack)
+
+				-- current track
+				print_regular(params.name,49,20,gfx.kColorBlack)
+
 				-- warning sound under 5s
-				local bk,y_trick=gfx.kColorWhite,110
+				local bk,y_trick=gfx.kColorBlack,110
 				if t<150 then
 					if t%30==0 then sfx(2) end
 					if t%8<4 then bk=gfx.kColorWhite end
 				end
-				print_regular(time_tostr(t,":"),9,16,bk)
+				gfx.lockFocus(time_img)
+				time_img:clear(gfx.kColorClear)
+				print_regular(time_tostr(t,"."),0,-4,bk)
+				gfx.unlockFocus()
+				-- bigger text for remaining time
+				time_img:drawScaled(169,2,2)
+				print_regular("sec",233,7,gfx.kColorBlack)
 
-				--[[
-				tt="total time:\n"..time_tostr(tt)
-				print(tt,2,3,1)
-				print(tt,2,2,7)
-				]]
 
 				for i=1,#bonus do
 					local b=bonus[i]					
@@ -1111,36 +1130,23 @@ function play_state(params)
 					if b.msg then print_bold(b.msg,nil,y_trick,gfx.kColorWhite) y_trick-=9 end
 				end
 
-				if plyr.gps then
-					local idx=flr(((plyr.gps%1+1)%1)*360)
-					local gps=_gps_sprites:getImage(idx+1)
-					local w,h=gps:getSize()
-					gps:draw(199.5-w/2,24-h/2)
-				end
-				if plyr.on_track and (32*time())%8<4 then
-					local dx=plyr.gps-0.75
-					if dx<-0.1 then
-						sspr(64,112,16,16,2,32,32,32)
-					elseif dx>0.1 then
-						sspr(64,112,16,16,96,32,32,32,true)
+				if plyr.gps and not plyr.on_track then
+					local idx=abs(plyr.gps)//0.0625
+					if plyr.gps<0 then
+						for i=0,min(idx-1,2) do
+							_dir_icon:draw(220 + 8*i,24)
+						end
+					else
+						for i=0,min(idx-1,2) do
+							_dir_icon:draw(180 - 8*i,24,gfx.kImageFlippedX)
+						end
 					end
-				end
-				spr(108,56,12,2,2)
+				end				
 					
 				if help_ttl<90 then
 					-- help msg?
-					print_regular(_input.action.glyph.." Jump",nil,102)
-					print_regular(_input.back.glyph.." Restart (hold)",nil,118)					
-				else
-					-- trackers
-					local props = ground:get_props(pos)
-					for _,p in pairs(props) do
-						local v=m_x_v(cam.m,p.pos)
-						if v[3]>0 then
-							local x0,y0=cam:project2d(v)
-							_target_lock:draw(x0-19,y0-19)
-						end
-					end
+					print_regular(_input.action.glyph.." Jump",nil,162)
+					print_regular(_input.back.glyph.." Restart (hold)",nil,178)					
 				end
 			end
 		end		
@@ -1221,8 +1227,8 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 			_game_over:draw(200-211/2,gameover_y)
 
 			if (time()%1)<0.5 then
-				print_regular(_input.back.glyph.." menu",nil,162)
-				print_regular(_input.action.glyph.."restart",nil,178)
+				print_regular(_input.back.glyph.." Menu",nil,162)
+				print_regular(_input.action.glyph.."Restart",nil,178)
 			end
 		end
 end
@@ -1368,7 +1374,7 @@ function _init()
 
 	_seiko = gfx.image.new("images/watch")
 	_game_over = gfx.image.new("images/game_over")
-	_target_lock = gfx.image.new("images/coin_lock")
+	_dir_icon = gfx.image.new("images/checkpoint_lock")
 
 	-- init state machine
 	next_state(loading_state)
@@ -1543,17 +1549,14 @@ end
 -->8
 -- print helpers
 function padding(n)
-	n=tostring(flr(min(n,99)))
+	n=tostring(min(flr(n),99))
 	return string.sub("00",1,2-#n)..n
 end
 
 function time_tostr(t,sep)
 	-- frames per sec
 	sep=sep or "''"
-	local s=padding(flr(t/30)%60)..sep..padding(flr(10*t/3)%100)
-	-- more than a minute?
-	if t>1800 then s=padding(flr(t/1800)).."'"..s end
-	return s
+	return padding(flr(t/30)%60)..sep..padding(flr(10*t/3)%100)
 end
 
 function print_bold(s,x,y,c)  
