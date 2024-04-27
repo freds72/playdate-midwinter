@@ -220,7 +220,7 @@ static void make_slice(GroundSlice* slice, float y) {
             main_track_x = t->x;
             xmin = (float)i0 * GROUND_CELL_SIZE;
             xmax = (float)i1 * GROUND_CELL_SIZE;
-            for (int i = i0; i <= i1; ++i) {
+            for (int i = i0; i < i1; ++i) {
                 // smooth track
                 // slice->h[i] += t->h;
                 // slice->h[i] = t->h + (slice->h[i-1] + slice->h[i] + slice->h[i+1]) / 4.0f;
@@ -239,7 +239,7 @@ static void make_slice(GroundSlice* slice, float y) {
         }
         else {
             // side tracks are less obvious
-            for (int i = i0; i <= i1; ++i) {
+            for (int i = i0; i < i1; ++i) {
                 // slice->h[i] = t->h + slice->h[i] / 2.0f;
                 // slice->h[i] = t->h;
                 // remove props
@@ -355,7 +355,7 @@ void get_face(Point3d pos, Point3d* nout, float* yout,float* angleout) {
         GroundSlice* s = _ground.slices[k];
         if (s->is_checkpoint) {
             x = s->center;
-            y = k - j;
+            y = (float)(k - j);
             break;
         }
     }
@@ -776,7 +776,7 @@ typedef struct {
 } DrawableCoin;
 
 struct Drawable_s;
-typedef void(*draw_drawable)(struct Drawable_s* drawable, uint32_t* bitmap);
+typedef void(*draw_drawable)(struct Drawable_s* drawable, uint8_t* bitmap);
 
 // generic drawable thingy
 // cache-friendlyness???
@@ -834,33 +834,7 @@ static int z_poly_clip(const float znear, Point3du* in, int n, Point3du* out) {
     return nout;
 }
 
-static int z_poly_clip_far(const float zfar, Point3du* in, int n, Point3du* out) {
-    Point3du v0 = in[n - 1];
-    float d0 = zfar - v0.z;
-    int nout = 0;
-    for (int i = 0; i < n; i++) {
-        Point3du v1 = in[i];
-        int side = d0 > 0;
-        if (side) out[nout++] = (Point3du){ .v = { v0.x, v0.y, v0.z }, .u = v0.u };
-        const float d1 = zfar - v1.z;
-        if ((d1 > 0) != side) {
-            // clip!
-            const float t = d0 / (d0 - d1);
-            out[nout++] = (Point3du){ .v = {
-                lerpf(v0.x,v1.x,t),
-                lerpf(v0.y,v1.y,t),
-                zfar},
-                .u = lerpf(v0.u,v1.u,t)
-            };
-        }
-        v0 = v1;
-        d0 = d1;
-    }
-    return nout;
-}
-
-
-static void draw_face(struct Drawable_s* drawable, uint32_t* bitmap) {
+static void draw_face(struct Drawable_s* drawable, uint8_t* bitmap) {
     DrawableFace* face = &drawable->face;
 
     const int n = face->n;
@@ -891,7 +865,7 @@ static void draw_face(struct Drawable_s* drawable, uint32_t* bitmap) {
     */
 }
 
-static void draw_prop(Drawable* drawable, uint32_t* bitmap) {
+static void draw_prop(Drawable* drawable, uint8_t* bitmap) {
     DrawableProp* prop = &drawable->prop;
 
     float w = 199.5f / prop->pos.z;
@@ -907,7 +881,7 @@ static void draw_prop(Drawable* drawable, uint32_t* bitmap) {
     pd->graphics->drawBitmap(image->image, (int)(x - image->w / 2), (int)(y - image->h), mat<0);
 }
 
-static void draw_coin(Drawable* drawable, uint32_t* bitmap) {
+static void draw_coin(Drawable* drawable, uint8_t* bitmap) {
     DrawableCoin* prop = &drawable->coin;
     
     float w = 199.5f / prop->pos.z;
@@ -918,7 +892,7 @@ static void draw_coin(Drawable* drawable, uint32_t* bitmap) {
     pd->graphics->drawBitmap(image->image, (int)(x - image->w / 2), (int)(y - image->h / 2), 0);
 }
 
-static void draw_snowball(Drawable* drawable, uint32_t* bitmap) {
+static void draw_snowball(Drawable* drawable, uint8_t* bitmap) {
     DrawableProp* prop = &drawable->prop;
 
     float w = 199.5f / prop->pos.z;
@@ -933,7 +907,7 @@ static void push_face(GroundFace* f, Point3d cv, const float* m, const Point3d* 
     Point3du tmp[4];
 
     // transform
-    int outcode = 0xfffffff, is_clipped_near = 0, is_clipped_far = 0;
+    int outcode = 0xfffffff, is_clipped_near = 0;
     float min_key = FLT_MIN;
     for (int i = 0; i < n; ++i) {
         Point3du* res = &tmp[i];
@@ -946,7 +920,6 @@ static void push_face(GroundFace* f, Point3d cv, const float* m, const Point3d* 
         if (-res->x > res->z) code |= OUTCODE_LEFT;
         outcode &= code;
         is_clipped_near += code & 2;
-        is_clipped_far += code & 1;
         if (res->z > min_key) min_key = res->z;
     }
 
@@ -998,7 +971,9 @@ static void push_snowball(const Point3d* p, int angle) {
 }
 
 
-int render_sky(float* m, uint32_t* bitmap) {
+int render_sky(float* m, uint8_t* screen) {
+    uint32_t* bitmap = (uint32_t*)screen;
+
     // cam up in world space
     Point3d n = { .v = {-m[4],-m[5],-m[6]} };
 
@@ -1090,7 +1065,7 @@ static void collect_tiles(const Point3d pos, float base_angle) {
 }
 
 // render ground
-void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_t* bitmap) {
+void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t* bitmap) {
     const float cam_angle = cam_tau_angle * 2.f * PI;
     const int angle = render_sky(m, bitmap);
     const int flip_sprite = ((int)(cam_tau_angle * 360.f) + 90) % 360 > 180 ? -1 : 1;

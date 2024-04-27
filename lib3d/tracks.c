@@ -15,7 +15,7 @@ static void reset_track_timers(TrackTimers *timers, int is_main)
   timers->trick_type = randf() > 0.5f;
 }
 
-static Track *add_track(const int x, const float u, int is_main)
+static Track *add_track(const float x, const float u, int is_main)
 {
   Track *new_track = &_tracks.tracks[_tracks.n++];
 

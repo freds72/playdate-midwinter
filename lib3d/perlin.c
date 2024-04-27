@@ -34,8 +34,8 @@ static float smooth_inter(float x, float y, float s)
 
 static float noise2d(float x, float y)
 {
-    int x_int = x;
-    int y_int = y;
+    int x_int = (float)x;
+    int y_int = (float)y;
     float x_frac = x - x_int;
     float y_frac = y - y_int;
     int s = noise2(x_int, y_int);

@@ -118,7 +118,7 @@ static int lib3d_render_ground(lua_State* L)
         m[i] = pd->lua->getArgFloat(argc++);
     }
 
-    uint32_t* bitmap = (uint32_t*)pd->graphics->getFrame();
+    uint8_t* bitmap = pd->graphics->getFrame();
 
 	render_ground(pos, tau_angle, m, bitmap);
 

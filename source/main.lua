@@ -32,8 +32,7 @@ local _angle=0
 
 -- some "pico-like" helpers
 function cls(c)
-  gfx.setColor(c or gfx.kColorBlack)
-  gfx.fillRect(0, 0, 400, 240)
+  gfx.clear(c or gfx.kColorBlack)
 end
 local sin = function(a)
   return -math.sin(2*a*math.pi)
@@ -821,7 +820,7 @@ function menu_state()
 						coroutine.yield()
 					end
 					-- restore random seed
-					srand(time())
+					math.randomseed(playdate.getSecondsSinceEpoch())
 					local p=panels[sel+1]
 					next_state(p.transition or zoomin_state,p.state,p.params)
 				end)
@@ -853,18 +852,16 @@ function menu_state()
 			-- ski mask
 			_mask:draw(0,0)
 			
-			print_regular("Select: ⬅️ ➡️",4,4,gfx.kColorWhite)
+			print_regular("Select: ⬅️ ➡️",2,2,gfx.kColorWhite)
 			if (time()%1)<0.5 then 
-				local s="Go: Ⓐ Ⓑ"
-				print_regular(s,396-gfx.getTextSize(s),4,gfx.kColorWhite)
+				local s="Go: Ⓐ"
+				print_regular(s,398-gfx.getTextSize(s),2,gfx.kColorWhite)
 			end
 
 			if sel==sel_tgt and panels[sel+1].params then
 				local s="Best: "..time_tostr(panels[sel+1].params.record_t)
-				print_regular(s,nil,4,gfx.kColorWhite)
+				print_regular(s,nil,2,gfx.kColorWhite)
 			end
-
-			-- todo: snow particles
 		end		
 end
 
