@@ -10,6 +10,7 @@
 #include "realloc.h"
 #include "scales.h"
 #include "tracks.h"
+#include "models.h"
 
 #define GROUND_SIZE 32
 #define GROUND_CELL_SIZE 4
@@ -74,21 +75,16 @@ typedef struct {
     PropImage scaled[_scaled_image_count];
 } ScaledProp;
 
-typedef struct {
-    // -30 - 30 (inc.)
-    ScaledProp rotated[61];
-} RotatedScaledProp;
-
 struct {
     // animation frames
     ScaledProp frames[5];
 } _coin_frames;
 
-static const char* _props_paths[] = {
+static const char* _props_3d_paths[] = {
     // 1: pine tree
-    "images/generated/pine_snow_0",
+    "models/pine_tree",
     // 2: checkpoint flag
-    "images/generated/checkpoint_left",
+    "models/checkpoint_left",
 };
 
 typedef struct {
@@ -115,8 +111,6 @@ static struct {
 #define PROP_COW 4
 #define PROP_ROCK 5
 
-
-static RotatedScaledProp _ground_props[8];
 static PropImage _snowball_frames[360];
 
 // raycasting angles
@@ -130,8 +124,11 @@ static Ground _ground;
 
 static GroundParams active_params;
 
+// 16 32 * 4 bytes bitmaps
+static uint32_t _dithers[32 * 16];
+
 // 16 32 * 8 bytes bitmaps (duplicated on x)
-static uint8_t _dithers[8 * 32 * 16];
+static uint8_t _dither_ramps[8 * 32 * 16];
 
 static uint32_t* _backgrounds[61];
 static int _backgrounds_heights[61];
@@ -233,7 +230,7 @@ static void make_slice(GroundSlice* slice, float y) {
                 // checkoint pole
                 slice->props[i0] = PROP_CHECKPOINT;
                 slice->prop_t[i0] = 0.5f;
-                slice->props[i1] = -PROP_CHECKPOINT;
+                slice->props[i1] = PROP_CHECKPOINT;
                 slice->prop_t[i1] = 0.5f;
             }
         }
@@ -485,11 +482,15 @@ static void load_noise(void* ptr,const int i, const int _) {
     if (w != 32 || h != 32)
         pd->system->logToConsole("Invalid noise image format: %dx%d", w, h);
 
+    // copy "regular" dither
+    memcpy((uint8_t*)(_dithers + i * 32), data, 32 * sizeof(uint32_t));
+
+    // organized by ramps
     for (int j = 0; j < 32; ++j) {
         for (int k = 0; k < 4; k++, data++) {
             // interleaved values (4 bytes)
-            _dithers[i * 8 + j * 16 * 8 + k] = *data;
-            _dithers[i * 8 + j * 16 * 8 + k + 4] = *data;
+            _dither_ramps[i * 8 + j * 16 * 8 + k] = *data;
+            _dither_ramps[i * 8 + j * 16 * 8 + k + 4] = *data;
         }
     }
 }
@@ -525,24 +526,6 @@ static void load_background(void* ptr, const int angle, const int _) {
 }
 
 static void load_prop(void* ptr, const int prop, const int _) {
-    for (int angle = _scaled_image_min_angle; angle <= _scaled_image_max_angle; angle++) {
-        const int r = angle - _scaled_image_min_angle;
-        for (int i = 0; i < _scaled_image_count; i++) {
-            int w, h, stride;
-            uint8_t* data, * alpha;
-            LCDBitmap* bitmap = pd->graphics->getTableBitmap((LCDBitmapTable*)ptr, r * _scaled_image_count + i);
-            if (!bitmap) {
-                pd->system->error("Missing prop %i angle: %i scale: %i", prop, angle, i);
-            }
-            pd->graphics->getBitmapData(bitmap, &w, &h, &stride, &alpha, &data);
-
-            _ground_props[prop - 1].rotated[r].scaled[i] = (PropImage){
-                .w = w,
-                .h = h,
-                .image = bitmap
-            };
-        }
-    }
 }
 
 static void load_coins(void* ptr, const int _1, const int _2) {    
@@ -614,7 +597,7 @@ void ground_init(PlaydateAPI* playdate) {
 
     // read rotated & scaled sprites
     for (int prop = 1; prop < 3; prop++) {
-        const char* path = _props_paths[prop - 1];
+        const char* path = _props_3d_paths[prop - 1];
         pd->system->logToConsole("Loading prop: %s", path);
         bitmaps = pd->graphics->loadBitmapTable(path, &err);
         if (!bitmaps)
@@ -792,10 +775,11 @@ typedef struct Drawable_s {
 
 static struct {
     int n;
-    Drawable all[GROUND_SIZE * GROUND_SIZE * 3];
+    // arbitrary limit
+    Drawable all[GROUND_SIZE * GROUND_SIZE * 4];
 } _drawables;
 
-static Drawable* _sortables[GROUND_SIZE * GROUND_SIZE * 3];
+static Drawable* _sortables[GROUND_SIZE * GROUND_SIZE * 4];
 
 // visible tiles encoded as 1 bit per cell
 static uint32_t _visible_tiles[GROUND_SIZE];
@@ -806,7 +790,6 @@ static int cmp_drawable(const void* a, const void* b) {
     const float y = (*(Drawable**)b)->key;
     return x < y ? -1 : x == y ? 0 : 1;
 }
-
 
 // clip polygon against near-z
 static int z_poly_clip(const float znear, Point3du* in, int n, Point3du* out) {
@@ -853,7 +836,7 @@ static void draw_face(struct Drawable_s* drawable, uint8_t* bitmap) {
     }
 
     // 
-    texfill(pts, n, _dithers, bitmap);
+    texfill(pts, n, _dither_ramps, bitmap);
 
     /*
     float x0 = pts[n - 1].x, y0 = pts[n - 1].y;
@@ -866,19 +849,31 @@ static void draw_face(struct Drawable_s* drawable, uint8_t* bitmap) {
 }
 
 static void draw_prop(Drawable* drawable, uint8_t* bitmap) {
-    DrawableProp* prop = &drawable->prop;
+    DrawableFace* face = &drawable->face;
 
-    float w = 199.5f / prop->pos.z;
-    float x = 199.5f + w * prop->pos.x;
-    float y = 119.5f - w * prop->pos.y;
-    int mat = prop->material;
-    // flipped?
-    if (mat < 0) {
-        prop->material = -mat;
-        prop->angle = -prop->angle;
+    const int n = face->n;
+    Point3du* pts = face->pts;
+    for (int i = 0; i < n; ++i) {
+        // project 
+        float w = 1.f / pts[i].z;
+        pts[i].x = 199.5f + 199.5f * w * pts[i].x;
+        pts[i].y = 119.5f - 199.5f * w * pts[i].y;
     }
-    PropImage* image = &_ground_props[prop->material - 1].rotated[prop->angle + 30].scaled[_scaled_by_z[(int)(16.0f * (prop->pos.z - Z_NEAR) / GROUND_CELL_SIZE)]];
-    pd->graphics->drawBitmap(image->image, (int)(x - image->w / 2), (int)(y - image->h), mat<0);
+
+    // 
+    float shading = drawable->key < Z_NEAR ? 1.0f : (float)Z_NEAR / drawable->key;
+    shading = face->material + shading * 2048.f * fabsf(face->light);
+    if (shading > 15.f) shading = 15.f;
+    polyfill(pts, n, _dithers + (int)(shading * 32.f) , (uint32_t*)bitmap);
+
+    /*
+    float x0 = pts[n - 1].x, y0 = pts[n - 1].y;
+    for (int i = 0; i < n; ++i) {
+        float x1 = pts[i].x, y1 = pts[i].y;
+        pd->graphics->drawLine(x0,y0,x1,y1, 1, kColorBlack);
+        x0 = x1, y0 = y1;
+    }
+    */
 }
 
 static void draw_coin(Drawable* drawable, uint8_t* bitmap) {
@@ -943,13 +938,69 @@ static void push_face(GroundFace* f, Point3d cv, const float* m, const Point3d* 
     }
 }
 
-static void push_prop(const Point3d* p, int angle, int material) {
-    Drawable* drawable = &_drawables.all[_drawables.n++];
-    drawable->draw = draw_prop;
-    drawable->key = p->z;
-    drawable->prop.material = material;
-    drawable->prop.pos = *p;
-    drawable->prop.angle = angle;
+static void push_prop(const int prop_id, const Point3d cv, const float* m, const Point3d p) {
+    Point3du tmp[4];
+    ThreeDModel* model;
+    int material;
+    switch (prop_id) {
+    case PROP_TREE:
+        model = &three_d_models[2];
+        material = 4;
+        break;
+    case PROP_CHECKPOINT:
+        model = &three_d_models[3];
+        material = 8;
+        break;
+    default:
+        // not supported
+        return;
+    }
+
+    for (int j = 0; j < model->face_count; ++j) {
+        ThreeDFace* f = &model->faces[j];
+        // visible?
+        if (v_dot(&f->n, &cv) < 0.f) {
+            // vert count
+            int n = 3 + f->quad;
+            // transform
+            int outcode = 0xfffffff, is_clipped_near = 0;
+            float min_key = FLT_MIN;
+            for (int i = 0; i < n; ++i) {
+                Point3du* res = &tmp[i];
+                // shift into pos
+                Point3d* v = &f->vertices[i];
+                // project using active matrix
+                m_x_v(m, (Point3d) { .x = v->x + p.x, .y = v->y + p.y, .z = v->z + p.z }, res->v);
+                int code = res->z > Z_NEAR ? OUTCODE_IN : OUTCODE_NEAR;
+                if (res->x > res->z) code |= OUTCODE_RIGHT;
+                if (-res->x > res->z) code |= OUTCODE_LEFT;
+                outcode &= code;
+                is_clipped_near += code & 2;
+                if (res->z > min_key) min_key = res->z;
+            }
+
+            // visible?
+            if (outcode == 0) {
+                Drawable* drawable = &_drawables.all[_drawables.n++];
+                drawable->draw = draw_prop;
+                drawable->key = min_key;
+                DrawableFace* face = &drawable->face;
+                face->light = f->n.y;
+                // TODO
+                face->material = material;
+                if (face->light < 0.f) face->light = 0;
+                if (is_clipped_near) {
+                    face->n = z_poly_clip(Z_NEAR, tmp, n, face->pts);
+                }
+                else {
+                    face->n = n;
+                    for (int i = 0; i < n; ++i) {
+                        face->pts[i] = tmp[i];
+                    }
+                }
+            }
+        }
+    }
 }
 
 static void push_coin(const Point3d* p, int time) {
@@ -1068,7 +1119,6 @@ static void collect_tiles(const Point3d pos, float base_angle) {
 void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t* bitmap) {
     const float cam_angle = cam_tau_angle * 2.f * PI;
     const int angle = render_sky(m, bitmap);
-    const int flip_sprite = ((int)(cam_tau_angle * 360.f) + 90) % 360 > 180 ? -1 : 1;
 
     // collect visible tiles
     _drawables.n = 0;
@@ -1132,8 +1182,9 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                         if (prop_id == PROP_COIN) {
                             push_coin(&res, time_offset + j + _z_offset);
                         }
-                        else {                            
-                            push_prop(&res, angle, prop_id * flip_sprite);
+                        else {    
+                            const Point3d cv = { .x = pos.x - cam_pos.x,.y = pos.y - cam_pos.y,.z = pos.z - cam_pos.z };
+                            push_prop(prop_id, cv, m, pos);
                         }
                     }
                 }
@@ -1163,4 +1214,3 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
         }
     }
 }
-

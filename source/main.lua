@@ -782,7 +782,7 @@ function menu_state()
 	cam=make_cam()
 
 	music(0)
-	sfx(-1)
+	_ski_sfx:stop()
 
 	-- menu to get back to selection menu
 	local menu = playdate.getSystemMenu()
