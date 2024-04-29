@@ -188,7 +188,8 @@ static void make_slice(GroundSlice* slice, float y) {
             if (randf() > active_params.props_rate)
             {
                 // todo: more types
-                slice->props[i] = PROP_TREE1;
+
+                slice->props[i] = PROP_TREE0 + (int)(3.f * randf());
                 slice->prop_t[i] = randf();
             }
         }
@@ -843,7 +844,9 @@ static void draw_prop(Drawable* drawable, uint8_t* bitmap) {
 
     // 
     float shading = drawable->key < Z_NEAR ? 1.0f : (float)Z_NEAR / drawable->key;
-    shading = face->material + shading * 2048.f * fabsf(face->light);
+    shading *= 396.f * fabsf(face->light);
+    if (shading > 1.f) shading = 1.f;
+    shading = lerpf(0,face->material, shading);
     if (shading > 15.f) shading = 15.f;
     polyfill(pts, n, _dithers + (int)(shading * 32.f) , (uint32_t*)bitmap);
 
@@ -925,10 +928,12 @@ static void push_prop(const int prop_id, const Point3d cv, const float* m, const
 
     for (int j = 0; j < model->face_count; ++j) {
         ThreeDFace* f = &model->faces[j];
-        // visible?
-        if (v_dot(&f->n, &cv) < 0.f) {
+        // visible? or dual-side?
+        
+        // todo: duplicate face
+        if (f->flags & FACE_FLAG_DUALSIDED || v_dot(&f->n, &cv) < 0.f) {
             // vert count
-            int n = 3 + f->quad;
+            int n = f->flags & FACE_FLAG_QUAD?4:3;
             // transform
             int outcode = 0xfffffff, is_clipped_near = 0;
             float min_key = FLT_MIN;
@@ -953,8 +958,7 @@ static void push_prop(const int prop_id, const Point3d cv, const float* m, const
                 drawable->key = min_key;
                 DrawableFace* face = &drawable->face;
                 face->light = f->n.y;
-                // TODO
-                face->material = 1;
+                face->material = f->material;
                 if (face->light < 0.f) face->light = 0;
                 if (is_clipped_near) {
                     face->n = z_poly_clip(Z_NEAR, tmp, n, face->pts);
