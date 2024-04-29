@@ -80,20 +80,18 @@ struct {
     ScaledProp frames[5];
 } _coin_frames;
 
-static const char* _props_3d_paths[] = {
-    // 1: pine tree
-    "models/pine_tree",
-    // 2: checkpoint flag
-    "models/checkpoint_left",
-};
+#define PROP_FLAG_HITABLE   1
+#define PROP_FLAG_COLLECT   2
+#define PROP_FLAG_KILL      4
+#define PROP_FLAG_3D        8
 
 typedef struct {
-    int hitable;
-    int single_use;
+    int flags;
     float radius;
+    ThreeDModel* model;
 } PropProperties;
 
-static PropProperties _props_properties[5];
+static PropProperties _props_properties[NEXT_PROP_ID + 1];
 
 // max number of props on a given slice (e.g. number of tracks + 1)
 #define MAX_PROPS 4
@@ -105,11 +103,8 @@ static struct {
 #define MATERIAL_SNOW 0
 #define MATERIAL_ROCK 1
 
-#define PROP_TREE 1
-#define PROP_CHECKPOINT 2
-#define PROP_COIN 3
-#define PROP_COW 4
-#define PROP_ROCK 5
+// must be next
+#define PROP_COIN               NEXT_PROP_ID
 
 static PropImage _snowball_frames[360];
 
@@ -193,7 +188,7 @@ static void make_slice(GroundSlice* slice, float y) {
             if (randf() > active_params.props_rate)
             {
                 // todo: more types
-                slice->props[i] = PROP_TREE;
+                slice->props[i] = PROP_TREE1;
                 slice->prop_t[i] = randf();
             }
         }
@@ -228,9 +223,9 @@ static void make_slice(GroundSlice* slice, float y) {
             if (_ground.slice_id % 8 == 0) {
                 is_checkpoint = 1;
                 // checkoint pole
-                slice->props[i0] = PROP_CHECKPOINT;
+                slice->props[i0] = PROP_CHECKPOINT_LEFT;
                 slice->prop_t[i0] = 0.5f;
-                slice->props[i1] = PROP_CHECKPOINT;
+                slice->props[i1] = PROP_CHECKPOINT_RIGHT;
                 slice->prop_t[i1] = 0.5f;
             }
         }
@@ -239,8 +234,7 @@ static void make_slice(GroundSlice* slice, float y) {
             for (int i = i0; i < i1; ++i) {
                 // slice->h[i] = t->h + slice->h[i] / 2.0f;
                 // slice->h[i] = t->h;
-                // remove props
-                if(slice->props[i]==PROP_TREE) slice->props[i] = 0;
+                // todo: remove props?
             }
             // coins
             if (_ground.slice_id % 4 == 0) {
@@ -435,7 +429,7 @@ void collide(Point3d pos, float radius, int* hit_type)
                     // collidable actor ?
                     if (id) {
                         PropProperties* props = &_props_properties[id - 1];
-                        if (props->hitable) {
+                        if (props->flags & PROP_FLAG_HITABLE) {
 
                             // generate vertex
                             Point3d v0 = (Point3d){ .v = {(float)(i * GROUND_CELL_SIZE),s0->h[i] + s0->y - _ground.y_offset,(float)(j * GROUND_CELL_SIZE)} };
@@ -444,7 +438,7 @@ void collide(Point3d pos, float radius, int* hit_type)
                             v_lerp(&v0, &v2, s0->prop_t[i], &res);
                             make_v(pos, res, &res);
                             if (res.x * res.x + res.z * res.z < radius + props->radius * props->radius) {
-                                if (props->single_use) {
+                                if (props->flags & PROP_FLAG_COLLECT) {
                                     // "collect" prop
                                     s0->props[i] = 0;
                                     *hit_type = 3;
@@ -464,11 +458,6 @@ void collide(Point3d pos, float radius, int* hit_type)
 /*
 * loading assets helpers
 */
-static struct {
-    int n;
-    LCDBitmap* all[128];
-} _gc_bitmaps;
-
 static void free_bitmap_table(void* data, const int _, const int __) {
     pd->graphics->freeBitmapTable((LCDBitmapTable*)data);
 }
@@ -593,23 +582,6 @@ void ground_init(PlaydateAPI* playdate) {
 
     _work.cursor = 0;
     _work.n = 0;
-    _gc_bitmaps.n = 0;
-
-    // read rotated & scaled sprites
-    for (int prop = 1; prop < 3; prop++) {
-        const char* path = _props_3d_paths[prop - 1];
-        pd->system->logToConsole("Loading prop: %s", path);
-        bitmaps = pd->graphics->loadBitmapTable(path, &err);
-        if (!bitmaps)
-            pd->system->logToConsole("Failed to load: %s, %s", path, err);
-
-        _work.todo[_work.n++] = (UnitOfWork){
-            .callback = load_prop,
-            .param0 = bitmaps,
-            .param1 = prop,
-            .param2 = -1
-        };
-    }
 
     // read animated & scaled coins
     {
@@ -695,12 +667,21 @@ void ground_init(PlaydateAPI* playdate) {
     }
 
     // props config (todo: get from lua?)
+
     // pine tree
-    _props_properties[PROP_TREE - 1] = (PropProperties){ .hitable = 1, .single_use = 0, .radius = 1.8f };
-    // checkpoint flag
-    _props_properties[PROP_CHECKPOINT - 1] = (PropProperties){ .hitable = 0, .single_use = 0, .radius = 0.f };
+    _props_properties[PROP_TREE0 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_3D, .radius = 1.8f};
+    _props_properties[PROP_TREE0 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_3D, .radius = 1.8f };
+    _props_properties[PROP_TREE_SNOW - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_3D, .radius = 1.8f };
+    // checkpoint flags
+    _props_properties[PROP_CHECKPOINT_LEFT - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
+    _props_properties[PROP_CHECKPOINT_RIGHT - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
     // coin
-    _props_properties[PROP_COIN - 1] = (PropProperties){ .hitable = 1, .single_use = 1, .radius = 2.0f };
+    _props_properties[PROP_COIN - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_COLLECT, .radius = 2.0f };
+
+    // bind all props to the corresponding 3d model
+    for (int i = 0; i < NEXT_PROP_ID; ++i) {
+        _props_properties[i].model = &three_d_models[i];
+    }
 }
 
 int ground_load_assets_async() {
@@ -940,21 +921,7 @@ static void push_face(GroundFace* f, Point3d cv, const float* m, const Point3d* 
 
 static void push_prop(const int prop_id, const Point3d cv, const float* m, const Point3d p) {
     Point3du tmp[4];
-    ThreeDModel* model;
-    int material;
-    switch (prop_id) {
-    case PROP_TREE:
-        model = &three_d_models[2];
-        material = 4;
-        break;
-    case PROP_CHECKPOINT:
-        model = &three_d_models[3];
-        material = 8;
-        break;
-    default:
-        // not supported
-        return;
-    }
+    ThreeDModel* model = _props_properties[prop_id - 1].model;
 
     for (int j = 0; j < model->face_count; ++j) {
         ThreeDFace* f = &model->faces[j];
@@ -987,7 +954,7 @@ static void push_prop(const int prop_id, const Point3d cv, const float* m, const
                 DrawableFace* face = &drawable->face;
                 face->light = f->n.y;
                 // TODO
-                face->material = material;
+                face->material = 1;
                 if (face->light < 0.f) face->light = 0;
                 if (is_clipped_near) {
                     face->n = z_poly_clip(Z_NEAR, tmp, n, face->pts);

@@ -6,6 +6,15 @@
 
 #include "3dmath.h"
 
+// models ID
+#define PROP_TREE0	1
+#define PROP_TREE1	2
+#define PROP_TREE_SNOW	3
+#define PROP_CHECKPOINT_LEFT	4
+#define PROP_CHECKPOINT_RIGHT	5
+
+#define NEXT_PROP_ID 6
+
 typedef struct {
     // 0: triangle
     // 1: quad
@@ -24,52 +33,10 @@ typedef struct {
     ThreeDFace* faces;
 } ThreeDModel;
 
+// faces
 
 // tree0 face properties & coordinates
 static ThreeDFace tree0_faces[8] = { { 
-    .n = { .v = {0.0000f,0.0609f,-0.9981f} },
-    .cp = 0.4689f, .quad = 1,
-    .material=0,
-    .vertices={ { .v = {0.4833f,-0.2222f,-0.4833f} },{ .v = {0.3500f,1.9645f,-0.3500f} },{ .v = {-0.3500f,1.9645f,-0.3500f} },{ .v = {-0.4529f,0.2761f,-0.4529f} } }
-    },{ 
-    .n = { .v = {-0.9981f,0.0609f,0.0000f} },
-    .cp = 0.4689f, .quad = 1,
-    .material=0,
-    .vertices={ { .v = {-0.4529f,0.2761f,-0.4529f} },{ .v = {-0.3500f,1.9645f,-0.3500f} },{ .v = {-0.3500f,1.9645f,0.3500f} },{ .v = {-0.4626f,0.1177f,0.4626f} } }
-    },{ 
-    .n = { .v = {0.9981f,0.0609f,-0.0000f} },
-    .cp = 0.4689f, .quad = 1,
-    .material=0,
-    .vertices={ { .v = {0.4943f,-0.4028f,0.4943f} },{ .v = {0.3500f,1.9645f,0.3500f} },{ .v = {0.3500f,1.9645f,-0.3500f} },{ .v = {0.4833f,-0.2222f,-0.4833f} } }
-    },{ 
-    .n = { .v = {-0.0000f,0.0609f,0.9981f} },
-    .cp = 0.4689f, .quad = 1,
-    .material=0,
-    .vertices={ { .v = {-0.4626f,0.1177f,0.4626f} },{ .v = {-0.3500f,1.9645f,0.3500f} },{ .v = {0.3500f,1.9645f,0.3500f} },{ .v = {0.4943f,-0.4028f,0.4943f} } }
-    },{ 
-    .n = { .v = {0.6423f,0.1563f,0.7503f} },
-    .cp = 1.8366f, .quad = 0,
-    .material=0,
-    .vertices={ { .v = {-0.9453f,1.5399f,2.9363f} },{ .v = {0.0215f,11.5446f,0.0245f} },{ .v = {3.0907f,1.9645f,-0.6073f} } }
-    },{ 
-    .n = { .v = {0.0287f,-0.9958f,-0.0866f} },
-    .cp = -1.8149f, .quad = 0,
-    .material=0,
-    .vertices={ { .v = {-0.9453f,1.5399f,2.9363f} },{ .v = {3.0907f,1.9645f,-0.6073f} },{ .v = {-2.0601f,1.9645f,-2.3176f} } }
-    },{ 
-    .n = { .v = {0.3110f,0.1614f,-0.9366f} },
-    .cp = 1.8470f, .quad = 0,
-    .material=0,
-    .vertices={ { .v = {3.0907f,1.9645f,-0.6073f} },{ .v = {0.0215f,11.5446f,0.0245f} },{ .v = {-2.0601f,1.9645f,-2.3176f} } }
-    },{ 
-    .n = { .v = {-0.9636f,0.1563f,0.2171f} },
-    .cp = 1.7890f, .quad = 0,
-    .material=0,
-    .vertices={ { .v = {-2.0601f,1.9645f,-2.3176f} },{ .v = {0.0215f,11.5446f,0.0245f} },{ .v = {-0.9453f,1.5399f,2.9363f} } }
-    } };
-
-// tree1 face properties & coordinates
-static ThreeDFace tree1_faces[8] = { { 
     .n = { .v = {0.0000f,0.0787f,-0.9969f} },
     .cp = 0.5035f, .quad = 1,
     .material=0,
@@ -109,6 +76,49 @@ static ThreeDFace tree1_faces[8] = { {
     .cp = 1.8473f, .quad = 0,
     .material=0,
     .vertices={ { .v = {-2.0601f,1.9645f,-2.3176f} },{ .v = {0.0215f,11.5446f,0.0245f} },{ .v = {-0.9659f,1.9645f,2.9983f} } }
+    } };
+
+// tree1 face properties & coordinates
+static ThreeDFace tree1_faces[8] = { { 
+    .n = { .v = {0.0000f,0.0609f,-0.9981f} },
+    .cp = 0.4689f, .quad = 1,
+    .material=0,
+    .vertices={ { .v = {0.4833f,-0.2222f,-0.4833f} },{ .v = {0.3500f,1.9645f,-0.3500f} },{ .v = {-0.3500f,1.9645f,-0.3500f} },{ .v = {-0.4529f,0.2761f,-0.4529f} } }
+    },{ 
+    .n = { .v = {-0.9981f,0.0609f,0.0000f} },
+    .cp = 0.4689f, .quad = 1,
+    .material=0,
+    .vertices={ { .v = {-0.4529f,0.2761f,-0.4529f} },{ .v = {-0.3500f,1.9645f,-0.3500f} },{ .v = {-0.3500f,1.9645f,0.3500f} },{ .v = {-0.4626f,0.1177f,0.4626f} } }
+    },{ 
+    .n = { .v = {0.9981f,0.0609f,-0.0000f} },
+    .cp = 0.4689f, .quad = 1,
+    .material=0,
+    .vertices={ { .v = {0.4943f,-0.4028f,0.4943f} },{ .v = {0.3500f,1.9645f,0.3500f} },{ .v = {0.3500f,1.9645f,-0.3500f} },{ .v = {0.4833f,-0.2222f,-0.4833f} } }
+    },{ 
+    .n = { .v = {-0.0000f,0.0609f,0.9981f} },
+    .cp = 0.4689f, .quad = 1,
+    .material=0,
+    .vertices={ { .v = {-0.4626f,0.1177f,0.4626f} },{ .v = {-0.3500f,1.9645f,0.3500f} },{ .v = {0.3500f,1.9645f,0.3500f} },{ .v = {0.4943f,-0.4028f,0.4943f} } }
+    },{ 
+    .n = { .v = {0.6423f,0.1563f,0.7503f} },
+    .cp = 1.8366f, .quad = 0,
+    .material=0,
+    .vertices={ { .v = {-0.9453f,1.5399f,2.9363f} },{ .v = {0.0215f,11.5446f,0.0245f} },{ .v = {3.0907f,1.9645f,-0.6073f} } }
+    },{ 
+    .n = { .v = {0.0287f,-0.9958f,-0.0866f} },
+    .cp = -1.8149f, .quad = 0,
+    .material=0,
+    .vertices={ { .v = {-0.9453f,1.5399f,2.9363f} },{ .v = {3.0907f,1.9645f,-0.6073f} },{ .v = {-2.0601f,1.9645f,-2.3176f} } }
+    },{ 
+    .n = { .v = {0.3110f,0.1614f,-0.9366f} },
+    .cp = 1.8470f, .quad = 0,
+    .material=0,
+    .vertices={ { .v = {3.0907f,1.9645f,-0.6073f} },{ .v = {0.0215f,11.5446f,0.0245f} },{ .v = {-2.0601f,1.9645f,-2.3176f} } }
+    },{ 
+    .n = { .v = {-0.9636f,0.1563f,0.2171f} },
+    .cp = 1.7890f, .quad = 0,
+    .material=0,
+    .vertices={ { .v = {-2.0601f,1.9645f,-2.3176f} },{ .v = {0.0215f,11.5446f,0.0245f} },{ .v = {-0.9453f,1.5399f,2.9363f} } }
     } };
 
 // tree_snow face properties & coordinates
@@ -169,8 +179,8 @@ static ThreeDFace tree_snow_faces[11] = { {
     .vertices={ { .v = {-0.3462f,6.7063f,1.1318f} },{ .v = {-0.7941f,6.5592f,-0.8933f} },{ .v = {0.6695f,9.4187f,-0.4334f} } }
     } };
 
-// pole_left face properties & coordinates
-static ThreeDFace pole_left_faces[6] = { { 
+// checkpoint_left face properties & coordinates
+static ThreeDFace checkpoint_left_faces[6] = { { 
     .n = { .v = {-0.7071f,0.0000f,-0.7071f} },
     .cp = 0.1000f, .quad = 1,
     .material=0,
@@ -202,8 +212,8 @@ static ThreeDFace pole_left_faces[6] = { {
     .vertices={ { .v = {0.1417f,2.8046f,-0.0000f} },{ .v = {0.8748f,2.4644f,-0.0000f} },{ .v = {0.1417f,2.1084f,-0.0000f} } }
     } };
 
-// pole_right face properties & coordinates
-static ThreeDFace pole_right_faces[6] = { { 
+// checkpoint_right face properties & coordinates
+static ThreeDFace checkpoint_right_faces[6] = { { 
     .n = { .v = {-0.7071f,0.0000f,-0.7071f} },
     .cp = 0.1000f, .quad = 1,
     .material=0,
@@ -236,9 +246,9 @@ static ThreeDFace pole_right_faces[6] = { {
     } };
 
 
-// 
+// models
 static ThreeDModel three_d_models[5]={
-    { .face_count = 8, .faces = &tree0_faces },{ .face_count = 8, .faces = &tree1_faces },{ .face_count = 11, .faces = &tree_snow_faces },{ .face_count = 6, .faces = &pole_left_faces },{ .face_count = 6, .faces = &pole_right_faces }  
+    { .face_count = 8, .faces = &tree0_faces },{ .face_count = 8, .faces = &tree1_faces },{ .face_count = 11, .faces = &tree_snow_faces },{ .face_count = 6, .faces = &checkpoint_left_faces },{ .face_count = 6, .faces = &checkpoint_right_faces }  
 };
 
 #endif // _models_h
