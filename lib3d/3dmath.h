@@ -41,6 +41,7 @@ typedef struct {
         float v[3];
     };
     float u;
+    float light;
 } Point3du;
 
 // convert a tau angle [0;1] into a radian angle

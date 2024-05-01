@@ -155,17 +155,17 @@ static void mesh_slice(int j) {
         v_normz(&n1);
         GroundFace* f0 = &s0->faces[2 * i];
         f0->n = n0;
-        if (v_dot(&n0, &n1) > 0.999f) {
-            f0->quad = 1;
-            f0->material = n0.y < 0.75f ? MATERIAL_ROCK : MATERIAL_SNOW;
-        }
-        else {
+        if (i==(int)(s0->extents[0]/GROUND_CELL_SIZE) || i == (int)(s0->extents[1] / GROUND_CELL_SIZE) || v_dot(&n0, &n1) < 0.999f) {
             f0->quad = 0;
             f0->material = n0.y < 0.75f ? MATERIAL_ROCK : MATERIAL_SNOW;
             GroundFace* f1 = &s0->faces[2 * i + 1];
             f1->n = n1;
             f1->quad = 0;
             f1->material = n1.y < 0.75f ? MATERIAL_ROCK : MATERIAL_SNOW;
+        }
+        else {
+            f0->quad = 1;
+            f0->material = n0.y < 0.75f ? MATERIAL_ROCK : MATERIAL_SNOW;
         }
     }
 }
@@ -236,6 +236,9 @@ static void make_slice(GroundSlice* slice, float y) {
                 // slice->h[i] = t->h + slice->h[i] / 2.0f;
                 // slice->h[i] = t->h;
                 // todo: remove props?
+                if (slice->props[i] != PROP_CHECKPOINT_LEFT && slice->props[i] != PROP_CHECKPOINT_RIGHT) {
+                    slice->props[i] = 0;
+                }
             }
             // coins
             if (_ground.slice_id % 4 == 0) {
@@ -781,7 +784,7 @@ static int z_poly_clip(const float znear, Point3du* in, int n, Point3du* out) {
     for (int i = 0; i < n; i++) {
         Point3du v1 = in[i];
         int side = d0 > 0;
-        if (side) out[nout++] = (Point3du){ .v = { v0.x, v0.y, v0.z }, .u = v0.u };
+        if (side) out[nout++] = (Point3du){ .v = { v0.x, v0.y, v0.z }, .u = v0.u, .light = v0.light };
         const float d1 = v1.z - znear;
         if ((d1 > 0) != side) {
             // clip!
@@ -790,7 +793,8 @@ static int z_poly_clip(const float znear, Point3du* in, int n, Point3du* out) {
                 lerpf(v0.x,v1.x,t),
                 lerpf(v0.y,v1.y,t),
                 znear},
-                .u = lerpf(v0.u,v1.u,t)
+                .u = lerpf(v0.u,v1.u,t),
+                .light = lerpf(v0.light,v1.light,t)
             };
         }
         v0 = v1;
@@ -811,7 +815,7 @@ static void draw_face(struct Drawable_s* drawable, uint8_t* bitmap) {
         pts[i].y = 119.5f - 199.5f * w * pts[i].y;
         // works ok
         float shading = face->material == MATERIAL_SNOW ? 4.0f * pts[i].u + 8.f * w : 4.0f + 4.0f * pts[i].u + 4.f * w;
-        shading *= face->light;
+        shading *= pts[i].light * face->light;
         if (shading > 15.f) shading = 15.0f;
         if (shading < 0.f) shading = 0.f;
         pts[i].u = shading;
@@ -843,13 +847,10 @@ static void draw_prop(Drawable* drawable, uint8_t* bitmap) {
     }
 
     // 
-    //float shading = drawable->key < Z_NEAR ? 1.0f : (float)Z_NEAR / drawable->key;
-    // shading *= 396.f;
-    float shading = (drawable->key - 12.f * GROUND_CELL_SIZE) / (4.f * GROUND_CELL_SIZE);
+    float shading = (drawable->key - 12.f * GROUND_CELL_SIZE) / (2.f * GROUND_CELL_SIZE);
     if (shading > 1.f) shading = 1.f;
     if (shading < 0.f) shading = 0.f;    
-    shading = face->material * (1.f - shading);
-    polyfill(pts, n, _dithers + ((int)shading) * 32 , (uint32_t*)bitmap);
+    polyfill(pts, n, _dithers + (int)(face->material * (1.f - shading)) * 32 , (uint32_t*)bitmap);
 
     Point3du* p0 = &pts[n - 1];
     for (int i = 0; i < n; ++i) {
@@ -883,7 +884,7 @@ static void draw_snowball(Drawable* drawable, uint8_t* bitmap) {
 }
 
 // push a face to the drawing list
-static void push_face(GroundFace* f, Point3d cv, const float* m, const Point3d* p, int* indices, int n, const float* normals, const float shading) {
+static void push_face(GroundFace* f, Point3d cv, const float* m, const Point3d* p, int* indices, int n, const float* normals, const float light, const float* shading) {
     Point3du tmp[4];
 
     // transform
@@ -894,7 +895,7 @@ static void push_face(GroundFace* f, Point3d cv, const float* m, const Point3d* 
         // project using active matrix
         m_x_v(m, p[indices[i]], res->v);
         res->u = normals[indices[i]];
-        if (res->u >= 1.0f) res->u = 1.0f;
+        res->light = 0.5f + 0.75f * shading[indices[i]];
         int code = res->z > Z_NEAR ? OUTCODE_IN : OUTCODE_NEAR;
         if (res->x > res->z) code |= OUTCODE_RIGHT;
         if (-res->x > res->z) code |= OUTCODE_LEFT;
@@ -910,7 +911,7 @@ static void push_face(GroundFace* f, Point3d cv, const float* m, const Point3d* 
         drawable->key = min_key;
         DrawableFace* face = &drawable->face;
         face->material = f->material;
-        face->light = shading;
+        face->light = light;
         if (is_clipped_near) {
             face->n = z_poly_clip(Z_NEAR, tmp, n, face->pts);
         }
@@ -1123,20 +1124,27 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
 
                 // camera to face point
                 const Point3d cv = { .x = verts[0].x - cam_pos.x,.y = verts[0].y - cam_pos.y,.z = verts[0].z - cam_pos.z };
+                // main track shading
+                const float shading[4] = {
+                    (i >= (int)(s1->extents[0] / GROUND_CELL_SIZE) && i <= (int)(s1->extents[1] / GROUND_CELL_SIZE)),
+                    (i + 1 >= (int)(s1->extents[0] / GROUND_CELL_SIZE) && i + 1 <= (int)(s1->extents[1] / GROUND_CELL_SIZE)),
+                    (i + 1 >= (int)(s0->extents[0] / GROUND_CELL_SIZE) && i + 1 <= (int)(s0->extents[1] / GROUND_CELL_SIZE)),
+                    (i >= (int)(s0->extents[0] / GROUND_CELL_SIZE) && i <= (int)(s0->extents[1] / GROUND_CELL_SIZE))
+                };
                 if (f0->quad) {
                     if (v_dot(&f0->n, &cv) < 0.f)
                     {
-                        push_face(f0, cv, m, verts, (int[]) { 0, 1, 2, 3 }, 4, normals, shading_band);
+                        push_face(f0, cv, m, verts, (int[]) { 0, 1, 2, 3 }, 4, normals, shading_band, shading);
                     }
                 }
                 else {
                     if (v_dot(&f0->n, &cv) < 0.f)
                     {
-                        push_face(f0, cv, m, verts, (int[]) { 0, 2, 3 }, 3, normals, shading_band);
+                        push_face(f0, cv, m, verts, (int[]) { 0, 2, 3 }, 3, normals, shading_band, shading);
                     }
                     if (v_dot(&f1->n, &cv) < 0.f)
                     {
-                        push_face(f1, cv, m, verts, (int[]) { 0, 1, 2 }, 3, normals, shading_band);
+                        push_face(f1, cv, m, verts, (int[]) { 0, 1, 2 }, 3, normals, shading_band, shading);
                     }
                 }
                 // draw prop (if any)
