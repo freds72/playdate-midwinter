@@ -843,10 +843,12 @@ static void draw_prop(Drawable* drawable, uint8_t* bitmap) {
     }
 
     // 
-    float shading = drawable->key < Z_NEAR ? 1.0f : (float)Z_NEAR / drawable->key;
-    shading *= 396.f;
-    if (shading > 1.0f) shading = 1.0f;
-    shading *= (float)face->material;
+    //float shading = drawable->key < Z_NEAR ? 1.0f : (float)Z_NEAR / drawable->key;
+    // shading *= 396.f;
+    float shading = (drawable->key - 12.f * GROUND_CELL_SIZE) / (4.f * GROUND_CELL_SIZE);
+    if (shading > 1.f) shading = 1.f;
+    if (shading < 0.f) shading = 0.f;    
+    shading = face->material * (1.f - shading);
     polyfill(pts, n, _dithers + ((int)shading) * 32 , (uint32_t*)bitmap);
 
     Point3du* p0 = &pts[n - 1];
