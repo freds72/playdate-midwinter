@@ -844,20 +844,19 @@ static void draw_prop(Drawable* drawable, uint8_t* bitmap) {
 
     // 
     float shading = drawable->key < Z_NEAR ? 1.0f : (float)Z_NEAR / drawable->key;
-    shading *= 396.f * fabsf(face->light);
-    if (shading > 1.f) shading = 1.f;
-    shading = lerpf(0,face->material, shading);
-    if (shading > 15.f) shading = 15.f;
-    polyfill(pts, n, _dithers + (int)(shading * 32.f) , (uint32_t*)bitmap);
+    shading *= 396.f;
+    if (shading > 1.0f) shading = 1.0f;
+    shading *= (float)face->material;
+    polyfill(pts, n, _dithers + ((int)shading) * 32 , (uint32_t*)bitmap);
 
-    /*
-    float x0 = pts[n - 1].x, y0 = pts[n - 1].y;
+    Point3du* p0 = &pts[n - 1];
     for (int i = 0; i < n; ++i) {
-        float x1 = pts[i].x, y1 = pts[i].y;
-        pd->graphics->drawLine(x0,y0,x1,y1, 1, kColorBlack);
-        x0 = x1, y0 = y1;
+        Point3du* p1 = &pts[i];
+        if (p0->u!=0) {
+            pd->graphics->drawLine(p0->x, p0->y, p1->x, p1->y, 1, kColorBlack);
+        }
+        p0 = p1;
     }
-    */
 }
 
 static void draw_coin(Drawable* drawable, uint8_t* bitmap) {
@@ -928,15 +927,13 @@ static void push_prop(const int prop_id, const Point3d cv, const float* m, const
 
     for (int j = 0; j < model->face_count; ++j) {
         ThreeDFace* f = &model->faces[j];
-        // visible? or dual-side?
-        
-        // todo: duplicate face
-        if (f->flags & FACE_FLAG_DUALSIDED || v_dot(&f->n, &cv) < 0.f) {
+        // visible?
+        if ( v_dot(&f->n, &cv) < 0.f) {
             // vert count
             int n = f->flags & FACE_FLAG_QUAD?4:3;
             // transform
             int outcode = 0xfffffff, is_clipped_near = 0;
-            float min_key = FLT_MIN;
+            float min_key = FLT_MAX;
             for (int i = 0; i < n; ++i) {
                 Point3du* res = &tmp[i];
                 // shift into pos
@@ -948,7 +945,9 @@ static void push_prop(const int prop_id, const Point3d cv, const float* m, const
                 if (-res->x > res->z) code |= OUTCODE_LEFT;
                 outcode &= code;
                 is_clipped_near += code & 2;
-                if (res->z > min_key) min_key = res->z;
+                if (res->z < min_key) min_key = res->z;
+                // use u to mark sharp edges
+                res->u = f->edges & (1 << i);
             }
 
             // visible?
@@ -957,9 +956,8 @@ static void push_prop(const int prop_id, const Point3d cv, const float* m, const
                 drawable->draw = draw_prop;
                 drawable->key = min_key;
                 DrawableFace* face = &drawable->face;
-                face->light = f->n.y;
+                face->light = 0;
                 face->material = f->material;
-                if (face->light < 0.f) face->light = 0;
                 if (is_clipped_near) {
                     face->n = z_poly_clip(Z_NEAR, tmp, n, face->pts);
                 }
@@ -991,7 +989,6 @@ static void push_snowball(const Point3d* p, int angle) {
     drawable->prop.pos = *p;
     drawable->prop.angle = angle%360;
 }
-
 
 int render_sky(float* m, uint8_t* screen) {
     uint32_t* bitmap = (uint32_t*)screen;
