@@ -173,10 +173,10 @@ void polyfill(const Point3du* verts, const int n, uint32_t* dither, uint32_t* bi
     for (int y =(int)miny; y < maxy; ++y, bitmap+=LCD_ROWSIZE32) {
         // maybe update to next vert
         while (ly < y) {
-            const Point3d* p0 = &verts[lj];
+            const Point3du* p0 = &verts[lj];
             lj++;
             if (lj >= n) lj = 0;
-            const Point3d* p1 = &verts[lj];
+            const Point3du* p1 = &verts[lj];
             const float y0 = p0->y, y1 = p1->y;
             const float dy = y1 - y0;
             ly = (int)y1;
@@ -187,10 +187,10 @@ void polyfill(const Point3du* verts, const int n, uint32_t* dither, uint32_t* bi
             lx += (int)(cy * ldx);
         }
         while (ry < y) {
-            const Point3d* p0 = &verts[rj];
+            const Point3du* p0 = &verts[rj];
             rj--;
             if (rj < 0) rj = n - 1;
-            const Point3d* p1 = &verts[rj];
+            const Point3du* p1 = &verts[rj];
             const float y0 = p0->y, y1 = p1->y;
             const float dy = y1 - y0;
             ry = (int)y1;

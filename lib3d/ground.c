@@ -40,7 +40,7 @@ typedef struct {
     int is_checkpoint;
     // main track extents
     float center;
-    float extents[2];
+    int extents[2];
 
 } GroundSlice;
 
@@ -155,9 +155,9 @@ static void mesh_slice(int j) {
         v_normz(&n1);
         GroundFace* f0 = &s0->faces[2 * i];
         f0->n = n0;
-        if (i==(int)(s0->extents[0]/GROUND_CELL_SIZE) || i == (int)(s0->extents[1] / GROUND_CELL_SIZE) || v_dot(&n0, &n1) < 0.999f) {
+        f0->material = n0.y < 0.75f ? MATERIAL_ROCK : MATERIAL_SNOW;
+        if (v_dot(&n0, &n1) < 0.999f) {
             f0->quad = 0;
-            f0->material = n0.y < 0.75f ? MATERIAL_ROCK : MATERIAL_SNOW;
             GroundFace* f1 = &s0->faces[2 * i + 1];
             f1->n = n1;
             f1->quad = 0;
@@ -165,7 +165,6 @@ static void mesh_slice(int j) {
         }
         else {
             f0->quad = 1;
-            f0->material = n0.y < 0.75f ? MATERIAL_ROCK : MATERIAL_SNOW;
         }
     }
 }
@@ -201,8 +200,8 @@ static void make_slice(GroundSlice* slice, float y) {
     slice->h[GROUND_SIZE - 1] = 15.f + 5.f * randf();
     slice->h[GROUND_SIZE - 2] = lerpf(slice->h[GROUND_SIZE - 1], slice->h[GROUND_SIZE - 2], 0.666f);
 
-    float xmin = 3 * GROUND_CELL_SIZE, xmax = (GROUND_SIZE - 3) * GROUND_CELL_SIZE;
-    float main_track_x = (xmin + xmax) / 2.f;
+    float imin = 3, imax = GROUND_SIZE - 3;
+    float main_track_x = GROUND_CELL_SIZE * (imin + imax) / 2.f;
     int is_checkpoint = 0;
     Tracks* tracks = _ground.tracks;
     for (int k = 0; k < tracks->n; ++k) {
@@ -211,8 +210,8 @@ static void make_slice(GroundSlice* slice, float y) {
         const int i0 = ii - 2, i1 = ii + 2;
         if (t->is_main) {
             main_track_x = t->x;
-            xmin = (float)i0 * GROUND_CELL_SIZE;
-            xmax = (float)i1 * GROUND_CELL_SIZE;
+            imin = i0;
+            imax = i1;
             for (int i = i0; i < i1; ++i) {
                 // smooth track
                 // slice->h[i] += t->h;
@@ -249,8 +248,8 @@ static void make_slice(GroundSlice* slice, float y) {
     }
 
     slice->center = main_track_x;
-    slice->extents[0] = xmin;
-    slice->extents[1] = xmax;
+    slice->extents[0] = imin;
+    slice->extents[1] = imax;
 
     slice->is_checkpoint = is_checkpoint;
 
@@ -362,8 +361,8 @@ void get_face(Point3d pos, Point3d* nout, float* yout,float* angleout) {
 void get_track_info(Point3d pos, float* xmin, float *xmax, float*z, int*checkpoint) {
     int j = (int)(pos.z / GROUND_CELL_SIZE);
     const GroundSlice* s0 = _ground.slices[j];
-    *xmin = s0->extents[0];
-    *xmax = s0->extents[1];
+    *xmin = (float)(s0->extents[0] * GROUND_CELL_SIZE);
+    *xmax = (float)(s0->extents[1] * GROUND_CELL_SIZE);
     // activate checkpoint at middle of cell
     *z = (j + 0.5f) * GROUND_CELL_SIZE;
     *checkpoint = s0->is_checkpoint;
@@ -673,17 +672,23 @@ void ground_init(PlaydateAPI* playdate) {
     // props config (todo: get from lua?)
 
     // pine tree
-    _props_properties[PROP_TREE0 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_3D, .radius = 1.8f};
-    _props_properties[PROP_TREE0 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_3D, .radius = 1.8f };
-    _props_properties[PROP_TREE_SNOW - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_3D, .radius = 1.8f };
+    _props_properties[PROP_TREE0 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f};
+    _props_properties[PROP_TREE0 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
+    _props_properties[PROP_TREE_SNOW - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
     // checkpoint flags
     _props_properties[PROP_CHECKPOINT_LEFT - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
     _props_properties[PROP_CHECKPOINT_RIGHT - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
+    // obstacles
+    _props_properties[PROP_ROCK - 1] = (PropProperties){ .flags = PROP_FLAG_KILL, .radius = 2.f };
+    // snowball
+    _props_properties[PROP_SNOWBALL - 1] = (PropProperties){ .flags = PROP_FLAG_KILL, .radius = 2.f };
+    _props_properties[PROP_SPLASH - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
     // coin
     _props_properties[PROP_COIN - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_COLLECT, .radius = 2.0f };
 
     // bind all props to the corresponding 3d model
     for (int i = 0; i < NEXT_PROP_ID; ++i) {
+        _props_properties[i].flags |= PROP_FLAG_3D;
         _props_properties[i].model = &three_d_models[i];
     }
 }
@@ -725,9 +730,10 @@ typedef struct {
 static uint32_t _visible_tiles[GROUND_SIZE];
 
 typedef struct {
-    float light;
     // texture type
     int material;
+    // original flags
+    int flags;
     // number of points
     int n;
     // clipped points in camera space
@@ -805,7 +811,7 @@ static int z_poly_clip(const float znear, Point3du* in, int n, Point3du* out) {
     return nout;
 }
 
-static void draw_face(struct Drawable_s* drawable, uint8_t* bitmap) {
+static void draw_tile(struct Drawable_s* drawable, uint8_t* bitmap) {
     DrawableFace* face = &drawable->face;
 
     const int n = face->n;
@@ -817,7 +823,7 @@ static void draw_face(struct Drawable_s* drawable, uint8_t* bitmap) {
         pts[i].y = 119.5f - 199.5f * w * pts[i].y;
         // works ok
         float shading = face->material == MATERIAL_SNOW ? 4.0f * pts[i].u + 8.f * w : 4.0f + 4.0f * pts[i].u + 4.f * w;
-        shading *= pts[i].light * face->light;
+        shading *= pts[i].light;
         if (shading > 15.f) shading = 15.0f;
         if (shading < 0.f) shading = 0.f;
         pts[i].u = shading;
@@ -836,7 +842,7 @@ static void draw_face(struct Drawable_s* drawable, uint8_t* bitmap) {
     */
 }
 
-static void draw_prop(Drawable* drawable, uint8_t* bitmap) {
+static void draw_face(Drawable* drawable, uint8_t* bitmap) {
     DrawableFace* face = &drawable->face;
 
     const int n = face->n;
@@ -853,10 +859,12 @@ static void draw_prop(Drawable* drawable, uint8_t* bitmap) {
     float shading = dist / (2.f * GROUND_CELL_SIZE);
     if (shading > 1.f) shading = 1.f;
     if (shading < 0.f) shading = 0.f;    
-    polyfill(pts, n, _dithers + (int)(face->material * (1.f - shading)) * 32 , (uint32_t*)bitmap);
+    if (!(face->flags & FACE_FLAG_TRANSPARENT)) {
+        polyfill(pts, n, _dithers + (int)(face->material * (1.f - shading)) * 32, (uint32_t*)bitmap);
+    }
 
     // don't "pop" edges if too far away
-    if (dist < 0.f) {
+    if ((face->flags & FACE_FLAG_EDGES) && dist < 0.f) {
         Point3du* p0 = &pts[n - 1];
         for (int i = 0; i < n; ++i) {
             Point3du* p1 = &pts[i];
@@ -890,7 +898,7 @@ static void draw_snowball(Drawable* drawable, uint8_t* bitmap) {
 }
 
 // push a face to the drawing list
-static void push_face(GroundFace* f, Point3d cv, const float* m, const Point3d* p, int* indices, int n, const float* normals, const float light, const float* shading) {
+static void push_tile(GroundFace* f, Point3d cv, const float* m, const Point3d* p, int* indices, int n, const float* normals, const float light, const int* shading) {
     Point3du tmp[4];
 
     // transform
@@ -901,7 +909,7 @@ static void push_face(GroundFace* f, Point3d cv, const float* m, const Point3d* 
         // project using active matrix
         m_x_v(m, p[indices[i]], res->v);
         res->u = normals[indices[i]];
-        res->light = 0.5f + 0.75f * shading[indices[i]];
+        res->light = (0.5f + 0.75f * (float)shading[indices[i]]) * light;
         int code = res->z > Z_NEAR ? OUTCODE_IN : OUTCODE_NEAR;
         if (res->x > res->z) code |= OUTCODE_RIGHT;
         if (-res->x > res->z) code |= OUTCODE_LEFT;
@@ -913,11 +921,10 @@ static void push_face(GroundFace* f, Point3d cv, const float* m, const Point3d* 
     // visible?
     if (outcode == 0) {
         Drawable* drawable = &_drawables.all[_drawables.n++];
-        drawable->draw = draw_face;
+        drawable->draw = draw_tile;
         drawable->key = min_key;
         DrawableFace* face = &drawable->face;
         face->material = f->material;
-        face->light = light;
         if (is_clipped_near) {
             face->n = z_poly_clip(Z_NEAR, tmp, n, face->pts);
         }
@@ -930,7 +937,7 @@ static void push_face(GroundFace* f, Point3d cv, const float* m, const Point3d* 
     }
 }
 
-static void push_prop(const int prop_id, const Point3d cv, const float* m, const Point3d p) {
+static void push_threeD_model(const int prop_id, const Point3d cv, const float* m, const Point3d p) {
     Point3du tmp[4];
     ThreeDModel* model = _props_properties[prop_id - 1].model;
 
@@ -962,10 +969,10 @@ static void push_prop(const int prop_id, const Point3d cv, const float* m, const
             // visible?
             if (outcode == 0) {
                 Drawable* drawable = &_drawables.all[_drawables.n++];
-                drawable->draw = draw_prop;
+                drawable->draw = draw_face;
                 drawable->key = min_key;
                 DrawableFace* face = &drawable->face;
-                face->light = 0;
+                face->flags = f->flags;
                 face->material = f->material;
                 if (is_clipped_near) {
                     face->n = z_poly_clip(Z_NEAR, tmp, n, face->pts);
@@ -1131,26 +1138,26 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                 // camera to face point
                 const Point3d cv = { .x = verts[0].x - cam_pos.x,.y = verts[0].y - cam_pos.y,.z = verts[0].z - cam_pos.z };
                 // main track shading
-                const float shading[4] = {
-                    (i >= (int)(s1->extents[0] / GROUND_CELL_SIZE) && i <= (int)(s1->extents[1] / GROUND_CELL_SIZE)),
-                    (i + 1 >= (int)(s1->extents[0] / GROUND_CELL_SIZE) && i + 1 <= (int)(s1->extents[1] / GROUND_CELL_SIZE)),
-                    (i + 1 >= (int)(s0->extents[0] / GROUND_CELL_SIZE) && i + 1 <= (int)(s0->extents[1] / GROUND_CELL_SIZE)),
-                    (i >= (int)(s0->extents[0] / GROUND_CELL_SIZE) && i <= (int)(s0->extents[1] / GROUND_CELL_SIZE))
+                const int shading[4] = {
+                    i >= s1->extents[0] && i <= s1->extents[1],
+                    i + 1 >= s1->extents[0] && i + 1 <= s1->extents[1],
+                    i + 1 >= s0->extents[0] && i + 1 <= s0->extents[1],
+                    i >= s0->extents[0] && i <= s0->extents[1]
                 };
                 if (f0->quad) {
                     if (v_dot(&f0->n, &cv) < 0.f)
                     {
-                        push_face(f0, cv, m, verts, (int[]) { 0, 1, 2, 3 }, 4, normals, shading_band, shading);
+                        push_tile(f0, cv, m, verts, (int[]) { 0, 1, 2, 3 }, 4, normals, shading_band, shading);
                     }
                 }
                 else {
                     if (v_dot(&f0->n, &cv) < 0.f)
                     {
-                        push_face(f0, cv, m, verts, (int[]) { 0, 2, 3 }, 3, normals, shading_band, shading);
+                        push_tile(f0, cv, m, verts, (int[]) { 0, 2, 3 }, 3, normals, shading_band, shading);
                     }
                     if (v_dot(&f1->n, &cv) < 0.f)
                     {
-                        push_face(f1, cv, m, verts, (int[]) { 0, 1, 2 }, 3, normals, shading_band, shading);
+                        push_tile(f1, cv, m, verts, (int[]) { 0, 1, 2 }, 3, normals, shading_band, shading);
                     }
                 }
                 // draw prop (if any)
@@ -1169,7 +1176,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                         }
                         else {    
                             const Point3d cv = { .x = pos.x - cam_pos.x,.y = pos.y - cam_pos.y,.z = pos.z - cam_pos.z };
-                            push_prop(prop_id, cv, m, pos);
+                            push_threeD_model(prop_id, cv, m, pos);
                         }
                     }
                 }
@@ -1178,6 +1185,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
     }
 
     // "death" animation?
+    // todo: add as a regular "additional" object?
     if (_snowball.is_active) {
         Point3d res;
         m_x_v(m, _snowball.pos, res.v);
