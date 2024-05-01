@@ -712,6 +712,8 @@ int ground_load_assets_async() {
 // todo: move to settings?
 #define SHADING_CONTRAST 1.5f
 
+#define MAX_TILE_DIST 18
+
 typedef struct {
     float x;
     float y;
@@ -847,18 +849,22 @@ static void draw_prop(Drawable* drawable, uint8_t* bitmap) {
     }
 
     // 
-    float shading = (drawable->key - 12.f * GROUND_CELL_SIZE) / (2.f * GROUND_CELL_SIZE);
+    float dist = drawable->key - 12.f * GROUND_CELL_SIZE;
+    float shading = dist / (2.f * GROUND_CELL_SIZE);
     if (shading > 1.f) shading = 1.f;
     if (shading < 0.f) shading = 0.f;    
     polyfill(pts, n, _dithers + (int)(face->material * (1.f - shading)) * 32 , (uint32_t*)bitmap);
 
-    Point3du* p0 = &pts[n - 1];
-    for (int i = 0; i < n; ++i) {
-        Point3du* p1 = &pts[i];
-        if (p0->u!=0) {
-            pd->graphics->drawLine(p0->x, p0->y, p1->x, p1->y, 1, kColorBlack);
+    // don't "pop" edges if too far away
+    if (dist < 0.f) {
+        Point3du* p0 = &pts[n - 1];
+        for (int i = 0; i < n; ++i) {
+            Point3du* p1 = &pts[i];
+            if (p0->u != 0) {
+                pd->graphics->drawLine(p0->x, p0->y, p1->x, p1->y, 1, kColorBlack);
+            }
+            p0 = p1;
         }
-        p0 = p1;
     }
 }
 
@@ -1068,7 +1074,7 @@ static void collect_tiles(const Point3d pos, float base_angle) {
             disty = (mapy + 1 - y) * ddy;
         }
 
-        for (int dist = 0; dist < 18; ++dist) {
+        for (int dist = 0; dist < MAX_TILE_DIST; ++dist) {
             if (distx < disty) {
                 distx += ddx;
                 mapx += mapdx;
@@ -1153,10 +1159,11 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                     Point3d pos, res;
                     v_lerp(&verts[0], &verts[2], s0->prop_t[i], &pos);
                     if (prop_id == PROP_COIN) {
+                        // adjust coin height
                         pos.z += 2.f;
                     }
                     m_x_v(m, pos, res.v);
-                    if (res.z > Z_NEAR && res.z < GROUND_CELL_SIZE * 16) {
+                    if (res.z > Z_NEAR && res.z < (float)(GROUND_CELL_SIZE * MAX_TILE_DIST)) {
                         if (prop_id == PROP_COIN) {
                             push_coin(&res, time_offset + j + _z_offset);
                         }
