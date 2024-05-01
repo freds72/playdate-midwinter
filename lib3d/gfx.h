@@ -5,8 +5,7 @@
 #include "3dmathi.h"
 
 void gfx_init(PlaydateAPI* playdate);
-void polyfill(const Point3d* verts, const int n, uint32_t* dither, uint32_t* bitmap);
+void polyfill(const Point3du* verts, const int n, uint32_t* dither, uint32_t* bitmap);
 void texfill(const Point3du* verts, const int n, uint8_t* dither_ramp, uint8_t* bitmap);
-void sspr(float x, float y, float size, uint32_t* src, int sw, int sh, uint32_t* bitmap);
 
 #endif

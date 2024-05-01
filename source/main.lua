@@ -776,13 +776,13 @@ function menu_state()
 	}
 	local sel,sel_tgt,blink=0,0,false
 
-	ground=make_ground({slope=0,tracks=0,props_rate=0.76,props={tree_prop}})
+	ground=make_ground({slope=0,tracks=0,props_rate=0.90,props={tree_prop}})
 
 	-- reset cam	
 	cam=make_cam()
 
 	music(0)
-	sfx(-1)
+	_ski_sfx:stop()
 
 	-- menu to get back to selection menu
 	local menu = playdate.getSystemMenu()

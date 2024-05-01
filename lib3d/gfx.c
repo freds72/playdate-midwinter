@@ -151,7 +151,7 @@ static void drawTextureFragment(uint8_t* row, int x1, int x2, int lu, int ru, ui
     }
 }
 
-void polyfill(const Point3d* verts, const int n, uint32_t* dither, uint32_t* bitmap) {
+void polyfill(const Point3du* verts, const int n, uint32_t* dither, uint32_t* bitmap) {
 	float miny = FLT_MAX, maxy = FLT_MIN;
 	int mini = -1;
 	// find extent
@@ -173,10 +173,10 @@ void polyfill(const Point3d* verts, const int n, uint32_t* dither, uint32_t* bit
     for (int y =(int)miny; y < maxy; ++y, bitmap+=LCD_ROWSIZE32) {
         // maybe update to next vert
         while (ly < y) {
-            const Point3d* p0 = &verts[lj];
+            const Point3du* p0 = &verts[lj];
             lj++;
             if (lj >= n) lj = 0;
-            const Point3d* p1 = &verts[lj];
+            const Point3du* p1 = &verts[lj];
             const float y0 = p0->y, y1 = p1->y;
             const float dy = y1 - y0;
             ly = (int)y1;
@@ -187,10 +187,10 @@ void polyfill(const Point3d* verts, const int n, uint32_t* dither, uint32_t* bit
             lx += (int)(cy * ldx);
         }
         while (ry < y) {
-            const Point3d* p0 = &verts[rj];
+            const Point3du* p0 = &verts[rj];
             rj--;
             if (rj < 0) rj = n - 1;
-            const Point3d* p1 = &verts[rj];
+            const Point3du* p1 = &verts[rj];
             const float y0 = p0->y, y1 = p1->y;
             const float dy = y1 - y0;
             ry = (int)y1;
@@ -273,87 +273,5 @@ void texfill(const Point3du* verts, const int n, uint8_t* dither_ramp, uint8_t* 
         rx += rdx;
         lu += ldu;
         ru += rdu;
-    }
-}
-
-
-// draw a sprite a x/y with source scaled to w (source is sw * sw)
-void sspr(float x, float y, float size, uint32_t* src, int sw, int sh, uint32_t* bitmap) {
-    // less than 1 pix?
-    if (size < 1.0f) return;
-
-    int x1 = (int)x;
-    int x2 = (int)(x+size);
-    if (x2<0 || x1 >= LCD_COLUMNS) return;
-    if (x2 >= LCD_COLUMNS) x2 = LCD_COLUMNS-1;
-
-    int y1 = (int)y;
-    int y2 = (int)(y + size);
-    if (y2 < 0 || y1 >= LCD_ROWS) return;
-    if (y2 >= LCD_ROWS) y2 = LCD_ROWS - 1;
-
-    // gradient
-    int sy = 0;
-    
-    int sdy = __TOFIXED16(size / (y1 - y2));
-    if (y1 < 0) {
-        sy -= y1 * sdy;
-        y1 = 0;
-    }
-
-    // Operate on 32 bits at a time
-
-    int startbit = x1 & 31;
-    uint32_t startmask = swap((1 << (32 - startbit)) - 1);
-    int endbit = x2 & 31;
-    uint32_t endmask = swap(((1 << endbit) - 1) << (32 - endbit));
-
-    sw /= 32;
-    if (sw == 0) sw = 1;
-
-    int col = x1 / 32;
-    bitmap += y1* LCD_ROWSIZE32 + col;
-
-    if (col == x2 / 32)
-    {
-        uint32_t mask = 0;
-        uint32_t* p = bitmap;
-
-        if (startbit > 0 && endbit > 0)
-            mask = startmask & endmask;
-        else if (startbit > 0)
-            mask = startmask;
-        else if (endbit > 0)
-            mask = endmask;
-
-        for (int dy = y1; dy < y2; dy++, sy += sdy, p+= LCD_ROWSIZE32) {
-            *p = (*p & ~mask) | ((*(src + (sy >> 16) * sw)) & mask);
-        }
-        // _drawMaskPattern(p, mask, color);
-    }
-    else
-    {
-        for (int dy = y1; dy < y2; dy++, sy += sdy, bitmap += LCD_ROWSIZE32) {
-
-            int x = x1;
-            uint32_t* p = bitmap;
-            uint32_t* p_src = src + (sy >> 16) * sw;
-            if (startbit > 0)
-            {
-                *p = (*p & ~startmask) | (*(p_src++) & startmask);
-                x += (32 - startbit);
-            }
-
-            while (x + 32 <= x2)
-            {
-                // _drawMaskPatternOpaque(p++, color);
-                *(p++) = *(p_src++);
-                x += 32;
-            }
-
-            if (endbit > 0) {
-                *p = (*p & ~endmask) | (*p_src & endmask);
-            }
-        }
     }
 }

@@ -265,6 +265,7 @@ static int lib3d_load_assets_async(lua_State* L) {
 void lib3d_register(PlaydateAPI* playdate)
 {
 	pd = playdate;
+	lib3d_setRealloc(pd->system->realloc);
 
 	const char* err;
 
@@ -307,9 +308,7 @@ void lib3d_register(PlaydateAPI* playdate)
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
 	if (!pd->lua->registerClass("lib3d.GroundParams", lib3D_GroundParams, NULL, 0, &err))
-		pd->system->logToConsole("%s:%i: registerClass failed, %s", __FILE__, __LINE__, err);
-
-	lib3d_setRealloc(pd->system->realloc);
+		pd->system->logToConsole("%s:%i: registerClass failed, %s", __FILE__, __LINE__, err);	
 }
 
 void lib3d_unregister(PlaydateAPI* playdate) {
