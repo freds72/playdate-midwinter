@@ -9,9 +9,9 @@ static Tracks _tracks;
 
 static void reset_track_timers(TrackTimers *timers, int is_main)
 {
-  timers->ttl = 12 + 8 * randf();
+  timers->ttl = 12 + (int)(8.f * randf());
   // make sure coins are not spawned at start
-  timers->trick_ttl = is_main?60 + 15 * randf(): 8 + 4 * randf();
+  timers->trick_ttl = is_main?60 + (int)(15.f * randf()): 8 + (int)(4.f * randf());
   timers->trick_type = randf() > 0.5f;
 }
 

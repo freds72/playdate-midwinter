@@ -855,7 +855,7 @@ static ThreeDFace splash_faces[16] = { {
 
 // models
 static ThreeDModel three_d_models[8]={
-    { .face_count = 8, .faces = &tree0_faces },{ .face_count = 8, .faces = &tree1_faces },{ .face_count = 11, .faces = &tree_snow_faces },{ .face_count = 7, .faces = &checkpoint_left_faces },{ .face_count = 7, .faces = &checkpoint_right_faces },{ .face_count = 31, .faces = &rock_faces },{ .face_count = 24, .faces = &snowball_faces },{ .face_count = 16, .faces = &splash_faces }  
+    { .face_count = 8, .faces = tree0_faces },{ .face_count = 8, .faces = tree1_faces },{ .face_count = 11, .faces = tree_snow_faces },{ .face_count = 7, .faces = checkpoint_left_faces },{ .face_count = 7, .faces = checkpoint_right_faces },{ .face_count = 31, .faces = rock_faces },{ .face_count = 24, .faces = snowball_faces },{ .face_count = 16, .faces = splash_faces }  
 };
 
 #endif // _models_h

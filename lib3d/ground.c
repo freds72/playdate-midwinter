@@ -186,8 +186,6 @@ static void make_slice(GroundSlice* slice, float y) {
         if (i > 0 && i < GROUND_SIZE - 2) {
             if (randf() > active_params.props_rate)
             {
-                // todo: more types
-
                 slice->props[i] = PROP_TREE0 + (int)(3.f * randf());
                 slice->prop_t[i] = randf();
             }
@@ -200,7 +198,7 @@ static void make_slice(GroundSlice* slice, float y) {
     slice->h[GROUND_SIZE - 1] = 15.f + 5.f * randf();
     slice->h[GROUND_SIZE - 2] = lerpf(slice->h[GROUND_SIZE - 1], slice->h[GROUND_SIZE - 2], 0.666f);
 
-    float imin = 3, imax = GROUND_SIZE - 3;
+    int imin = 3, imax = GROUND_SIZE - 3;
     float main_track_x = GROUND_CELL_SIZE * (imin + imax) / 2.f;
     int is_checkpoint = 0;
     Tracks* tracks = _ground.tracks;
@@ -879,11 +877,12 @@ static void draw_face(Drawable* drawable, uint8_t* bitmap) {
 static void draw_coin(Drawable* drawable, uint8_t* bitmap) {
     DrawableCoin* prop = &drawable->coin;
     
-    float w = 199.5f / prop->pos.z;
-    float x = 199.5f + w * prop->pos.x;
-    float y = 119.5f - w * prop->pos.y;
-    int scale = _scaled_by_z[(int)(16.0f * (prop->pos.z - Z_NEAR) / GROUND_CELL_SIZE)];
-    PropImage* image = &_coin_frames.frames[prop->frame].scaled[scale];
+    const float w = 199.5f / prop->pos.z;
+    const float x = 199.5f + w * prop->pos.x;
+    const float y = 119.5f - w * prop->pos.y;
+    int i = (int)(_scaled_image_count * (prop->pos.z - Z_NEAR) / GROUND_CELL_SIZE);
+    if (i > 255) i = 255;
+    PropImage* image = &_coin_frames.frames[prop->frame].scaled[_scaled_by_z[i]];
     pd->graphics->drawBitmap(image->image, (int)(x - image->w / 2), (int)(y - image->h / 2), 0);
 }
 
@@ -909,6 +908,8 @@ static void push_tile(GroundFace* f, Point3d cv, const float* m, const Point3d* 
         // project using active matrix
         m_x_v(m, p[indices[i]], res->v);
         res->u = normals[indices[i]];
+        // constant: snow contrast
+        // shading: track contrast
         res->light = (0.5f + 0.75f * (float)shading[indices[i]]) * light;
         int code = res->z > Z_NEAR ? OUTCODE_IN : OUTCODE_NEAR;
         if (res->x > res->z) code |= OUTCODE_RIGHT;
@@ -944,7 +945,7 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float* 
     for (int j = 0; j < model->face_count; ++j) {
         ThreeDFace* f = &model->faces[j];
         // visible?
-        if ( v_dot(&f->n, &cv) < 0.f) {
+        if ( v_dot(&f->n, &cv) < -0.001f) {
             // vert count
             int n = f->flags & FACE_FLAG_QUAD?4:3;
             // transform
@@ -1040,8 +1041,15 @@ int render_sky(float* m, uint8_t* screen) {
     if (h1 > LCD_ROWS) h1 = LCD_ROWS;
     
     memset(bitmap, 0xff, h0 * LCD_ROWSIZE);
-    memcpy(bitmap + h0 * LCD_ROWSIZE / sizeof(uint32_t), src, (h1-h0) * LCD_ROWSIZE);
-    memset(bitmap + h1 * LCD_ROWSIZE / sizeof(uint32_t), 0xff, (LCD_ROWS - h1) * LCD_ROWSIZE);
+    const uint32_t *dither_base = _dithers + 8 * 32;
+    bitmap += h0 * LCD_ROWSIZE / sizeof(uint32_t);
+    for (int h = h0; h < h1; ++h) {
+        const uint32_t dither = dither_base[h & 31];
+        for (int i = 0; i < LCD_ROWSIZE / sizeof(uint32_t); ++i, ++src, ++bitmap) {
+            *bitmap = (*src & dither) | (~(*src));
+        }
+    }
+    memset(bitmap, 0xff, (LCD_ROWS - h1) * LCD_ROWSIZE);
 
     return angle;
 }
