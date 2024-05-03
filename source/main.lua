@@ -325,7 +325,7 @@ function make_body(p)
 	local g={0,-4,0}
 	return {
 		pos=v_clone(p),
-		on_ground=false,
+		on_ground=nil,
 		height=0,
 		get_pos=function(self)
 	 		return self.pos,angle,steering_angle/0.625,velocity
@@ -351,7 +351,7 @@ function make_body(p)
 			-- gravity and ground
 			self:apply_force_and_torque(g,0)
 			-- on ground?
-			if self.on_ground==true then
+			if self.on_ground then
 				local n=v_clone(up)
 				v_scale(n,-v_dot(n,g))
 				-- slope pushing up
@@ -364,7 +364,7 @@ function make_body(p)
 
 			-- apply some damping
 			angularv=angularv*0.86
-			local f=self.on_ground==true and 0.08 or 0.01
+			local f=self.on_ground and 0.08 or 0.01
 			-- some friction
 			--v_scale(velocity,1-f)
 			v_add(velocity,velocity,-f*v_dot(velocity,velocity))
@@ -384,7 +384,7 @@ function make_body(p)
 		steer=function(self,steering_dt)
 			steering_angle=steering_angle+mid(steering_dt,-0.15,0.15)
 			-- on ground?
-			if self.on_ground==true and v_len(velocity)>0.001 then
+			if self.on_ground and v_len(velocity)>0.001 then
 
 				-- desired ski direction
 				local m=make_m_from_v_angle(up,angle-steering_angle/16)
@@ -418,12 +418,16 @@ function make_body(p)
 
 					self:apply_force_and_torque(right,-steering_angle*ski_len/4)
 				end
-			elseif self.on_ground==false then
+			elseif not self.on_ground then
 				self:apply_force_and_torque({0,0,0},-steering_angle/4)
 			end			
 		end,
 		update=function(self)
-			steering_angle*=0.8
+			if self.on_ground then
+				steering_angle*=0.8				
+			else
+				steering_angle*=0.85
+			end
 			on_air_ttl-=1
 
 			-- find ground
@@ -432,7 +436,7 @@ function make_body(p)
 			local newy,newn,gps=ground:find_face(pos)
 			self.gps=gps+angle
 			-- stop at ground
-			self.on_ground=false
+			self.on_ground=nil
 			local tgt_height=1
 			if pos[2]<=newy then
 				up=newn
@@ -442,7 +446,7 @@ function make_body(p)
 				-- big enough jump?
 				if on_air_ttl>5 then sfx(12) on_air_ttl=0 sfx(11) end
 			end
-			if self.on_ground==false then on_air_ttl=10 end
+			if not self.on_ground then on_air_ttl=10 end
 
 			self.height=lerp(self.height,tgt_height,0.4)
 
@@ -487,7 +491,7 @@ function make_plyr(p,params)
 			da = _flip_crank * acceleratedChange
 		end
 
-		if self.on_ground==true then
+		if self.on_ground then
 			-- was flying?			
 			if air_t>23 then
 				-- pro trick? :)
