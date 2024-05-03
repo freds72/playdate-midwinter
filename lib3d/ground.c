@@ -181,9 +181,9 @@ static void make_slice(GroundSlice* slice, float y) {
     // generate height
     for (int i = 0; i < GROUND_SIZE; ++i) {
         slice->h[i] = (perlin2d((16.f * i) / GROUND_SIZE, _ground.noise_y_offset, 0.25f, 4) ) * 4.f * active_params.slope;
-        // avoid props on side walls
         slice->props[i] = 0;
-        if (i > 0 && i < GROUND_SIZE - 2) {
+        // avoid props on side walls
+        if (i > 1 && i < GROUND_SIZE - 2) {
             if (randf() > active_params.props_rate)
             {
                 slice->props[i] = PROP_TREE0 + (int)(3.f * randf());
@@ -232,15 +232,18 @@ static void make_slice(GroundSlice* slice, float y) {
             for (int i = i0; i < i1; ++i) {
                 // slice->h[i] = t->h + slice->h[i] / 2.0f;
                 // slice->h[i] = t->h;
-                // todo: remove props?
-                if (slice->props[i] != PROP_CHECKPOINT_LEFT && slice->props[i] != PROP_CHECKPOINT_RIGHT) {
+                // remove some props
+                if (slice->props[i] >= PROP_TREE0 && slice->props[i] <= PROP_TREE_SNOW && randf()>0.5f) {
                     slice->props[i] = 0;
                 }
             }
             // coins
             if (_ground.slice_id % 4 == 0) {
                 slice->prop_t[ii] = 0.5f;
-                slice->props[ii] = PROP_COIN;
+                if(randf()>0.995f)
+                    slice->props[ii] = PROP_ROCK;
+                else
+                    slice->props[ii] = PROP_COIN;
             }
         }
     }
@@ -445,7 +448,13 @@ void collide(Point3d pos, float radius, int* hit_type)
                                     *hit_type = 3;
                                     return;
                                 }
-                                *hit_type = 1;
+                                // insta-kill?
+                                if (props->flags & PROP_FLAG_KILL) {
+                                    *hit_type = 2;
+                                }
+                                else {
+                                    *hit_type = 1;
+                                }
                                 return;
                             }
                         }
@@ -513,9 +522,6 @@ static void load_background(void* ptr, const int angle, const int _) {
     }    
     _backgrounds[image_index] = image;
     _backgrounds_heights[image_index] = h;
-}
-
-static void load_prop(void* ptr, const int prop, const int _) {
 }
 
 static void load_coins(void* ptr, const int _1, const int _2) {    
@@ -677,7 +683,7 @@ void ground_init(PlaydateAPI* playdate) {
     _props_properties[PROP_CHECKPOINT_LEFT - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
     _props_properties[PROP_CHECKPOINT_RIGHT - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
     // obstacles
-    _props_properties[PROP_ROCK - 1] = (PropProperties){ .flags = PROP_FLAG_KILL, .radius = 2.f };
+    _props_properties[PROP_ROCK - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_KILL, .radius = 4.f };
     // snowball
     _props_properties[PROP_SNOWBALL - 1] = (PropProperties){ .flags = PROP_FLAG_KILL, .radius = 2.f };
     _props_properties[PROP_SPLASH - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
@@ -866,7 +872,7 @@ static void draw_face(Drawable* drawable, uint8_t* bitmap) {
         Point3du* p0 = &pts[n - 1];
         for (int i = 0; i < n; ++i) {
             Point3du* p1 = &pts[i];
-            if (p0->u != 0) {
+            if (p0->u) {
                 pd->graphics->drawLine(p0->x, p0->y, p1->x, p1->y, 1, kColorBlack);
             }
             p0 = p1;
@@ -897,7 +903,7 @@ static void draw_snowball(Drawable* drawable, uint8_t* bitmap) {
 }
 
 // push a face to the drawing list
-static void push_tile(GroundFace* f, Point3d cv, const float* m, const Point3d* p, int* indices, int n, const float* normals, const float light, const int* shading) {
+static void push_tile(GroundFace* f, const float* m, const Point3d* p, int* indices, int n, const float* normals, const float light, const int* shading) {
     Point3du tmp[4];
 
     // transform
@@ -945,7 +951,7 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float* 
     for (int j = 0; j < model->face_count; ++j) {
         ThreeDFace* f = &model->faces[j];
         // visible?
-        if ( v_dot(&f->n, &cv) < -0.001f) {
+        if ( v_dot(&f->n, &cv) > f->cp) {
             // vert count
             int n = f->flags & FACE_FLAG_QUAD?4:3;
             // transform
@@ -1110,7 +1116,7 @@ static void collect_tiles(const Point3d pos, float base_angle) {
 // render ground
 void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t* bitmap) {
     const float cam_angle = cam_tau_angle * 2.f * PI;
-    const int angle = render_sky(m, bitmap);
+    render_sky(m, bitmap);
 
     // collect visible tiles
     _drawables.n = 0;
@@ -1155,17 +1161,17 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                 if (f0->quad) {
                     if (v_dot(&f0->n, &cv) < 0.f)
                     {
-                        push_tile(f0, cv, m, verts, (int[]) { 0, 1, 2, 3 }, 4, normals, shading_band, shading);
+                        push_tile(f0, m, verts, (int[]) { 0, 1, 2, 3 }, 4, normals, shading_band, shading);
                     }
                 }
                 else {
                     if (v_dot(&f0->n, &cv) < 0.f)
                     {
-                        push_tile(f0, cv, m, verts, (int[]) { 0, 2, 3 }, 3, normals, shading_band, shading);
+                        push_tile(f0, m, verts, (int[]) { 0, 2, 3 }, 3, normals, shading_band, shading);
                     }
                     if (v_dot(&f1->n, &cv) < 0.f)
                     {
-                        push_tile(f1, cv, m, verts, (int[]) { 0, 1, 2 }, 3, normals, shading_band, shading);
+                        push_tile(f1, m, verts, (int[]) { 0, 1, 2 }, 3, normals, shading_band, shading);
                     }
                 }
                 // draw prop (if any)
@@ -1183,7 +1189,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                             push_coin(&res, time_offset + j + _z_offset);
                         }
                         else {    
-                            const Point3d cv = { .x = pos.x - cam_pos.x,.y = pos.y - cam_pos.y,.z = pos.z - cam_pos.z };
+                            const Point3d cv = { .x = cam_pos.x - pos.x,.y = cam_pos.y - pos.y,.z = cam_pos.z - pos.z};
                             push_threeD_model(prop_id, cv, m, pos);
                         }
                     }

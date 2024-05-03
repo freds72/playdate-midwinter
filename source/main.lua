@@ -271,7 +271,7 @@ function make_cam()
 		angle=0,
 		m=make_m_from_v_angle(v_up,0),
 		shake=function()
-			shkx,shkx=min(8,shkx+rnd(16)),min(8,shky+rnd(16))
+			shkx,shkx=min(16,shkx+rnd(24)),min(16,shky+rnd(24))
 		end,
 		update=function()
 			shkx=shkx*-0.7-rnd(0.4)
@@ -775,7 +775,7 @@ function menu_state()
 	local panels={
 		{state=play_state,panel=make_panel("MARMOTTES","piste verte",12),c=1,params={name="Marmottes",dslot=0,slope=1.5,twist=1.5,tracks=1,bonus_t=2,total_t=30*30,record_t=records[1],props={tree_prop},props_rate=0.95}},
 		{state=play_state,panel=make_panel("BIQUETTES","piste rouge",18),c=8,params={name="Biquettes",dslot=1,slope=2,twist=3,tracks=2,bonus_t=1.5,total_t=20*30,record_t=records[2],props={tree_prop,bush_prop},props_rate=0.97,}},
-		{state=play_state,panel=make_panel("CHAMOIS","piste noire",21),c=0,params={name="Chamois",dslot=2,slope=3,twist=3.5,tracks=3,bonus_t=1.5,total_t=15*30,record_t=records[3],props={tree_prop,tree_prop,tree_prop,cow_prop},props_rate=0.92,}},
+		{state=play_state,panel=make_panel("CHAMOIS","piste noire",21),c=0,params={name="Chamois",dslot=2,slope=2.25,twist=6,tracks=3,bonus_t=1.5,total_t=15*30,record_t=records[3],props={tree_prop,tree_prop,tree_prop,cow_prop},props_rate=0.97,}},
 		{state=shop_state,panel=make_direction("Shop"),transition=station_state}
 	}
 	local sel,sel_tgt,blink=0,0,false
