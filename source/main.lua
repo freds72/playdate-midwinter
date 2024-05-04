@@ -403,7 +403,7 @@ function make_body(p)
 					--grip*=grip
 
 					-- todo: review
-					-- sa=mid(sa,-3,3)
+					sa=mid(sa,-3,3)
 				
 					-- ski length for torque
 					local ski_len=0.8

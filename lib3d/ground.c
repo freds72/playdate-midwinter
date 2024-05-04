@@ -1211,7 +1211,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
         for (int i = 0; i < _drawables.n; ++i) {
             _sortables[i] = &_drawables.all[i];
         }
-        // qsort(_sortables, (size_t)_drawables.n, sizeof(Drawable*), cmp_drawable);
+        qsort(_sortables, (size_t)_drawables.n, sizeof(Drawable*), cmp_drawable);
 
         // rendering
         for (int k = _drawables.n - 1; k >= 0; --k) {
