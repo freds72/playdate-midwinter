@@ -240,10 +240,7 @@ static void make_slice(GroundSlice* slice, float y) {
             // coins
             if (_ground.slice_id % 4 == 0) {
                 slice->prop_t[ii] = 0.5f;
-                if(randf()>0.995f)
-                    slice->props[ii] = PROP_ROCK;
-                else
-                    slice->props[ii] = PROP_COIN;
+                slice->props[ii] = PROP_COIN;
             }
         }
     }
@@ -684,6 +681,7 @@ void ground_init(PlaydateAPI* playdate) {
     _props_properties[PROP_CHECKPOINT_RIGHT - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
     // obstacles
     _props_properties[PROP_ROCK - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_KILL, .radius = 4.f };
+    _props_properties[PROP_COW - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_KILL, .radius = 3.f };
     // snowball
     _props_properties[PROP_SNOWBALL - 1] = (PropProperties){ .flags = PROP_FLAG_KILL, .radius = 2.f };
     _props_properties[PROP_SPLASH - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
@@ -1213,7 +1211,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
         for (int i = 0; i < _drawables.n; ++i) {
             _sortables[i] = &_drawables.all[i];
         }
-        qsort(_sortables, (size_t)_drawables.n, sizeof(Drawable*), cmp_drawable);
+        // qsort(_sortables, (size_t)_drawables.n, sizeof(Drawable*), cmp_drawable);
 
         // rendering
         for (int k = _drawables.n - 1; k >= 0; --k) {
