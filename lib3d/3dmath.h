@@ -57,6 +57,14 @@ inline float tauify(const float rad) {
 // returns a random number between 0-1
 float randf();
 
+// returns a rand number between [0;max[
+int randi(int max);
+
+// https://benpfaff.org/writings/clc/shuffle.html
+// in-place shuffling of int array
+void shuffle(int* array, size_t n);
+
+
 // lerp between 2 float values
 inline float lerpf(const float a, const float b, const float t) {
   return a + (b - a) * t;

@@ -180,21 +180,15 @@ static void make_slice(GroundSlice* slice, float y) {
 
     // generate height
     for (int i = 0; i < GROUND_SIZE; ++i) {
-        slice->h[i] = (perlin2d((16.f * i) / GROUND_SIZE, _ground.noise_y_offset, 0.25f, 4) ) * 4.f * active_params.slope;
+        slice->h[i] = (perlin2d((16.f * i) / GROUND_SIZE, _ground.noise_y_offset, 0.25f, 4)) * 4.f * active_params.slope;
         slice->props[i] = 0;
-        // avoid props on side walls
-        if (i > 1 && i < GROUND_SIZE - 2) {
-            if (randf() > active_params.props_rate)
-            {
-                slice->props[i] = PROP_TREE0 + (int)(3.f * randf());
-                slice->prop_t[i] = randf();
-            }
-        }
+        // 
     }
+
     _ground.noise_y_offset += (active_params.slope + randf()) / 4.f;
     // side walls + nice transition
     slice->h[0] = 15.f + 5.f * randf();
-    slice->h[1] = lerpf(slice->h[0],slice->h[1],0.666f);
+    slice->h[1] = lerpf(slice->h[0], slice->h[1], 0.666f);
     slice->h[GROUND_SIZE - 1] = 15.f + 5.f * randf();
     slice->h[GROUND_SIZE - 2] = lerpf(slice->h[GROUND_SIZE - 1], slice->h[GROUND_SIZE - 2], 0.666f);
 
@@ -205,17 +199,24 @@ static void make_slice(GroundSlice* slice, float y) {
     for (int k = 0; k < tracks->n; ++k) {
         Track* t = &tracks->tracks[k];
         const int ii = (int)(t->x / GROUND_CELL_SIZE);
-        const int i0 = ii - 2, i1 = ii + 2;
+        const int i0 = ii - 3, i1 = ii + 2;
         if (t->is_main) {
             main_track_x = t->x;
             imin = i0;
             imax = i1;
             for (int i = i0; i < i1; ++i) {
-                // smooth track
-                // slice->h[i] += t->h;
-                // slice->h[i] = t->h + (slice->h[i-1] + slice->h[i] + slice->h[i+1]) / 4.0f;
                 // remove props from track
-                slice->props[i] = 0;
+                int prop_id = 0;
+                // todo: center on track?
+                switch (_ground.tracks->pattern[i - i0]) {
+                case 'W': prop_id = PROP_WARNING; break;
+                case 'R': prop_id = PROP_ROCK; break;
+                case 'C': prop_id = PROP_COW; break;
+                default:
+                    ;
+                }
+
+                slice->props[i] = prop_id;
             }
             // race markers
             if (_ground.slice_id % 8 == 0) {
@@ -226,6 +227,16 @@ static void make_slice(GroundSlice* slice, float y) {
                 slice->props[i1] = PROP_CHECKPOINT_RIGHT;
                 slice->prop_t[i1] = 0.5f;
             }
+            if (_ground.slice_id % 3 == 0) {
+                if (t->u > 0.1f) {
+                    slice->props[i0 - 2] = PROP_TREE0 + (int)(3.f * randf());
+                    slice->prop_t[i0 - 2] = randf();
+                }
+                else if (t->u < -0.1f) {
+                    slice->props[i1 + 2] = PROP_TREE0 + (int)(3.f * randf());
+                    slice->prop_t[i1 + 2] = randf();
+                }
+            }
         }
         else {
             // side tracks are less obvious
@@ -233,7 +244,7 @@ static void make_slice(GroundSlice* slice, float y) {
                 // slice->h[i] = t->h + slice->h[i] / 2.0f;
                 // slice->h[i] = t->h;
                 // remove some props
-                if (slice->props[i] >= PROP_TREE0 && slice->props[i] <= PROP_TREE_SNOW && randf()>0.5f) {
+                if (slice->props[i] >= PROP_TREE0 && slice->props[i] <= PROP_TREE_SNOW && randf() > 0.5f) {
                     slice->props[i] = 0;
                 }
             }

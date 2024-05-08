@@ -45,7 +45,7 @@ local flr = math.floor
 local max=math.max
 local min=math.min
 local rnd = function(r) 
-  return r and r*math.random() or math.random()
+	return r and r*math.random() or math.random()
 end
 local abs = math.abs
 local srand = function(s) 
@@ -148,15 +148,15 @@ function v_dot(a,b)
 	return a[1]*b[1]+a[2]*b[2]+a[3]*b[3]
 end
 function v_scale(v,scale)
-	v[1]=v[1]*scale
-	v[2]=v[2]*scale
-	v[3]=v[3]*scale
+	v[1]*=scale
+	v[2]*=scale
+	v[3]*=scale
 end
 function v_add(v,dv,scale)
 	scale=scale or 1
-	v[1]=v[1]+scale*dv[1]
-	v[2]=v[2]+scale*dv[2]
-	v[3]=v[3]+scale*dv[3]
+	v[1]+=scale*dv[1]
+	v[2]+=scale*dv[2]
+	v[3]+=scale*dv[3]
 end
 -- safe vector length
 function v_len(v)
@@ -259,12 +259,6 @@ function make_cam()
 	-- screen shake
 	local shkx,shky=0,0
 	camera()
-
-	local clouds,clouds2={},{}
-	for i=-8,8 do
-		add(clouds,{i=i,r=max(16,rnd(32))})
-		add(clouds2,{i=i,r=max(16,rnd(38))})
-	end
 
 	return {
 		pos={0,0,0},
@@ -1039,7 +1033,7 @@ function play_state(params)
 				ground:update(plyr.pos)
 
 				local pos,a,steering=plyr:get_pos()
-				cam:track(pos,a,plyr:get_up())
+				cam:track({pos[1],pos[2]+0.5,pos[3]},a,plyr:get_up())
 
 				if plyr.dead then
 					_ski_sfx:stop()
