@@ -25,10 +25,11 @@ void make_ground(GroundParams params);
 void get_start_pos(Point3d* out);
 
 // return face details at given position
-void get_face(Point3d pos, Point3d* n, float* y,float* angle);
-
-// get track extent
-void get_track_info(Point3d pos, float* xmin, float* xmax, float*z, int* checkpoint);
+// returns 0 if out of bounds
+int get_face(Point3d pos, Point3d* n, float* y);
+ 
+// get track extent & direction
+void get_track_info(Point3d pos, float* xmin, float* xmax, float*z, int* checkpoint, float* angle);
 
 // get nearest props
 void get_props(Point3d pos, PropInfo** props, int* n);
@@ -37,16 +38,17 @@ void get_props(Point3d pos, PropInfo** props, int* n);
 void clear_checkpoint(Point3d pos);
 
 // update ground, create new slice as necessary and adjust position
-void update_ground(Point3d* pos);
-
-// death animation
-void update_snowball(Point3d pos, int rotation);
+// offset contains the ground "position" offset when slices are created
+void update_ground(Point3d* pos, int* slice_id, char** pattern, Point3d* offset);
 
 // check collision
 void collide(Point3d pos, float radius, int* hit_type);
 
 // render ground
 void render_ground(Point3d pos, const float tau_angle, float*m, uint8_t* bitmap);
+
+// register a new prop to be rendered using the given transformation matrix
+void add_render_prop(int id, const float* m);
 
 // load stuff (to be called until returns 0)
 int ground_load_assets_async();

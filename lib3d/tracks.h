@@ -34,7 +34,7 @@ typedef struct {
   Track tracks[3];
   // active tracks
   int n;
-  char pattern[MAX_TIMELINES];
+  char pattern[MAX_TIMELINES + 1];
 } Tracks;
 
 void make_tracks(const int xmin, const int xmax, const int max_tracks, const float twist, Tracks** out);

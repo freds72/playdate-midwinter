@@ -152,19 +152,18 @@ static int lib3d_get_face(lua_State* L) {
 
 	Point3d n;
 	float y;
-	float angle;
-	get_face(pos, &n, &y, &angle);
+	if (get_face(pos, &n, &y)) {
 
-	pd->lua->pushFloat(y);
-	
-	pd->lua->pushFloat(n.x);
-	pd->lua->pushFloat(n.y);
-	pd->lua->pushFloat(n.z);
+		pd->lua->pushFloat(y);
 
-	pd->lua->pushFloat(angle);
+		pd->lua->pushFloat(n.x);
+		pd->lua->pushFloat(n.y);
+		pd->lua->pushFloat(n.z);
 
-	// arg count
-	return 5;
+		// arg count
+		return 4;
+	}
+	return 0;
 }
 
 static int lib3d_get_track_info(lua_State* L) {
@@ -173,16 +172,17 @@ static int lib3d_get_track_info(lua_State* L) {
 		pos.v[i] = pd->lua->getArgFloat(i + 1);
 	}
 	
-	float xmin, xmax,z;
+	float xmin, xmax,z,angle;
 	int is_checkpoint;
-	get_track_info(pos, &xmin, &xmax, &z, &is_checkpoint);
+	get_track_info(pos, &xmin, &xmax, &z, &is_checkpoint,&angle);
 	
 	pd->lua->pushFloat(xmin);
 	pd->lua->pushFloat(xmax);
 	pd->lua->pushFloat(z);
 	pd->lua->pushBool(is_checkpoint);
+	pd->lua->pushFloat(angle);
 
-	return 4;
+	return 5;
 }
 
 static int lib3d_get_props(lua_State* L) {
@@ -220,19 +220,30 @@ static int lib3d_update_ground(lua_State* L) {
 		pos.v[i] = pd->lua->getArgFloat(i + 1);
 	}
 
-	update_ground(&pos);
+	int slice_id;
+	char* pattern;
+	Point3d offset;
+	update_ground(&pos, &slice_id, &pattern,&offset);
 
 	pd->lua->pushFloat(pos.z);
-	return 1;
+	pd->lua->pushInt(slice_id);
+	pd->lua->pushString(pattern);
+	pd->lua->pushFloat(offset.x);
+	pd->lua->pushFloat(offset.y);
+	pd->lua->pushFloat(offset.z);
+
+	return 6;
 }
 
-static int lib3d_update_snowball(lua_State* L) {
-	Point3d pos;
-	for (int i = 0; i < 3; ++i) {
-		pos.v[i] = pd->lua->getArgFloat(i + 1);
+static int lib3d_add_render_prop(lua_State* L) {
+	int argc = 1;
+	const int id = pd->lua->getArgInt(argc++);
+	float m[MAT4x4];
+	for (int i = 0; i < MAT4x4; ++i) {
+		m[i] = pd->lua->getArgFloat(argc++);
 	}
-	float angle = pd->lua->getArgFloat(4);
-	update_snowball(pos,(int)angle);
+
+	add_render_prop(id, m);
 
 	return 0;
 }
@@ -295,7 +306,7 @@ void lib3d_register(PlaydateAPI* playdate)
 	if (!pd->lua->addFunction(lib3d_get_props, "lib3d.get_props", &err))
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
-	if (!pd->lua->addFunction(lib3d_update_snowball, "lib3d.update_snowball", &err))
+	if (!pd->lua->addFunction(lib3d_add_render_prop, "lib3d.add_render_prop", &err))
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
 	if (!pd->lua->addFunction(lib3d_collide, "lib3d.collide", &err))

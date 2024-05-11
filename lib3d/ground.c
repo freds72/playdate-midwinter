@@ -51,6 +51,7 @@ typedef struct {
     float slice_y;
     float noise_y_offset;
     float y_offset;
+    // start slice index
     int plyr_z_index;
     int max_pz;
     // active tracks
@@ -58,12 +59,6 @@ typedef struct {
 
     GroundSlice* slices[GROUND_SIZE];
 } Ground;
-
-struct {
-    int is_active;
-    int angle;
-    Point3d pos;
-} _snowball;
 
 typedef struct {
     int w, h;
@@ -84,6 +79,7 @@ struct {
 #define PROP_FLAG_COLLECT   2
 #define PROP_FLAG_KILL      4
 #define PROP_FLAG_3D        8
+#define PROP_FLAG_JUMP      16
 
 typedef struct {
     int flags;
@@ -93,20 +89,33 @@ typedef struct {
 
 static PropProperties _props_properties[NEXT_PROP_ID + 1];
 
-// max number of props on a given slice (e.g. number of tracks + 1)
+// max. number of props on a given slice (e.g. number of tracks + 1)
 #define MAX_PROPS 4
 static struct {
     int n;
     PropInfo props[MAX_PROPS];
 } _props_info;
 
+// 3d objects owned by lua but rendered by C
+#define MAX_RENDER_PROPS 16
+typedef struct {
+    // property id
+    int id;
+    // transformation matrix
+    float m[16];
+} RenderProp;
+
+static struct {
+    int n;
+    RenderProp props[MAX_RENDER_PROPS];
+} _render_props;
+
+
 #define MATERIAL_SNOW 0
 #define MATERIAL_ROCK 1
 
 // must be next
 #define PROP_COIN               NEXT_PROP_ID
-
-static PropImage _snowball_frames[360];
 
 // raycasting angles
 #define RAYCAST_PRECISION 196
@@ -137,7 +146,7 @@ static void mesh_slice(int j) {
 
     // base slope normal
     Point3d sn = { .x = 0, .y = GROUND_CELL_SIZE, .z = s0->y - s1->y };
-    v_normz(&sn);
+    v_normz(sn.v);
 
     for (int i = 0; i < GROUND_SIZE - 1; ++i) {
         const Point3d v0 = { .v = {(float)i * GROUND_CELL_SIZE,s0->h[i] + s0->y,(float)j * GROUND_CELL_SIZE} };
@@ -149,14 +158,14 @@ static void mesh_slice(int j) {
         const Point3d u3 = { .v = {0.f,s1->h[i] + s1->y - v0.y,(float)GROUND_CELL_SIZE} };
 
         Point3d n0, n1;
-        v_cross(&u3, &u2, &n0);
-        v_cross(&u2, &u1, &n1);
-        v_normz(&n0);
-        v_normz(&n1);
+        v_cross(u3.v, u2.v, n0.v);
+        v_cross(u2.v, u1.v, n1.v);
+        v_normz(n0.v);
+        v_normz(n1.v);
         GroundFace* f0 = &s0->faces[2 * i];
         f0->n = n0;
         f0->material = n0.y < 0.75f ? MATERIAL_ROCK : MATERIAL_SNOW;
-        if (v_dot(&n0, &n1) < 0.999f) {
+        if (v_dot(n0.v, n1.v) < 0.999f) {
             f0->quad = 0;
             GroundFace* f1 = &s0->faces[2 * i + 1];
             f1->n = n1;
@@ -170,6 +179,8 @@ static void mesh_slice(int j) {
 }
 
 static void make_slice(GroundSlice* slice, float y) {
+    static int trees[] = { PROP_TREE0,PROP_TREE1,PROP_TREE_SNOW };
+
     // smooth altitude changes
     _ground.slice_y = lerpf(_ground.slice_y, y, 0.2f);
     y = _ground.slice_y;
@@ -204,19 +215,36 @@ static void make_slice(GroundSlice* slice, float y) {
             main_track_x = t->x;
             imin = i0;
             imax = i1;
+            for (int i = 1; i < i0 - 2; ++i) {
+                if (randf() > active_params.props_rate) {
+                    slice->props[i] = trees[(int)(3.f * randf())];
+                    slice->prop_t[i] = randf();
+                }
+            }
+            for (int i = i1+2; i < GROUND_SIZE - 1; ++i) {
+                if (randf() > active_params.props_rate) {
+                    slice->props[i] = trees[(int)(3.f * randf())];
+                    slice->prop_t[i] = randf();
+                }
+            }
             for (int i = i0; i < i1; ++i) {
                 // remove props from track
                 int prop_id = 0;
+                int prop_t = 0.5f;
                 // todo: center on track?
                 switch (_ground.tracks->pattern[i - i0]) {
                 case 'W': prop_id = PROP_WARNING; break;
                 case 'R': prop_id = PROP_ROCK; break;
-                case 'C': prop_id = PROP_COW; break;
+                case 'M': prop_id = PROP_COW; prop_t = randf(); break;
+                case 'C': prop_id = PROP_COIN; break;
+                case 'J': prop_id = PROP_JUMPPAD; break;
+                case 'T': prop_id = trees[(int)(3.f * randf())]; prop_t = randf(); break;
                 default:
                     ;
                 }
 
                 slice->props[i] = prop_id;
+                slice->prop_t[i] = prop_t;
             }
             // race markers
             if (_ground.slice_id % 8 == 0) {
@@ -229,11 +257,11 @@ static void make_slice(GroundSlice* slice, float y) {
             }
             if (_ground.slice_id % 3 == 0) {
                 if (t->u > 0.1f) {
-                    slice->props[i0 - 2] = PROP_TREE0 + (int)(3.f * randf());
+                    slice->props[i0 - 2] = trees[(int)(3.f * randf())];
                     slice->prop_t[i0 - 2] = randf();
                 }
                 else if (t->u < -0.1f) {
-                    slice->props[i1 + 2] = PROP_TREE0 + (int)(3.f * randf());
+                    slice->props[i1 + 2] = trees[(int)(3.f * randf())];
                     slice->prop_t[i1 + 2] = randf();
                 }
             }
@@ -268,14 +296,12 @@ static void make_slice(GroundSlice* slice, float y) {
 void make_ground(GroundParams params) {
     active_params = params;
     // reset global params
-    _snowball.is_active = 0;
-
     _ground.slice_id = 0;
     _ground.slice_y = 0;
     _ground.y_offset = 0;
     _ground.noise_y_offset = 16.f * randf();
     _ground.plyr_z_index = GROUND_SIZE / 2 - 1;
-    _ground.max_pz = INT_MIN;
+    _ground.max_pz = 0;
 
     // init track generator
     make_tracks(4 * GROUND_CELL_SIZE, (GROUND_SIZE - 5)*GROUND_CELL_SIZE, params.num_tracks, params.twist, &_ground.tracks);
@@ -291,19 +317,18 @@ void make_ground(GroundParams params) {
     }
 }
 
-void update_snowball(Point3d pos, int rotation) {
-    _snowball.is_active = 1;
-    _snowball.pos = pos;
-    _snowball.angle = ((rotation%360)+360)%360;
-}
-
-void update_ground(Point3d* p) {
+void update_ground(Point3d* p, int* slice_id, char** pattern, Point3d* offset) {
     // prevent going up slope!
     if (p->z < 8 * GROUND_CELL_SIZE) p->z = 8 * GROUND_CELL_SIZE;
-    float pz = p->z / GROUND_CELL_SIZE;
-    if (pz > _ground.plyr_z_index) {
+    offset->v[0] = 0.f;
+    offset->v[1] = 0.f;
+    offset->v[2] = 0.f;
+    float pz;
+    // todo: make sure to handle faster than 1 tile moves
+    while ((pz = p->z / GROUND_CELL_SIZE) > _ground.plyr_z_index) {
         // shift back
         p->z -= GROUND_CELL_SIZE;
+        offset->z -= GROUND_CELL_SIZE;
         _ground.max_pz -= GROUND_CELL_SIZE;
         GroundSlice* old_slice = _ground.slices[0];
         float old_y = old_slice->y;
@@ -322,8 +347,11 @@ void update_ground(Point3d* p) {
     // update y offset
     if (p->z > _ground.max_pz) {
         _ground.y_offset = lerpf(_ground.slices[0]->y, _ground.slices[1]->y, pz - (int)pz);
+        offset->y = _ground.y_offset;
         _ground.max_pz = (int)p->z;
     }
+    *slice_id = _ground.slice_id;
+    *pattern = _ground.tracks->pattern;
 }
 
 void get_start_pos(Point3d* out) {
@@ -332,10 +360,12 @@ void get_start_pos(Point3d* out) {
     out->z = (float)_ground.plyr_z_index * GROUND_CELL_SIZE;
 }
 
-void get_face(Point3d pos, Point3d* nout, float* yout,float* angleout) {
+int get_face(Point3d pos, Point3d* nout, float* yout) {
     // z slice
     int i = (int)(pos.x / GROUND_CELL_SIZE), j = (int)(pos.z / GROUND_CELL_SIZE);
-    
+    // outside ground?
+    if (i < 0 || i >= GROUND_SIZE || j<0 || j >= GROUND_SIZE) return 0;
+
     GroundSlice* s0 = _ground.slices[j];
     GroundFace* f0 = &s0->faces[2 * i];
     GroundFace* f1 = &s0->faces[2 * i + 1];
@@ -348,13 +378,27 @@ void get_face(Point3d pos, Point3d* nout, float* yout,float* angleout) {
     make_v((Point3d) { .v = {(float)i * GROUND_CELL_SIZE, s0->h[i] + s0->y - _ground.y_offset, (float)j * GROUND_CELL_SIZE} }, pos, &ptOnFace);
          
     // height
-    *yout = pos.y - v_dot(&ptOnFace, &f->n) / f->n.y;
+    *yout = pos.y - v_dot(ptOnFace.v, f->n.v) / f->n.y;
     // face normal
     *nout = f->n;
 
+    return 1;
+}
+
+// get slice extents
+void get_track_info(Point3d pos, float* xmin, float* xmax, float* z, int* checkpoint, float* angleout) {
+    int j = (int)(pos.z / GROUND_CELL_SIZE);
+    const GroundSlice* s0 = _ground.slices[j];
+    *xmin = (float)(s0->extents[0] * GROUND_CELL_SIZE);
+    *xmax = (float)(s0->extents[1] * GROUND_CELL_SIZE);
+    // activate checkpoint at middle of cell
+    *z = (j + 0.5f) * GROUND_CELL_SIZE;
+    *checkpoint = s0->is_checkpoint;
+
+
     // find nearest checkpoint
-    float x = _ground.slices[j + 2]->center, y=2;
-    for (int k = j + 2; k < j + 10 && k< GROUND_SIZE; ++k) {
+    float x = _ground.slices[j + 2]->center, y = 2;
+    for (int k = j + 2; k < j + 10 && k < GROUND_SIZE; ++k) {
         GroundSlice* s = _ground.slices[k];
         if (s->is_checkpoint) {
             x = s->center;
@@ -364,17 +408,6 @@ void get_face(Point3d pos, Point3d* nout, float* yout,float* angleout) {
     }
     // direction to track ahead (rebase to half circle)
     *angleout = 0.5f * atan2f(y * GROUND_CELL_SIZE, x - pos.x) / PI - 0.25f;
-}
-
-// get slice extents
-void get_track_info(Point3d pos, float* xmin, float *xmax, float*z, int*checkpoint) {
-    int j = (int)(pos.z / GROUND_CELL_SIZE);
-    const GroundSlice* s0 = _ground.slices[j];
-    *xmin = (float)(s0->extents[0] * GROUND_CELL_SIZE);
-    *xmax = (float)(s0->extents[1] * GROUND_CELL_SIZE);
-    // activate checkpoint at middle of cell
-    *z = (j + 0.5f) * GROUND_CELL_SIZE;
-    *checkpoint = s0->is_checkpoint;
 }
 
 void get_props(Point3d pos, PropInfo** info, int* nout) {
@@ -459,6 +492,9 @@ void collide(Point3d pos, float radius, int* hit_type)
                                 // insta-kill?
                                 if (props->flags & PROP_FLAG_KILL) {
                                     *hit_type = 2;
+                                }
+                                else if (props->flags & PROP_FLAG_JUMP) {
+                                    *hit_type = 4;
                                 }
                                 else {
                                     *hit_type = 1;
@@ -552,24 +588,6 @@ static void load_coins(void* ptr, const int _1, const int _2) {
     }
 }
 
-static void load_snowball(void* ptr, const int prop, const int _) {
-    for (int angle = 0; angle < 360; angle++) {
-        int w, h, stride;
-        uint8_t* data, * alpha;
-        LCDBitmap* bitmap = pd->graphics->getTableBitmap((LCDBitmapTable*)ptr, angle);
-        if (!bitmap) {
-            pd->system->error("Missing prop %i angle: %i", prop, angle);
-        }
-        pd->graphics->getBitmapData(bitmap, &w, &h, &stride, &alpha, &data);
-
-        _snowball_frames[angle] = (PropImage){
-            .w = w,
-            .h = h,
-            .image = bitmap
-        };
-    }
-}
-
 typedef void(* unit_of_work_callback)(void*, const int, const int);
 typedef struct {
     unit_of_work_callback callback;
@@ -609,22 +627,6 @@ void ground_init(PlaydateAPI* playdate) {
             .callback = load_coins,
             .param0 = bitmaps,
             .param1 = -1,
-            .param2 = -1
-        };
-    }
-
-    // read snowball
-    {
-        const char* path = "images/generated/tumbling";
-        pd->system->logToConsole("Loading prop: %s", path);
-        bitmaps = pd->graphics->loadBitmapTable(path, &err);
-        if (!bitmaps)
-            pd->system->logToConsole("Failed to load: %s, %s", path, err);
-
-        _work.todo[_work.n++] = (UnitOfWork){
-            .callback = load_snowball,
-            .param0 = bitmaps,
-            .param1 = 4,
             .param2 = -1
         };
     }
@@ -691,11 +693,13 @@ void ground_init(PlaydateAPI* playdate) {
     _props_properties[PROP_CHECKPOINT_LEFT - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
     _props_properties[PROP_CHECKPOINT_RIGHT - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
     // obstacles
-    _props_properties[PROP_ROCK - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_KILL, .radius = 4.f };
-    _props_properties[PROP_COW - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_KILL, .radius = 3.f };
+    _props_properties[PROP_ROCK - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_KILL, .radius = 3.f };
+    _props_properties[PROP_COW - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_KILL, .radius = 2.5f };
     // snowball
     _props_properties[PROP_SNOWBALL - 1] = (PropProperties){ .flags = PROP_FLAG_KILL, .radius = 2.f };
     _props_properties[PROP_SPLASH - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
+    // 
+    _props_properties[PROP_JUMPPAD - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_JUMP, .radius = 1.5f };
     // coin
     _props_properties[PROP_COIN - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_COLLECT, .radius = 2.0f };
 
@@ -836,8 +840,9 @@ static void draw_tile(struct Drawable_s* drawable, uint8_t* bitmap) {
         pts[i].y = 119.5f - 199.5f * w * pts[i].y;
         // works ok
         float shading = face->material == MATERIAL_SNOW ? 4.0f * pts[i].u + 8.f * w : 4.0f + 4.0f * pts[i].u + 4.f * w;
+        // attenuation
         shading *= pts[i].light;
-        if (shading > 15.f) shading = 15.0f;
+        if (shading > 15.f) shading = 15.f;
         if (shading < 0.f) shading = 0.f;
         pts[i].u = shading;
     }
@@ -901,16 +906,6 @@ static void draw_coin(Drawable* drawable, uint8_t* bitmap) {
     pd->graphics->drawBitmap(image->image, (int)(x - image->w / 2), (int)(y - image->h / 2), 0);
 }
 
-static void draw_snowball(Drawable* drawable, uint8_t* bitmap) {
-    DrawableProp* prop = &drawable->prop;
-
-    float w = 199.5f / prop->pos.z;
-    float x = 199.5f + w * prop->pos.x;
-    float y = 119.5f - w * prop->pos.y;
-    PropImage* image = &_snowball_frames[prop->angle];
-    pd->graphics->drawBitmap(image->image, (int)(x - image->w / 2), (int)(y - image->h), 0);
-}
-
 // push a face to the drawing list
 static void push_tile(GroundFace* f, const float* m, const Point3d* p, int* indices, int n, const float* normals, const float light, const int* shading) {
     Point3du tmp[4];
@@ -921,7 +916,7 @@ static void push_tile(GroundFace* f, const float* m, const Point3d* p, int* indi
     for (int i = 0; i < n; ++i) {
         Point3du* res = &tmp[i];
         // project using active matrix
-        m_x_v(m, p[indices[i]], res->v);
+        m_x_v(m, p[indices[i]].v, res->v);
         res->u = normals[indices[i]];
         // constant: snow contrast
         // shading: track contrast
@@ -930,7 +925,7 @@ static void push_tile(GroundFace* f, const float* m, const Point3d* p, int* indi
         if (res->x > res->z) code |= OUTCODE_RIGHT;
         if (-res->x > res->z) code |= OUTCODE_LEFT;
         outcode &= code;
-        is_clipped_near += code & 2;
+        is_clipped_near |= code;
         if (res->z > min_key) min_key = res->z;
     }
 
@@ -941,7 +936,7 @@ static void push_tile(GroundFace* f, const float* m, const Point3d* p, int* indi
         drawable->key = min_key;
         DrawableFace* face = &drawable->face;
         face->material = f->material;
-        if (is_clipped_near) {
+        if (is_clipped_near & OUTCODE_NEAR) {
             face->n = z_poly_clip(Z_NEAR, tmp, n, face->pts);
         }
         else {
@@ -953,14 +948,23 @@ static void push_tile(GroundFace* f, const float* m, const Point3d* p, int* indi
     }
 }
 
-static void push_threeD_model(const int prop_id, const Point3d cv, const float* m, const Point3d p) {
+void add_render_prop(int id, const float* m) {
+    RenderProp* p = &_render_props.props[_render_props.n++];
+    if (_render_props.n>=MAX_RENDER_PROPS)
+        pd->system->error("Too many render props: %i/%i", _render_props.n, MAX_RENDER_PROPS);
+
+    p->id = id;
+    // todo: check mis-align
+    memcpy(p->m, m, MAT4x4 * sizeof(float));
+}
+
+static void push_threeD_model(const int prop_id, const Point3d cv, const float* m) {
     Point3du tmp[4];
     ThreeDModel* model = _props_properties[prop_id - 1].model;
-
     for (int j = 0; j < model->face_count; ++j) {
         ThreeDFace* f = &model->faces[j];
         // visible?
-        if ( v_dot(&f->n, &cv) > f->cp) {
+        if ( v_dot(f->n.v, cv.v) > f->cp) {
             // vert count
             int n = f->flags & FACE_FLAG_QUAD?4:3;
             // transform
@@ -968,15 +972,13 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float* 
             float min_key = FLT_MAX;
             for (int i = 0; i < n; ++i) {
                 Point3du* res = &tmp[i];
-                // shift into pos
-                Point3d* v = &f->vertices[i];
                 // project using active matrix
-                m_x_v(m, (Point3d) { .x = v->x + p.x, .y = v->y + p.y, .z = v->z + p.z }, res->v);
+                m_x_v(m, f->vertices[i].v, res->v);
                 int code = res->z > Z_NEAR ? OUTCODE_IN : OUTCODE_NEAR;
                 if (res->x > res->z) code |= OUTCODE_RIGHT;
                 if (-res->x > res->z) code |= OUTCODE_LEFT;
                 outcode &= code;
-                is_clipped_near += code & 2;
+                is_clipped_near |= code;
                 if (res->z < min_key) min_key = res->z;
                 // use u to mark sharp edges
                 res->u = f->edges & (1 << i);
@@ -990,7 +992,7 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float* 
                 DrawableFace* face = &drawable->face;
                 face->flags = f->flags;
                 face->material = f->material;
-                if (is_clipped_near) {
+                if (is_clipped_near & OUTCODE_NEAR) {
                     face->n = z_poly_clip(Z_NEAR, tmp, n, face->pts);
                 }
                 else {
@@ -1013,13 +1015,15 @@ static void push_coin(const Point3d* p, int time) {
     drawable->coin.frame = animation[time%8];
 }
 
-static void push_snowball(const Point3d* p, int angle) {
-    Drawable* drawable = &_drawables.all[_drawables.n++];
-    drawable->draw = draw_snowball;
-    drawable->key = p->z;
-    drawable->prop.material = 4;
-    drawable->prop.pos = *p;
-    drawable->prop.angle = angle%360;
+static void push_and_transform_threeD_model(const int prop_id, const Point3d cam_pos, const float* cam_m, const float* m) {
+    float mvv[MAT4x4];
+    m_x_m(cam_m, m, mvv);
+
+    // cam pos in 3d model space
+    Point3d inv_cam_pos;
+    m_inv_x_v(m, cam_pos.v, inv_cam_pos.v);
+
+    push_threeD_model(prop_id, inv_cam_pos, mvv);
 }
 
 int render_sky(float* m, uint8_t* screen) {
@@ -1036,7 +1040,7 @@ int render_sky(float* m, uint8_t* screen) {
 
     // horizon 'normal'
     n.z = 0;
-    v_normz(&n);
+    v_normz(n.v);
     int angle = (int)(90.0f + 180.0f * atan2f(n.y, n.x) / PI);
     if (angle < _scaled_image_min_angle) angle = _scaled_image_min_angle;
     if (angle > _scaled_image_max_angle) angle = _scaled_image_max_angle;
@@ -1168,17 +1172,17 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                     i >= s0->extents[0] && i <= s0->extents[1]
                 };
                 if (f0->quad) {
-                    if (v_dot(&f0->n, &cv) < 0.f)
+                    if (v_dot(f0->n.v, cv.v) < 0.f)
                     {
                         push_tile(f0, m, verts, (int[]) { 0, 1, 2, 3 }, 4, normals, shading_band, shading);
                     }
                 }
                 else {
-                    if (v_dot(&f0->n, &cv) < 0.f)
+                    if (v_dot(f0->n.v, cv.v) < 0.f)
                     {
                         push_tile(f0, m, verts, (int[]) { 0, 2, 3 }, 3, normals, shading_band, shading);
                     }
-                    if (v_dot(&f1->n, &cv) < 0.f)
+                    if (v_dot(f1->n.v, cv.v) < 0.f)
                     {
                         push_tile(f1, m, verts, (int[]) { 0, 1, 2 }, 3, normals, shading_band, shading);
                     }
@@ -1192,14 +1196,17 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                         // adjust coin height
                         pos.z += 2.f;
                     }
-                    m_x_v(m, pos, res.v);
+                    m_x_v(m, pos.v, res.v);
                     if (res.z > Z_NEAR && res.z < (float)(GROUND_CELL_SIZE * MAX_TILE_DIST)) {
                         if (prop_id == PROP_COIN) {
                             push_coin(&res, time_offset + j + _z_offset);
                         }
                         else {    
                             const Point3d cv = { .x = cam_pos.x - pos.x,.y = cam_pos.y - pos.y,.z = cam_pos.z - pos.z};
-                            push_threeD_model(prop_id, cv, m, pos);
+                            // adjust matrix to project into position
+                            float mmvm[MAT4x4];
+                            m_x_translate(m, pos.v, mmvm);
+                            push_threeD_model(prop_id, cv, mmvm);
                         }
                     }
                 }
@@ -1207,15 +1214,13 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
         }
     }
 
-    // "death" animation?
-    // todo: add as a regular "additional" object?
-    if (_snowball.is_active) {
-        Point3d res;
-        m_x_v(m, _snowball.pos, res.v);
-        if (res.z > Z_NEAR) {
-            push_snowball(&res, _snowball.angle);
-        }
+    // any "free" props?
+    for (int i = 0; i < _render_props.n; ++i) {
+        RenderProp* prop = &_render_props.props[i];
+        push_and_transform_threeD_model(prop->id, cam_pos, m, prop->m);
     }
+    // reset "free" props
+    _render_props.n = 0;
 
     // sort & renders back to front
     if (_drawables.n > 0) {
