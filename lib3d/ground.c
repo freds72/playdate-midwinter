@@ -21,16 +21,24 @@
 
 static PlaydateAPI* pd;
 
+#define GROUNDFACE_FLAG_QUAD 1
+#define GROUNDFACE_FLAG_MATERIAL_MASK 6
+#define GROUNDFACE_FLAG_SNOW 2
+#define GROUNDFACE_FLAG_ROCK 4
+
 typedef struct {
     Point3d n;
-    // 0: triangle
-    // 1: quad
-    int quad;
-    int material;
+    int flags;
 } GroundFace;
 
 typedef struct {
+    // main track position
+    int extents[2];
+    int is_checkpoint;
     float y;
+    // main track extents
+    float center;
+
     // faces (normal + material only)
     GroundFace faces[GROUND_SIZE * 2];
     // height
@@ -39,25 +47,18 @@ typedef struct {
     int props[GROUND_SIZE];
     // ratio [0;1[ in the face diagonal
     float prop_t[GROUND_SIZE];
-
-    // 
-    int is_checkpoint;
-    // main track extents
-    float center;
-    int extents[2];
-
 } GroundSlice;
 
 // active slices + misc "globals"
 typedef struct {
     // 
     int slice_id;
-    float slice_y;
-    float noise_y_offset;
-    float y_offset;
     // start slice index
     int plyr_z_index;
     int max_pz;
+    float slice_y;
+    float noise_y_offset;
+    float y_offset;
     // active tracks
     Tracks* tracks;
 
@@ -115,9 +116,6 @@ static struct {
 } _render_props;
 
 
-#define MATERIAL_SNOW 0
-#define MATERIAL_ROCK 1
-
 // must be next
 #define PROP_COIN               NEXT_PROP_ID
 
@@ -170,16 +168,14 @@ static void mesh_slice(int j) {
         v_normz(n1.v);
         GroundFace* f0 = &s0->faces[2 * i];
         f0->n = n0;
-        f0->material = n0.y < 0.75f ? MATERIAL_ROCK : MATERIAL_SNOW;
+        f0->flags = n0.y < 0.75f ? GROUNDFACE_FLAG_ROCK : GROUNDFACE_FLAG_SNOW;
         if (v_dot(n0.v, n1.v) < 0.999f) {
-            f0->quad = 0;
             GroundFace* f1 = &s0->faces[2 * i + 1];
             f1->n = n1;
-            f1->quad = 0;
-            f1->material = n1.y < 0.75f ? MATERIAL_ROCK : MATERIAL_SNOW;
+            f1->flags = n1.y < 0.75f ? GROUNDFACE_FLAG_ROCK : GROUNDFACE_FLAG_SNOW;;
         }
         else {
-            f0->quad = 1;
+            f0->flags |= GROUNDFACE_FLAG_QUAD;
         }
     }
 
@@ -392,7 +388,7 @@ int get_face(Point3d pos, Point3d* nout, float* yout) {
     GroundFace* f1 = &s0->faces[2 * i + 1];
     GroundFace* f = f0;
     // select face
-    if (!f0->quad && (pos.z - GROUND_CELL_SIZE * j < pos.x - GROUND_CELL_SIZE * i)) f = f1;
+    if (!(f0->flags & GROUNDFACE_FLAG_QUAD) && (pos.z - GROUND_CELL_SIZE * j < pos.x - GROUND_CELL_SIZE * i)) f = f1;
 
     // intersection point
     Point3d ptOnFace;
@@ -874,7 +870,7 @@ static void draw_tile(struct Drawable_s* drawable, uint8_t* bitmap) {
         pts[i].x = 199.5f + 199.5f * w * pts[i].x;
         pts[i].y = 119.5f - 199.5f * w * pts[i].y;
         // works ok
-        float shading = face->material == MATERIAL_SNOW ? 4.0f * pts[i].u + 8.f * w : 4.0f + 4.0f * pts[i].u + 4.f * w;
+        float shading = face->material == GROUNDFACE_FLAG_SNOW ? 4.0f * pts[i].u + 8.f * w : 4.0f + 4.0f * pts[i].u + 4.f * w;
         // attenuation
         shading *= pts[i].light;
         if (shading > 15.f) shading = 15.f;
@@ -976,7 +972,7 @@ static void push_tile(GroundFace* f, const float* m, const Point3d* p, int* indi
         drawable->draw = draw_tile;
         drawable->key = min_key;
         DrawableFace* face = &drawable->face;
-        face->material = f->material;
+        face->material = f->flags & GROUNDFACE_FLAG_MATERIAL_MASK;
         if (is_clipped_near & OUTCODE_NEAR) {
             face->n = z_poly_clip(Z_NEAR, tmp, n, face->pts);
         }
@@ -1213,7 +1209,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                 {.v = {(float)i * GROUND_CELL_SIZE,         s1->h[i] + s1->y - y_offset,       (float)(j + 1) * GROUND_CELL_SIZE}} };
                 // transform
                 GroundFace* f0 = &s0->faces[2 * i];
-                GroundFace* f1 = f0->quad?f0:&s0->faces[2 * i + 1];
+                GroundFace* f1 = f0->flags&GROUNDFACE_FLAG_QUAD?f0:&s0->faces[2 * i + 1];
                 const float normals[4] = {
                     (4.0f + s0->h[i]) / 8.f,
                     (4.0f + s0->h[i + 1]) / 8.f,
@@ -1230,7 +1226,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                     i + 1 >= s0->extents[0] && i + 1 <= s0->extents[1],
                     i >= s0->extents[0] && i <= s0->extents[1]
                 };
-                if (f0->quad) {
+                if (f0->flags & GROUNDFACE_FLAG_QUAD) {
                     if (v_dot(f0->n.v, cv.v) < 0.f)
                     {
                         push_tile(f0, m, verts, (int[]) { 0, 1, 2, 3 }, 4, normals, shading_band, shading);

@@ -326,6 +326,7 @@ void lib3d_register(PlaydateAPI* playdate)
 	pd = playdate;
 	lib3d_setRealloc(pd->system->realloc);
 
+#ifdef SPALL_COLLECT
 	// init tracing context with custom callbacks
 	spall_ctx = spall_init_playdate("snow.spall", 1000000);
 
@@ -337,6 +338,7 @@ void lib3d_register(PlaydateAPI* playdate)
 		.data = buffer,
 	};
 	spall_buffer_init(&spall_ctx, &spall_buffer);
+#endif
 
 	const char* err;
 
@@ -383,7 +385,9 @@ void lib3d_register(PlaydateAPI* playdate)
 }
 
 void lib3d_unregister(PlaydateAPI* playdate) {
+#ifdef SPALL_COLLECT
 	spall_buffer_quit(&spall_ctx, &spall_buffer);
 	lib3d_free(spall_buffer.data);
 	spall_quit(&spall_ctx);
+#endif
 }
