@@ -7,6 +7,122 @@ static PlaydateAPI* pd;
 
 static Tracks _tracks;
 
+// game director
+typedef struct {
+    size_t len;
+    char* timeline;
+} Timeline;
+
+typedef struct {
+    // random placement?
+    int random;
+    Timeline timelines[MAX_TIMELINES];
+} Section;
+
+Section _sections[] = {
+    // nothing
+    {
+        .random = 0,
+        .timelines = {
+            {.timeline = "." },
+            {.timeline = NULL }
+        }
+    },
+    // 
+    // 1 rock
+    {
+        .random = 1,
+        .timelines = {            
+            { .timeline = "W...R" },
+            { .timeline = NULL }
+        }
+    },
+    // 1 tree
+    {
+        .random = 1,
+        .timelines = {
+            {.timeline = "T..CC" },
+            {.timeline = NULL }
+        }
+    },
+    // tree pattern
+    {
+        .random = 0,
+        .timelines = {
+            {.timeline = "T....T.T.." },
+            {.timeline = "T..CC....T.T..." },
+            {.timeline = "....T..CC..T..." },
+            {.timeline = ".......T..CC..." },
+            {.timeline = "..T...T" },
+            {.timeline = NULL }
+        }
+    },
+    // 3 rocks
+    {
+        .random = 0,
+        .timelines = {
+            {.timeline = "."},
+            {.timeline = "w....W....R"},
+            {.timeline = "w...W...RCC"},
+            {.timeline = "w....W....R"},
+            {.timeline = NULL }
+        }
+    },
+    // coins arrow
+    {
+        .random = 0,
+        .timelines = {
+            {.timeline = "....CC"},
+            {.timeline = "...CC."},
+            {.timeline = "....CC"},
+            {.timeline = NULL }
+        }
+    },
+    // coins
+    {
+        .random = 1,
+        .timelines = {
+            {.timeline = "CCCCCC"},
+            {.timeline = NULL }
+        }
+    },
+    // jumppad
+    {
+        .random = 1,
+        .timelines = {
+            {.timeline = "J...CC...J...CC..J....CC"},
+            {.timeline = NULL }
+        }
+    },
+    // 1x snowball
+    {
+        .random = 1,
+        .timelines = {
+            {.timeline = ".....B....w......"},
+            {.timeline = NULL }
+        }
+    },
+    // 4x snowball
+    {
+        .random = 0,
+        .timelines = {
+            {.timeline = ".....B................."},
+            {.timeline = ".....B.............w..."},
+            {.timeline = ".....B................."},
+            {.timeline = ".....B................."},
+            {.timeline = NULL }
+        }
+    }
+};
+
+struct {
+    int cooldown;
+    int t;
+    size_t max_len;
+    Timeline* lanes[MAX_TIMELINES];
+    Section* active;
+} _section_director;
+
 static void reset_track_timers(TrackTimers *timers, int is_main)
 {
   timers->ttl = 12 + (int)(8.f * randf());
@@ -34,9 +150,57 @@ static int update_track(Track *track)
 {
   if (track->is_dead)
     return 0;
+
+  // 
+  if (!_section_director.active) {
+      _section_director.cooldown--;
+      if (_section_director.cooldown < 0) {
+          // pick a random section
+          Section* s = &_sections[0]; // randi(sizeof(_sections) / sizeof(Section))];
+          _section_director.active = s;
+          _section_director.t = 0;
+          // pick random lanes
+          int lanes[] = { 0,1,2,3,4,5,6,7 };
+          if(s->random)
+            shuffle(lanes, MAX_TIMELINES);
+          memset(_section_director.lanes, 0, sizeof(Timeline*) * MAX_TIMELINES);
+          int j = 0;
+          size_t max_len = 0;
+          while (s->timelines[j].timeline) {
+              Timeline* timeline = &s->timelines[j];
+              _section_director.lanes[lanes[j]] = timeline;
+              if (timeline->len > max_len) max_len = timeline->len;
+              j++;
+          }
+          _section_director.max_len = max_len;
+      }
+  }
+
+  if (_section_director.active) {
+      strcpy(_tracks.pattern, "        ");
+      if (_section_director.t < _section_director.max_len) {
+          int t = _section_director.t;
+          for (int i = 0; i < MAX_TIMELINES; ++i) {
+              Timeline* timeline = _section_director.lanes[i];
+              // active?
+              if (timeline) {
+                  _tracks.pattern[i] = timeline->timeline[t % timeline->len];
+              }
+          }
+          _section_director.t++;
+          // don't twist track!
+          return 1;
+      }
+      else {
+          _section_director.active = NULL;
+          _section_director.cooldown = 8;
+      }
+  }
+
   track->age++;
   track->timers.trick_ttl--;
   track->timers.ttl--;
+
   if (!track->is_main && track->timers.trick_ttl < 0)
   {
     switch (track->timers.trick_type)
@@ -52,7 +216,7 @@ static int update_track(Track *track)
     if (track->timers.trick_ttl < -5)
     {
       track->h = 0;
-      track->timers.ttl = 4 + 2 * randf();
+      track->timers.ttl = 4 + (int)(2.f * randf());
     }
   }
   if (track->timers.ttl < 0)
@@ -93,7 +257,12 @@ void make_tracks(const int xmin, const int xmax, const int max_tracks, const flo
   _tracks.max_tracks = max_tracks;
   _tracks.n = 0;
   _tracks.twist = twist;
-  
+  strcpy(_tracks.pattern, "        ");
+
+  // section director
+  _section_director.active = NULL;
+  _section_director.cooldown = 24;
+
   add_track(lerpf(xmin, xmax, randf()), cosf(detauify(angle)), 1);
 
   *out = &_tracks;
@@ -155,4 +324,18 @@ void update_tracks()
 // init module
 void tracks_init(PlaydateAPI* playdate) {
     pd = playdate;
+
+    _section_director.active = NULL;
+    _section_director.cooldown = 24;
+    // initialize timeline string lenghts
+    for (int i = 0; i < sizeof(_sections) / sizeof(Section); ++i) {
+        Section* s = &_sections[i];
+        int j = 0;
+        while (s->timelines[j].timeline) {
+            s->timelines[j].len = strlen(s->timelines[j].timeline);
+            j++;
+        }
+        if (j >= MAX_TIMELINES)
+            pd->system->error("Too many timelines on section: %i - %i/%i", i, j, MAX_TIMELINES);
+    }
 }

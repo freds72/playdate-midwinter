@@ -3,6 +3,8 @@
 
 #include <pd_api.h>
 
+#define MAX_TIMELINES 8
+
 typedef struct {
   int ttl;
   int trick_ttl;
@@ -32,6 +34,7 @@ typedef struct {
   Track tracks[3];
   // active tracks
   int n;
+  char pattern[MAX_TIMELINES + 1];
 } Tracks;
 
 void make_tracks(const int xmin, const int xmax, const int max_tracks, const float twist, Tracks** out);

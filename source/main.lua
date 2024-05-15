@@ -4,6 +4,8 @@
 -- game globals
 import 'CoreLibs/graphics'
 import 'CoreLibs/nineslice'
+import 'models.lua'
+
 local gfx = playdate.graphics
 local font = gfx.font.new('font/whiteglove-stroked')
 local memoFont = {
@@ -45,7 +47,7 @@ local flr = math.floor
 local max=math.max
 local min=math.min
 local rnd = function(r) 
-  return r and r*math.random() or math.random()
+	return r and r*math.random() or math.random()
 end
 local abs = math.abs
 local srand = function(s) 
@@ -148,17 +150,18 @@ function v_dot(a,b)
 	return a[1]*b[1]+a[2]*b[2]+a[3]*b[3]
 end
 function v_scale(v,scale)
-	v[1]=v[1]*scale
-	v[2]=v[2]*scale
-	v[3]=v[3]*scale
+	v[1]*=scale
+	v[2]*=scale
+	v[3]*=scale
 end
 function v_add(v,dv,scale)
 	scale=scale or 1
-	v[1]=v[1]+scale*dv[1]
-	v[2]=v[2]+scale*dv[2]
-	v[3]=v[3]+scale*dv[3]
+	v[1]+=scale*dv[1]
+	v[2]+=scale*dv[2]
+	v[3]+=scale*dv[3]
 end
--- safe vector length
+
+-- vector length
 function v_len(v)
 	local x,y,z=v[1],v[2],v[3]
 	return sqrt(x*x+y*y+z*z)
@@ -166,9 +169,9 @@ end
 function v_normz(v)
 	local d=v_len(v)
   if d==0 then return v end
-	v[1]=v[1]/d
-	v[2]=v[2]/d
-	v[3]=v[3]/d
+	v[1]/=d
+	v[2]/=d
+	v[3]/=d
 end
 
 function v_lerp(a,b,t)
@@ -207,6 +210,26 @@ function m_x_m(a,b)
 			a11*b14+a12*b24+a13*b34+a14,a21*b14+a22*b24+a23*b34+a24,a31*b14+a32*b24+a33*b34+a34,1
 		}
 end
+function make_m_z_rot(angle)
+	local c,s=cos(angle),-sin(angle)
+	return {
+		c,-s,0,0,
+		s,c,0,0,
+		0,0,1,0,
+		0,0,0,1
+	}
+end
+
+function make_m_x_rot(angle)
+	local c,s=cos(angle),-sin(angle)
+	return {
+		1,0,0,0,
+		0,c,-s,0,
+		0,s,c,0,
+		0,0,0,1
+	}
+end
+
 function make_m_from_v_angle(up,angle)
 	local fwd={-sin(angle),0,cos(angle)}
 	local right=v_cross(up,fwd)
@@ -219,6 +242,20 @@ function make_m_from_v_angle(up,angle)
 		0,0,0,1
 	}
 end
+
+function make_m_from_v(up)
+	local fwd={0,0,1}
+	local right={up[2],-up[1],0}
+	v_normz(right)
+	fwd=v_cross(right,up)
+	return {
+		right[1],right[2],right[3],0,
+		up[1],up[2],up[3],0,
+		fwd[1],fwd[2],fwd[3],0,
+		0,0,0,1
+	}
+end
+
 -- only invert 3x3 part
 function m_inv(m)
 	m[2],m[5]=m[5],m[2]
@@ -237,16 +274,9 @@ function m_fwd(m)
 	return {m[9],m[10],m[11]}
 end
 
--- fade ramp helpers
-function whiteout_async(delay,reverse)
-  wait_async(delay)
-  -- todo: fade to white/black using dither
-end
-
--->8
 -- main engine
 -- global vars
-local actors,ground,plyr,cam={}
+local actors,ground,plyr,cam,_tracked={}
 
 -- camera clip planes
 local k_far,k_near,k_right,k_left,z_near=0,2,4,8,0.2
@@ -260,18 +290,13 @@ function make_cam()
 	local shkx,shky=0,0
 	camera()
 
-	local clouds,clouds2={},{}
-	for i=-8,8 do
-		add(clouds,{i=i,r=max(16,rnd(32))})
-		add(clouds2,{i=i,r=max(16,rnd(38))})
-	end
-
 	return {
 		pos={0,0,0},
 		angle=0,
 		m=make_m_from_v_angle(v_up,0),
-		shake=function()
-			shkx,shkx=min(16,shkx+rnd(24)),min(16,shky+rnd(24))
+		shake=function(self,scale)
+			scale=scale or 24
+			shkx,shkx=min(8,shkx+rnd(scale)),min(8,shky+rnd(scale))
 		end,
 		update=function()
 			shkx=shkx*-0.7-rnd(0.4)
@@ -319,7 +344,7 @@ function make_body(p)
 	local up,oldf={0,1,0}
 
 	local velocity,angularv,forces,torque={0,0,0},0,{0,0,0},0
-
+	local boost=0
 	local angle,steering_angle,on_air_ttl,was_on_air=0,0,0
 
 	local g={0,-4,0}
@@ -339,13 +364,16 @@ function make_body(p)
 			local right=m_right(m)
 			v_add(u,right,sin(steering_angle)*scale/2)
 			v_normz(u)
-			return u
+			return u,m
 		end,
 		apply_force_and_torque=function(self,f,t)
 			-- add(debug_vectors,{f=f,p=p,c=11,scale=t})
 
 			v_add(forces,f)
 			torque=torque+t
+		end,
+		boost=function(self,b)
+			boost=b
 		end,
 		integrate=function(self)
 			-- gravity and ground
@@ -363,7 +391,9 @@ function make_body(p)
 			angularv=angularv+torque*0.5/30
 
 			-- apply some damping
-			angularv=angularv*0.86
+			angularv*=0.86
+			-- kill boost while on ground
+			if self.on_ground then boost*=0.9 end
 			local f=self.on_ground and 0.08 or 0.01
 			-- some friction
 			--v_scale(velocity,1-f)
@@ -371,7 +401,7 @@ function make_body(p)
 			
 			-- update pos & orientation
 			--local x,z=self.pos[1],self.pos[3]
-			v_add(self.pos,velocity)
+			v_add(self.pos,velocity,1+boost)
 			--self.pos[1],self.pos[3]=x,z
 
 			-- limit rotating velocity
@@ -425,16 +455,16 @@ function make_body(p)
 		update=function(self)
 			if self.on_ground then
 				steering_angle*=0.8				
+				on_air_ttl=0
 			else
 				steering_angle*=0.85
+				on_air_ttl+=1
 			end
-			on_air_ttl-=1
-
+			
 			-- find ground
 			local pos=self.pos
 
-			local newy,newn,gps=ground:find_face(pos)
-			self.gps=gps+angle
+			local newy,newn=ground:find_face(pos)
 			-- stop at ground
 			self.on_ground=nil
 			local tgt_height=1
@@ -443,10 +473,9 @@ function make_body(p)
 				tgt_height=pos[2]-newy
 				pos[2]=newy			
 				self.on_ground=true
-				-- big enough jump?
-				if on_air_ttl>5 then sfx(12) on_air_ttl=0 sfx(11) end
+				-- was on air? big enough jump?
+				if on_air_ttl>23 then cam:shake(16) sfx(12) on_air_ttl=0 sfx(11) end
 			end
-			if not self.on_ground then on_air_ttl=10 end
 
 			self.height=lerp(self.height,tgt_height,0.4)
 
@@ -558,6 +587,13 @@ function make_plyr(p,params)
 			-- reset ttl
 			combo_ttl = 45
 			_coin_sfx:play()
+		elseif hit_type==4 then
+			--
+			if self.on_ground then
+				self:apply_force_and_torque({0,32,0},0)
+				self:boost(2)
+				jump_ttl=0
+			end
 		elseif hit_ttl<0 and hit_type==1 then
 			-- props: 
 			_treehit_sfx:play()
@@ -577,6 +613,8 @@ function make_plyr(p,params)
 
 		self.on_track=true
 		local slice=ground:get_track(pos)
+		self.gps=slice.angle+angle
+
 		if pos[1]>=slice.xmin and pos[1]<=slice.xmax then			
 			if slice.is_checkpoint then
 				if pos[3]>slice.z then
@@ -624,21 +662,101 @@ function make_plyr(p,params)
 	return body
 end
 
-function make_snowball(pos)
-	local body=make_body(pos)
-	
+function make_npc(p)
+	local body=make_body(p)
+	local up={0,1,0}
+	local dir=0
 	local body_update=body.update
+	body.id = models.PROP_SKIER
+	
+	body.update=function(self,offset)
+		-- shift
+		v_add(self.pos,offset)
+		
+		-- crude ai control!
+		local _,angle=self:get_pos()
+		local slice=ground:get_track(self.pos)
+		local da=slice.angle+angle
+		-- transition to "up" when going left/right
+		dir=lerp(dir,da,0.6)
+		if dir<-0.02 then
+			self.id = models.PROP_SKIER_RIGHT
+		elseif dir>0.02 then
+			self.id = models.PROP_SKIER_LEFT
+		else
+			self.id = models.PROP_SKIER
+		end
+		self:steer(da/4)
 
-	body.sx,body.sy=112,0
-
-	body.update=function(self)		
-
-		-- physic update
 		self:integrate()
+
+		-- call parent
+		self.boost=0.1
 		body_update(self)
+
+		-- create orientation matrix
+		local pos=self.pos
+		local newy,newn=ground:find_face(pos)
+		up=v_lerp(up,newn,0.3)
+		local _,angle=self:get_pos()
+		local m=make_m_from_v_angle(up,angle)
+		m[13]=pos[1]
+		m[14]=pos[2]
+		m[15]=pos[3]
+
+		self.m = m
 
 		return true
 	end
+
+	-- wrapper
+	return body
+end
+
+function make_snowball(pos)
+	local body=make_body(pos)
+	body.id = models.PROP_SNOWBALL_PLAYER
+	local body_update=body.update
+	local base_angle=rnd()
+	local angle=rnd()
+	local n={cos(angle),0,sin(angle)}
+	body.pre_update=function(self)		
+
+		-- physic update
+		self:integrate()
+		body_update(self)		
+	end
+	body.hit=function()
+		angle=rnd()
+		n={cos(angle),0,sin(angle)}
+	end
+	body.update=function(self)
+		local pos=self.pos
+		-- update
+		local newy,newn=ground:find_face(pos)
+		-- out of bound: kill actor
+		if not newy then return end
+
+		-- shadow plane projection matrix
+		local m = make_m_from_v(newn)
+		m[13]=pos[1]
+		-- avoid z-fighting
+		m[14]=newy+0.1
+		m[15]=pos[3]
+		self.m_shadow = m
+
+		-- roll!!!
+		local m = make_m_x_rot(base_angle-4*time())
+		m=m_x_m(m,make_m_from_v(n))
+		m[13]=pos[1]
+		-- offset ball radius
+		m[14]=pos[2]+1.5
+		m[15]=pos[3]
+		self.m = m
+
+		return true
+	end
+
 	return body
 end
 
@@ -728,40 +846,6 @@ end
 
 function menu_state()
   local starting
-	local cols={
-		[0]=5,
-		[1]=12,
-		[6]=7,
-		[8]=14}
-	-- draw direction box
-	-- mode:
-	-- 0: normal
-	-- 1: focus
-	-- 2: selected
-	function draw_box(s,x,y,c,blink,freeride)
-
-		palt(0,false)
-		palt(14,true)
-		sspr(40,0,8,8,x-4,y-12,8,64)
-
-		pal(12,c)
-		if blink then
-			if (30*time())%8<4 then
-				pal(12,cols[c])
-				pal(c,cols[c])
-				pal(6,cols[6])
-			end
-		end
-		spr(32,x-24,y-6,7,2)
-		print_regular(s,x-20,y-2,6)
-
-		if freeride==true then
-			spr(234,x-8,y-29,2,2)
-			rectfill(x-18,y-13,x+24,y-8,10)
-			print_regular("FREERIDING",x-16,y-13,0)
-		end
-		pal()
-	end
    
 	-- default records (number of frames)
 	local records={900,600,450}
@@ -1008,6 +1092,11 @@ end
 function play_state(params)
 	local help_ttl=0
 	local time_img = gfx.image.new(32,9)
+	local prev_slice_id
+	-- warning signs
+	local warnings={}
+	-- test
+	local spawn_ttl=30
 
 	-- stop music
 	music(-1,250)
@@ -1019,6 +1108,9 @@ function play_state(params)
 
 	-- create player in correct direction
 	plyr=make_plyr(ground:get_pos(),params)
+	_tracked = plyr
+
+	add(actors,make_npc(plyr.pos))
 
 	-- reset cam	
 	cam=make_cam()
@@ -1026,20 +1118,137 @@ function play_state(params)
 	-- 
 	_ski_sfx:play(0)
 
+	-- command handlers
+	local command_handlers={
+		-- snowball!!
+		['B']=function(lane)
+			local y_velocity,z_velocity = 0,1+rnd(0.25)
+			local y_force,on_ground = 0
+			local base_angle = rnd()
+			local pos=v_clone(plyr.pos)
+			pos[1]+=(lane-1)*4
+			local prev_pos=v_clone(pos)
+			v_add(pos,{0,0,-4*8})
+			-- helper
+			local function v2_sqrlen(x,z,b)
+				local dx,dz=b[1]-x,b[3]-z
+				return dx*dx+dz*dz
+			end
+			add(actors,{
+				id=models.PROP_SNOWBALL,
+				pos=pos,
+				shift=function(self,offset)
+				end,
+				update=function(self,offset)
+					-- shift
+					v_add(pos,offset)
+					v_add(prev_pos,offset)
+
+					-- integrate
+					y_force = -1
+					if on_ground then
+						-- todo: shake?
+						-- force += 4
+					end
+					y_velocity+=y_force*0.5/30
+					prev_pos=v_clone(prev_pos)
+					pos[2]+=y_velocity
+					pos[3]+=z_velocity
+					y_force=0
+
+					-- collision with player
+					if plyr then
+						local plyr_x,plyr_z=plyr.pos[1],plyr.pos[3]
+						if v2_sqrlen(plyr_x,plyr_z,pos)<2.25 or 
+							v2_sqrlen(plyr_x,plyr_z,prev_pos)<2.25 or 
+							(plyr_x<pos[1]+1.5 and plyr_x>pos[1]-1.5 
+							and plyr_z<pos[3] and plyr_z>prev_pos[3]) then
+							plyr.dead = true
+						end
+					end
+					
+					-- update
+					local newy,newn=ground:find_face(pos)
+					-- out of bound: kill actor
+					if not newy then return end
+
+					on_ground = nil
+					if pos[2]<=newy then
+						pos[2]=newy
+						on_ground = true
+					end
+					-- shadow plane projection matrix
+					local m = make_m_from_v(newn)
+					m[13]=pos[1]
+					-- avoid z-fighting
+					m[14]=newy+0.1
+					m[15]=pos[3]
+					self.m_shadow = m
+
+					-- roll!!!
+					local m = make_m_x_rot(base_angle-4*time())
+					m[13]=pos[1]
+					-- offset ball radius
+					m[14]=pos[2]+1.25
+					m[15]=pos[3]
+					self.m = m
+					return true
+				end
+			})
+		end,
+		['w']=function(lane)
+			do_async(function()
+				warnings[lane]=_warning_avalanche
+				wait_async(40)
+				warnings[lane]=nil
+				wait_async(5)
+				warnings[lane]=_warning_avalanche
+				wait_async(5)
+				warnings[lane]=nil
+			end)
+		end
+	}
+
 	return
 		-- update
 		function()
 			cam:update()
+			-- 
 			if plyr then
 				plyr:control()	
 				plyr:integrate()
 				plyr:update()
+			end
 
-				-- adjust ground
-				ground:update(plyr.pos)
+			-- adjust ground
+			local z,slice_id,commands,wx,wy,wz = ground:update(_tracked.pos)
+			_tracked.pos[3] = z
 
+			if plyr then
+				-- handle commands (only if new)
+				if prev_slice_id~=slice_id then
+					for i=1,#commands do
+						local c=string.sub(commands,i,i)
+						if command_handlers[c] then
+							command_handlers[c](i)
+						end
+					end
+					prev_slice_id = slice_id
+				end
+			end
+
+			local offset={0,0,wz}
+			for i=#actors,1,-1 do
+				local a=actors[i]
+				if not a:update(offset) then
+					table.remove(actors,i)
+				end
+			end
+
+			if plyr then
 				local pos,a,steering=plyr:get_pos()
-				cam:track(pos,a,plyr:get_up())
+				local up=plyr:get_up()
+				cam:track({pos[1],pos[2]+0.5,pos[3]},a,up)
 
 				if plyr.dead then
 					_ski_sfx:stop()
@@ -1049,7 +1258,7 @@ function play_state(params)
 
 					-- latest score
 					local _,_,total_t,total_tricks=plyr:score()
-					next_state(plyr_death_state,plyr:get_pos(),total_t,total_tricks,params,plyr.time_over)
+					next_state(plyr_death_state,pos,total_t,total_tricks,params,plyr.time_over)
 					-- not active
 					plyr=nil
 				else	
@@ -1065,17 +1274,16 @@ function play_state(params)
 				end
 			end
 
-      for i=#actors,1,-1 do
-        local a=actors[i]
-        if not a:update() then
-          table.remove(actors,i)
-        end
-			end
-
 			help_ttl+=1
 		end,
 		-- draw
-		function()			
+		function()
+			for _,a in pairs(actors) do
+				ground:add_render_prop(a.id,a.m)
+				if a.m_shadow then
+					ground:add_render_prop(models.PROP_SHADOW,a.m_shadow)
+				end
+			end
 			ground:draw(cam)			 
 
 			if plyr then
@@ -1120,7 +1328,6 @@ function play_state(params)
 				time_img:drawScaled(169,2,2)
 				print_regular("sec",233,7,gfx.kColorBlack)
 
-
 				for i=1,#bonus do
 					local b=bonus[i]					
 					
@@ -1148,6 +1355,12 @@ function play_state(params)
 					-- help msg?
 					print_regular(_input.action.glyph.." Jump",nil,162)
 					print_regular(_input.back.glyph.." Restart (hold)",nil,178)					
+				end					
+
+				-- any warning messages?
+				for i,img in pairs(warnings) do
+					local w=img:getSize()
+					img:draw(200-w/2,42)
 				end
 			end
 		end		
@@ -1164,6 +1377,9 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 
 	-- snowballing!!!
 	local snowball=add(actors,make_snowball(pos))
+	-- hugh :/
+	snowball:update()
+	_tracked = snowball
 	local turn_side,tricks_rating=pick({-1,1}),{"meh","rookie","junior","master"}
 	local text_ttl,active_text,text=10,"yikes!",{"ouch!","aie!","pok!","weee!"}
 
@@ -1178,7 +1394,10 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 
 	return
 		-- update
-		function()
+		function()		
+			snowball:pre_update()	
+			prev_update()
+
 			msg_y=lerp(msg_y,msg_tgt_y[msg_tgt_i+1],0.08)
 			gameover_y=lerp(gameover_y,42+8*sin(time()/4),0.06)
 
@@ -1187,11 +1406,9 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 
 			text_ttl-=1
 
-			-- adjust ground
 			local p=snowball.pos
-			ground:update(p)
-
-			if text_ttl<0 and ground:collide(p,0.2) then
+			if text_ttl<0 and ground:collide(p,1) then
+				snowball:hit()
 				active_text,text_ttl=pick(text),10
 				turn_side=-turn_side
 				cam:shake()
@@ -1200,7 +1417,7 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 			if time_over then
 				cam:track(p,0,v_up)
 			else
-				ground:update_snowball(p,turn_side*time()*512)
+				
 				cam:track({mid(p[1],8,29*4),p[2],p[3]+16},0.5,v_up,0.2)
 			end
 
@@ -1210,8 +1427,6 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 			if playdate.buttonJustReleased(_input.action.id) then
 				next_state(zoomin_state,play_state,params)
 			end
-
-			prev_update()
 		end,
 		-- draw
 		function()
@@ -1377,6 +1592,8 @@ function _init()
 	_game_over = gfx.image.new("images/game_over")
 	_dir_icon = gfx.image.new("images/checkpoint_lock")
 
+	_warning_avalanche = gfx.image.new("images/warning_avalanche")
+	_warning_skiier = gfx.image.new("images/warning_skiier")
 	-- init state machine
 	next_state(loading_state)
 end
@@ -1501,22 +1718,23 @@ function make_ground(params)
 			return {lib3d.get_start_pos()}
 		end,
 		update=function(self,p)
-			p[3] = lib3d.update_ground(table.unpack(p))
+			return lib3d.update_ground(table.unpack(p))
 		end,
 		draw=function(self,cam)
 			lib3d.render_ground(cam.pos[1],cam.pos[2],cam.pos[3],cam.angle%1,table.unpack(cam.m))
 		end,
 		find_face=function(self,p)
-			local y,nx,ny,nz,angle=lib3d.get_face(table.unpack(p))
-			return y, {nx,ny,nz},angle
+			local y,nx,ny,nz=lib3d.get_face(table.unpack(p))
+			return y, {nx,ny,nz}
 		end,
 		get_track=function(self,p)
-			local xmin,xmax,z,checkpoint = lib3d.get_track_info(table.unpack(p))
+			local xmin,xmax,z,checkpoint,angle = lib3d.get_track_info(table.unpack(p))
 			return {
 				xmin=xmin,
 				xmax=xmax,
 				z=z,
-				is_checkpoint=checkpoint
+				is_checkpoint=checkpoint,
+				angle=angle
 			}
 		end,
 		get_props=function(self,p)
@@ -1543,6 +1761,9 @@ function make_ground(params)
 		end,
 		update_snowball=function(self,p,r)
 			lib3d.update_snowball(p[1],p[2],p[3],r)
+		end,
+		add_render_prop=function(self,id,m)
+			lib3d.add_render_prop(id,table.unpack(m))
 		end
 	}
 end
