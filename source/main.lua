@@ -364,7 +364,7 @@ function make_body(p)
 			local right=m_right(m)
 			v_add(u,right,sin(steering_angle)*scale/2)
 			v_normz(u)
-			return u
+			return u,m
 		end,
 		apply_force_and_torque=function(self,f,t)
 			-- add(debug_vectors,{f=f,p=p,c=11,scale=t})
@@ -656,6 +656,57 @@ function make_plyr(p,params)
 
 	body.score=function()
 		return t,bonus,total_t,total_tricks,coins,combo,combo_ttl/45
+	end
+
+	-- wrapper
+	return body
+end
+
+function make_npc(p)
+	local body=make_body(p)
+	local up={0,1,0}
+	local dir=0
+	local body_update=body.update
+	body.id = models.PROP_SKIER
+	
+	body.update=function(self,offset)
+		-- shift
+		v_add(self.pos,offset)
+		
+		-- crude ai control!
+		local _,angle=self:get_pos()
+		local slice=ground:get_track(self.pos)
+		local da=slice.angle+angle
+		-- transition to "up" when going left/right
+		dir=lerp(dir,da,0.6)
+		if dir<-0.02 then
+			self.id = models.PROP_SKIER_RIGHT
+		elseif dir>0.02 then
+			self.id = models.PROP_SKIER_LEFT
+		else
+			self.id = models.PROP_SKIER
+		end
+		self:steer(da/4)
+
+		self:integrate()
+
+		-- call parent
+		self.boost=0.1
+		body_update(self)
+
+		-- create orientation matrix
+		local pos=self.pos
+		local newy,newn=ground:find_face(pos)
+		up=v_lerp(up,newn,0.3)
+		local _,angle=self:get_pos()
+		local m=make_m_from_v_angle(up,angle)
+		m[13]=pos[1]
+		m[14]=pos[2]
+		m[15]=pos[3]
+
+		self.m = m
+
+		return true
 	end
 
 	-- wrapper
@@ -1059,6 +1110,8 @@ function play_state(params)
 	plyr=make_plyr(ground:get_pos(),params)
 	_tracked = plyr
 
+	add(actors,make_npc(plyr.pos))
+
 	-- reset cam	
 	cam=make_cam()
 
@@ -1194,7 +1247,8 @@ function play_state(params)
 
 			if plyr then
 				local pos,a,steering=plyr:get_pos()
-				cam:track({pos[1],pos[2]+0.5,pos[3]},a,plyr:get_up())
+				local up=plyr:get_up()
+				cam:track({pos[1],pos[2]+0.5,pos[3]},a,up)
 
 				if plyr.dead then
 					_ski_sfx:stop()

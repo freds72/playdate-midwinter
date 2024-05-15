@@ -1,7 +1,9 @@
 #include <pd_api.h>
 #include <float.h>
 #include "simd.h"
+#include "spall.h"
 #include "gfx.h"
+
 
 static PlaydateAPI* pd = NULL;
 
@@ -152,6 +154,8 @@ static void drawTextureFragment(uint8_t* row, int x1, int x2, int lu, int ru, ui
 }
 
 void polyfill(const Point3du* verts, const int n, uint32_t* dither, uint32_t* bitmap) {
+    BEGIN_FUNC();
+
 	float miny = FLT_MAX, maxy = FLT_MIN;
 	int mini = -1;
 	// find extent
@@ -161,7 +165,11 @@ void polyfill(const Point3du* verts, const int n, uint32_t* dither, uint32_t* bi
 		if (y > maxy) maxy = y;
 	}
     // out of screen?
-    if (miny > LCD_ROWS || maxy < 0) return;
+    if (miny > LCD_ROWS || maxy < 0) {
+        END_FUNC();
+        return;
+    }
+
     if (maxy > LCD_ROWS) maxy = LCD_ROWS;
     if (miny < 0) miny = 0;
 
@@ -205,12 +213,16 @@ void polyfill(const Point3du* verts, const int n, uint32_t* dither, uint32_t* bi
 
         lx += ldx;
         rx += rdx;
-    }    
+    } 
+
+    END_FUNC();
 }
 
 // affine texturing (using dither pattern)
 // z contains dither color
 void texfill(const Point3du* verts, const int n, uint8_t* dither_ramp, uint8_t* bitmap) {
+    BEGIN_FUNC();
+
     float miny = FLT_MAX, maxy = FLT_MIN;
     int mini = -1;
     // find extent
@@ -220,7 +232,11 @@ void texfill(const Point3du* verts, const int n, uint8_t* dither_ramp, uint8_t* 
         if (y > maxy) maxy = y;
     }
     // out of screen?
-    if (miny > LCD_ROWS || maxy < 0) return;
+    if (miny > LCD_ROWS || maxy < 0) {
+        END_FUNC();
+        return;
+    }
+
     if (maxy > LCD_ROWS) maxy = LCD_ROWS;
     if (miny < 0) miny = 0;
 
@@ -274,4 +290,5 @@ void texfill(const Point3du* verts, const int n, uint8_t* dither_ramp, uint8_t* 
         lu += ldu;
         ru += rdu;
     }
+    END_FUNC();
 }

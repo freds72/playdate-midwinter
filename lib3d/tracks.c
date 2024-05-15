@@ -20,6 +20,15 @@ typedef struct {
 } Section;
 
 Section _sections[] = {
+    // nothing
+    {
+        .random = 0,
+        .timelines = {
+            {.timeline = "." },
+            {.timeline = NULL }
+        }
+    },
+    // 
     // 1 rock
     {
         .random = 1,
@@ -147,7 +156,7 @@ static int update_track(Track *track)
       _section_director.cooldown--;
       if (_section_director.cooldown < 0) {
           // pick a random section
-          Section* s = &_sections[8]; // randi(sizeof(_sections) / sizeof(Section))];
+          Section* s = &_sections[0]; // randi(sizeof(_sections) / sizeof(Section))];
           _section_director.active = s;
           _section_director.t = 0;
           // pick random lanes
