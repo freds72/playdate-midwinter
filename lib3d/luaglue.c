@@ -15,8 +15,10 @@
 #include "gfx.h"
 #include "spall.h"
 
+#ifdef SPALL_COLLECT
 SpallProfile spall_ctx;
 SpallBuffer  spall_buffer;
+#endif
 
 static PlaydateAPI* pd = NULL;
 
@@ -331,7 +333,7 @@ void lib3d_register(PlaydateAPI* playdate)
 	spall_ctx = spall_init_playdate("snow.spall", 1000000);
 
 	// allocate tracing buffer
-	int buffer_size = 1 * 1024 * 512;
+	int buffer_size = 1 * 1024 * 1024;
 	unsigned char* buffer = lib3d_malloc(buffer_size);
 	spall_buffer = (SpallBuffer){
 		.length = buffer_size,
