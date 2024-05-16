@@ -26,10 +26,21 @@ static PlaydateAPI* pd;
 #define GROUNDFACE_FLAG_SNOW 2
 #define GROUNDFACE_FLAG_ROCK 4
 
+// ground face
+// normal + material only
 typedef struct {
     Point3d n;
     int flags;
 } GroundFace;
+
+// ground tile
+typedef struct {
+    int prop_id;
+    float prop_t;
+    float h;
+    GroundFace f0;
+    GroundFace f1;
+} GroundTile;
 
 typedef struct {
     // main track position
@@ -39,14 +50,8 @@ typedef struct {
     // main track extents
     float center;
 
-    // faces (normal + material only)
-    GroundFace faces[GROUND_SIZE * 2];
-    // height
-    float h[GROUND_SIZE];
-    // actor type (0 if none)
-    int props[GROUND_SIZE];
-    // ratio [0;1[ in the face diagonal
-    float prop_t[GROUND_SIZE];
+    // tile
+    GroundTile tiles[GROUND_SIZE];
 } GroundSlice;
 
 // active slices + misc "globals"
@@ -153,24 +158,25 @@ static void mesh_slice(int j) {
     v_normz(sn.v);
 
     for (int i = 0; i < GROUND_SIZE - 1; ++i) {
-        const Point3d v0 = { .v = {(float)i * GROUND_CELL_SIZE,s0->h[i] + s0->y,(float)j * GROUND_CELL_SIZE} };
+        GroundTile* t0 = &s0->tiles[i];
+        const Point3d v0 = { .v = {(float)i * GROUND_CELL_SIZE,t0->h + s0->y,(float)j * GROUND_CELL_SIZE} };
         // v1-v0
-        const Point3d u1 = { .v = {(float)GROUND_CELL_SIZE,s0->h[i + 1] + s0->y - v0.y,0.f} };
+        const Point3d u1 = { .v = {(float)GROUND_CELL_SIZE,s0->tiles[i + 1].h + s0->y - v0.y,0.f} };
         // v2-v0
-        const Point3d u2 = { .v = {(float)GROUND_CELL_SIZE,s1->h[i + 1] + s1->y - v0.y,(float)GROUND_CELL_SIZE} };
+        const Point3d u2 = { .v = {(float)GROUND_CELL_SIZE,s1->tiles[i + 1].h + s1->y - v0.y,(float)GROUND_CELL_SIZE} };
         // v3-v0
-        const Point3d u3 = { .v = {0.f,s1->h[i] + s1->y - v0.y,(float)GROUND_CELL_SIZE} };
+        const Point3d u3 = { .v = {0.f,s1->tiles[i].h + s1->y - v0.y,(float)GROUND_CELL_SIZE} };
 
         Point3d n0, n1;
         v_cross(u3.v, u2.v, n0.v);
         v_cross(u2.v, u1.v, n1.v);
         v_normz(n0.v);
         v_normz(n1.v);
-        GroundFace* f0 = &s0->faces[2 * i];
+        GroundFace* f0 = &t0->f0;
         f0->n = n0;
         f0->flags = n0.y < 0.75f ? GROUNDFACE_FLAG_ROCK : GROUNDFACE_FLAG_SNOW;
         if (v_dot(n0.v, n1.v) < 0.999f) {
-            GroundFace* f1 = &s0->faces[2 * i + 1];
+            GroundFace* f1 = &t0->f1;
             f1->n = n1;
             f1->flags = n1.y < 0.75f ? GROUNDFACE_FLAG_ROCK : GROUNDFACE_FLAG_SNOW;;
         }
@@ -196,17 +202,17 @@ static void make_slice(GroundSlice* slice, float y) {
 
     // generate height
     for (int i = 0; i < GROUND_SIZE; ++i) {
-        slice->h[i] = (perlin2d((16.f * i) / GROUND_SIZE, _ground.noise_y_offset, 0.25f, 4)) * 4.f * active_params.slope;
-        slice->props[i] = 0;
+        slice->tiles[i].h = (perlin2d((16.f * i) / GROUND_SIZE, _ground.noise_y_offset, 0.25f, 4)) * 4.f * active_params.slope;
+        slice->tiles[i].prop_id = 0;
         // 
     }
 
     _ground.noise_y_offset += (active_params.slope + randf()) / 4.f;
     // side walls + nice transition
-    slice->h[0] = 15.f + 5.f * randf();
-    slice->h[1] = lerpf(slice->h[0], slice->h[1], 0.666f);
-    slice->h[GROUND_SIZE - 1] = 15.f + 5.f * randf();
-    slice->h[GROUND_SIZE - 2] = lerpf(slice->h[GROUND_SIZE - 1], slice->h[GROUND_SIZE - 2], 0.666f);
+    slice->tiles[0].h = 15.f + 5.f * randf();
+    slice->tiles[1].h = lerpf(slice->tiles[0].h, slice->tiles[1].h, 0.666f);
+    slice->tiles[GROUND_SIZE - 1].h = 15.f + 5.f * randf();
+    slice->tiles[GROUND_SIZE - 2].h = lerpf(slice->tiles[GROUND_SIZE - 1].h, slice->tiles[GROUND_SIZE - 2].h, 0.666f);
 
     int imin = 3, imax = GROUND_SIZE - 3;
     float main_track_x = GROUND_CELL_SIZE * (imin + imax) / 2.f;
@@ -222,14 +228,14 @@ static void make_slice(GroundSlice* slice, float y) {
             imax = i1;
             for (int i = 1; i < i0 - 2; ++i) {
                 if (randf() > active_params.props_rate) {
-                    slice->props[i] = trees[(int)(3.f * randf())];
-                    slice->prop_t[i] = randf();
+                    slice->tiles[i].prop_id = trees[(int)(3.f * randf())];
+                    slice->tiles[i].prop_t = randf();
                 }
             }
             for (int i = i1+2; i < GROUND_SIZE - 1; ++i) {
                 if (randf() > active_params.props_rate) {
-                    slice->props[i] = trees[(int)(3.f * randf())];
-                    slice->prop_t[i] = randf();
+                    slice->tiles[i].prop_id = trees[(int)(3.f * randf())];
+                    slice->tiles[i].prop_t = randf();
                 }
             }
             for (int i = i0; i < i1; ++i) {
@@ -248,27 +254,27 @@ static void make_slice(GroundSlice* slice, float y) {
                     ;
                 }
 
-                slice->props[i] = prop_id;
-                slice->prop_t[i] = prop_t;
+                slice->tiles[i].prop_id = prop_id;
+                slice->tiles[i].prop_t = prop_t;
             }
             // race markers
             if (_ground.slice_id % 8 == 0) {
                 is_checkpoint = 1;
                 // checkoint pole
-                slice->props[i0] = PROP_CHECKPOINT_LEFT;
-                slice->props[i1] = PROP_CHECKPOINT_RIGHT;
+                slice->tiles[i0].prop_id = PROP_CHECKPOINT_LEFT;
+                slice->tiles[i0].prop_t = 0.5f;
 
-                slice->prop_t[i0] = 0.5f;
-                slice->prop_t[i1] = 0.5f;
+                slice->tiles[i1].prop_id = PROP_CHECKPOINT_RIGHT;
+                slice->tiles[i1].prop_t = 0.5f;
             }
             if (_ground.slice_id % 3 == 0) {
                 if (t->u > 0.1f) {
-                    slice->props[i0 - 2] = trees[(int)(3.f * randf())];
-                    slice->prop_t[i0 - 2] = randf();
+                    slice->tiles[i0 - 2].prop_id = trees[(int)(3.f * randf())];
+                    slice->tiles[i0 - 2].prop_t = randf();
                 }
                 else if (t->u < -0.1f) {
-                    slice->props[i1 + 2] = trees[(int)(3.f * randf())];
-                    slice->prop_t[i1 + 2] = randf();
+                    slice->tiles[i1 + 2].prop_id = trees[(int)(3.f * randf())];
+                    slice->tiles[i1 + 2].prop_t = randf();
                 }
             }
         }
@@ -278,14 +284,14 @@ static void make_slice(GroundSlice* slice, float y) {
                 // slice->h[i] = t->h + slice->h[i] / 2.0f;
                 // slice->h[i] = t->h;
                 // remove some props
-                if (slice->props[i] >= PROP_TREE0 && slice->props[i] <= PROP_TREE_SNOW && randf() > 0.5f) {
-                    slice->props[i] = 0;
+                if (slice->tiles[i].prop_id >= PROP_TREE0 && slice->tiles[i].prop_id <= PROP_TREE_SNOW && randf() > 0.5f) {
+                    slice->tiles[i].prop_id = 0;
                 }
             }
             // coins
             if (_ground.slice_id % 4 == 0) {
-                slice->prop_t[ii] = 0.5f;
-                slice->props[ii] = PROP_COIN;
+                slice->tiles[ii].prop_id = PROP_COIN;
+                slice->tiles[ii].prop_t = 0.5f;
             }
         }
     }
@@ -384,15 +390,16 @@ int get_face(Point3d pos, Point3d* nout, float* yout) {
     }
 
     GroundSlice* s0 = _ground.slices[j];
-    GroundFace* f0 = &s0->faces[2 * i];
-    GroundFace* f1 = &s0->faces[2 * i + 1];
+    GroundTile* t0 = &s0->tiles[i];
+    GroundFace* f0 = &t0->f0;
+    GroundFace* f1 = &t0->f1;
     GroundFace* f = f0;
     // select face
     if (!(f0->flags & GROUNDFACE_FLAG_QUAD) && (pos.z - GROUND_CELL_SIZE * j < pos.x - GROUND_CELL_SIZE * i)) f = f1;
 
     // intersection point
     Point3d ptOnFace;
-    make_v((Point3d) { .v = {(float)i * GROUND_CELL_SIZE, s0->h[i] + s0->y - _ground.y_offset, (float)j * GROUND_CELL_SIZE} }, pos, &ptOnFace);
+    make_v((Point3d) { .v = {(float)i * GROUND_CELL_SIZE, t0->h + s0->y - _ground.y_offset, (float)j * GROUND_CELL_SIZE} }, pos, &ptOnFace);
          
     // height
     *yout = pos.y - v_dot(ptOnFace.v, f->n.v) / f->n.y;
@@ -446,14 +453,15 @@ void get_props(Point3d pos, PropInfo** info, int* nout) {
         const GroundSlice* s0 = _ground.slices[j];
         const GroundSlice* s1 = _ground.slices[j + 1];
         for (int i = i0; i < i1 && _props_info.n < MAX_PROPS; ++i) {
-            int prop_id = s0->props[i];
+            const GroundTile* t0 = &s0->tiles[i];
+            int prop_id = t0->prop_id;
             if (prop_id == PROP_COIN) {
                 PropInfo* info = &_props_info.props[_props_info.n++];
                 info->type = prop_id;                
                 v_lerp(
-                    &(Point3d) { {.v = { (float)i * GROUND_CELL_SIZE,         s0->h[i] + s0->y - y_offset,       (float)j * GROUND_CELL_SIZE } } },
-                    &(Point3d) { {.v = { (float)(i + 1) * GROUND_CELL_SIZE,   s1->h[i + 1] + s1->y - y_offset,   (float)(j + 1) * GROUND_CELL_SIZE } } },
-                    s0->prop_t[i], 
+                    &(Point3d) { {.v = { (float)i * GROUND_CELL_SIZE,         t0->h + s0->y - y_offset,       (float)j * GROUND_CELL_SIZE } } },
+                    &(Point3d) { {.v = { (float)(i + 1) * GROUND_CELL_SIZE,   s1->tiles[i + 1].h + s1->y - y_offset,   (float)(j + 1) * GROUND_CELL_SIZE } } },
+                    t0->prop_t,
                     &info->pos);
                 info->pos.z += 2.f;
             }
@@ -495,22 +503,23 @@ void collide(Point3d pos, float radius, int* hit_type)
             GroundSlice* s0 = _ground.slices[j];
             for (int i = i0 - 1; i < i0 + 2; i++) {
                 if (i >= 0 && i < GROUND_SIZE) {
-                    int id = s0->props[i];
+                    GroundTile* t0 = &s0->tiles[i];
+                    int id = t0->prop_id;
                     // collidable actor ?
                     if (id) {
                         PropProperties* props = &_props_properties[id - 1];
                         if (props->flags & PROP_FLAG_HITABLE) {
 
                             // generate vertex
-                            Point3d v0 = (Point3d){ .v = {(float)(i * GROUND_CELL_SIZE),s0->h[i] + s0->y - _ground.y_offset,(float)(j * GROUND_CELL_SIZE)} };
-                            Point3d v2 = (Point3d){ .v = {(float)((i + 1) * GROUND_CELL_SIZE),s0->h[i + 1] + s0->y - _ground.y_offset,(float)((j + 1) * GROUND_CELL_SIZE)} };
+                            Point3d v0 = (Point3d){ .v = {(float)(i * GROUND_CELL_SIZE),t0->h + s0->y - _ground.y_offset,(float)(j * GROUND_CELL_SIZE)} };
+                            Point3d v2 = (Point3d){ .v = {(float)((i + 1) * GROUND_CELL_SIZE),s0->tiles[i + 1].h + s0->y - _ground.y_offset,(float)((j + 1) * GROUND_CELL_SIZE)} };
                             Point3d res;
-                            v_lerp(&v0, &v2, s0->prop_t[i], &res);
+                            v_lerp(&v0, &v2, t0->prop_t, &res);
                             make_v(pos, res, &res);
                             if (res.x * res.x + res.z * res.z < radius + props->radius * props->radius) {
                                 if (props->flags & PROP_FLAG_COLLECT) {
                                     // "collect" prop
-                                    s0->props[i] = 0;
+                                    t0->prop_id = 0;
                                     *hit_type = 3;
                                     END_FUNC();
                                     return;
@@ -971,7 +980,7 @@ static void push_tile(GroundFace* f, const float* m, GroundSliceCoord* coords, i
         if (cp->outcode == -1) {
             Point3du* res = &cp->p;
             // compute point  
-            const float h = c.slice->h[c.i];
+            const float h = c.slice->tiles[c.i].h;
             Point3d p = { .v = {(float)c.i * GROUND_CELL_SIZE, h + c.slice->y - y_offset, (float)c.j * GROUND_CELL_SIZE} };
             // project using active matrix
             m_x_v(m, p.v, res->v);
@@ -1242,13 +1251,14 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
             // is the tile bit enabled?
             if (visible_tiles & (1 << i)) {
                 GroundSlice* s0 = _ground.slices[j];
+                GroundTile* t0 = &s0->tiles[i];
                 GroundSlice* s1 = _ground.slices[j + 1];
-                const Point3d v0 = {.v = {(float)i * GROUND_CELL_SIZE,         s0->h[i] + s0->y - y_offset,       (float)j * GROUND_CELL_SIZE}};
-                const Point3d v2 = { .v = {(float)(i + 1) * GROUND_CELL_SIZE,   s1->h[i + 1] + s1->y - y_offset,   (float)(j + 1) * GROUND_CELL_SIZE}};
+                const Point3d v0 = {.v = {(float)i * GROUND_CELL_SIZE,         t0->h + s0->y - y_offset,       (float)j * GROUND_CELL_SIZE}};
+                const Point3d v2 = { .v = {(float)(i + 1) * GROUND_CELL_SIZE,   s1->tiles[i + 1].h + s1->y - y_offset,   (float)(j + 1) * GROUND_CELL_SIZE}};
 
                 // camera to face point
                 const Point3d cv = { .x = v0.x - cam_pos.x,.y = v0.y - cam_pos.y,.z = v0.z - cam_pos.z };
-                GroundFace* f0 = &s0->faces[2 * i];
+                GroundFace* f0 = &t0->f0;
 
                 if (f0->flags & GROUNDFACE_FLAG_QUAD) {
                     if (v_dot(f0->n.v, cv.v) < 0.f)
@@ -1270,7 +1280,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                             { .slice = s1, .i = i,      .j = j + 1, .cache = cache[1], .extents = s0->extents }
                         }, 3, y_offset, shading_band);
                     }
-                    GroundFace* f1 = &s0->faces[2 * i + 1];
+                    GroundFace* f1 = &t0->f1;
                     if (v_dot(f1->n.v, cv.v) < 0.f)
                     {
                         push_tile(f1, m, (GroundSliceCoord[]) {
@@ -1281,10 +1291,10 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                     }
                 }
                 // draw prop (if any)
-                int prop_id = s0->props[i];
+                int prop_id = t0->prop_id;
                 if (prop_id) {
                     Point3d pos, res;
-                    v_lerp(&v0, &v2, s0->prop_t[i], &pos);
+                    v_lerp(&v0, &v2, t0->prop_t, &pos);
                     if (prop_id == PROP_COIN) {
                         // adjust coin height
                         pos.z += 2.f;
