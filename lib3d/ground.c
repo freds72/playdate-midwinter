@@ -839,7 +839,8 @@ typedef struct {
 typedef struct {
     int i, j;
     int* extents;
-    GroundSlice* slice;
+    float h;
+    float y;
     CameraPoint* cache;
 } GroundSliceCoord;
 
@@ -963,7 +964,7 @@ static void draw_coin(Drawable* drawable, uint8_t* bitmap) {
 }
 
 // push a face to the drawing list
-static void push_tile(GroundFace* f, const float* m, GroundSliceCoord* coords, int n, const float y_offset, const float light) {
+static void push_tile(GroundFace* f, const float* m, GroundSliceCoord* coords, int n, const float light) {
     BEGIN_FUNC();
 
     Point3du tmp[4];
@@ -980,8 +981,7 @@ static void push_tile(GroundFace* f, const float* m, GroundSliceCoord* coords, i
         if (cp->outcode == -1) {
             Point3du* res = &cp->p;
             // compute point  
-            const float h = c.slice->tiles[c.i].h;
-            Point3d p = { .v = {(float)c.i * GROUND_CELL_SIZE, h + c.slice->y - y_offset, (float)c.j * GROUND_CELL_SIZE} };
+            Point3d p = { .v = {(float)c.i * GROUND_CELL_SIZE, c.h + c.y, (float)c.j * GROUND_CELL_SIZE} };
             // project using active matrix
             m_x_v(m, p.v, res->v);
             int code = res->z > Z_NEAR ? OUTCODE_IN : OUTCODE_NEAR;
@@ -990,7 +990,7 @@ static void push_tile(GroundFace* f, const float* m, GroundSliceCoord* coords, i
             cp->outcode = code;
 
             // light
-            res->u = (4.0f + h) / 8.f;
+            res->u = (4.0f + c.h) / 8.f;
             // constant: snow contrast
             // shading: track contrast
             res->light = 0.5f + (c.i >= c.extents[0] && c.i <= c.extents[1]?0.75f:0.f);
@@ -1253,52 +1253,56 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                 GroundSlice* s0 = _ground.slices[j];
                 GroundTile* t0 = &s0->tiles[i];
                 GroundSlice* s1 = _ground.slices[j + 1];
-                const Point3d v0 = {.v = {(float)i * GROUND_CELL_SIZE,         t0->h + s0->y - y_offset,       (float)j * GROUND_CELL_SIZE}};
-                const Point3d v2 = { .v = {(float)(i + 1) * GROUND_CELL_SIZE,   s1->tiles[i + 1].h + s1->y - y_offset,   (float)(j + 1) * GROUND_CELL_SIZE}};
+                const Point3d v0 = {.v = {(float)i * GROUND_CELL_SIZE,         t0->h + s0->y - y_offset,       (float)j * GROUND_CELL_SIZE}};                
 
                 // camera to face point
                 const Point3d cv = { .x = v0.x - cam_pos.x,.y = v0.y - cam_pos.y,.z = v0.z - cam_pos.z };
-                GroundFace* f0 = &t0->f0;
+                const GroundFace* f0 = &t0->f0;
 
                 if (f0->flags & GROUNDFACE_FLAG_QUAD) {
                     if (v_dot(f0->n.v, cv.v) < 0.f)
                     {
                         push_tile(f0, m, (GroundSliceCoord[]) {
-                            { .slice = s0, .i = i,     .j = j,     .cache = cache[0], .extents = s1->extents },
-                            { .slice = s0, .i = i + 1, .j = j,     .cache = cache[0], .extents = s1->extents },
-                            { .slice = s1, .i = i + 1, .j = j + 1, .cache = cache[1], .extents = s0->extents },
-                            { .slice = s1, .i = i,     .j = j + 1, .cache = cache[1], .extents = s0->extents }
-                        }, 4, y_offset, shading_band);
+                            { .h = s0->tiles[i].h,   .y = s0->y - y_offset, .i = i,     .j = j,     .cache = cache[0], .extents = s1->extents },
+                            { .h = s0->tiles[i+1].h, .y = s0->y - y_offset, .i = i + 1, .j = j,     .cache = cache[0], .extents = s1->extents },
+                            { .h = s1->tiles[i+1].h, .y = s1->y - y_offset, .i = i + 1, .j = j + 1, .cache = cache[1], .extents = s0->extents },
+                            { .h = s1->tiles[i].h,   .y = s1->y - y_offset, .i = i,     .j = j + 1, .cache = cache[1], .extents = s0->extents }
+                        }, 4, shading_band);
                     }
                 }
                 else {
                     if (v_dot(f0->n.v, cv.v) < 0.f)
                     {
                         push_tile(f0, m, (GroundSliceCoord[]) {
-                            { .slice = s0, .i = i,      .j = j,     .cache = cache[0], .extents = s1->extents},
-                            { .slice = s1, .i = i + 1,  .j = j + 1, .cache = cache[1], .extents = s0->extents },
-                            { .slice = s1, .i = i,      .j = j + 1, .cache = cache[1], .extents = s0->extents }
-                        }, 3, y_offset, shading_band);
+                            { .h = s0->tiles[i].h,     .y = s0->y - y_offset, .i = i,      .j = j,     .cache = cache[0], .extents = s1->extents},
+                            { .h = s1->tiles[i + 1].h, .y = s1->y - y_offset, .i = i + 1,  .j = j + 1, .cache = cache[1], .extents = s0->extents },
+                            { .h = s1->tiles[i].h,     .y = s1->y - y_offset, .i = i,      .j = j + 1, .cache = cache[1], .extents = s0->extents }
+                        }, 3, shading_band);
                     }
-                    GroundFace* f1 = &t0->f1;
+                    const GroundFace* f1 = &t0->f1;
                     if (v_dot(f1->n.v, cv.v) < 0.f)
                     {
                         push_tile(f1, m, (GroundSliceCoord[]) {
-                            { .slice = s0, .i = i,     .j = j,     .cache = cache[0], .extents = s1->extents},
-                            { .slice = s0, .i = i + 1, .j = j,     .cache = cache[0], .extents = s1->extents },
-                            { .slice = s1, .i = i + 1, .j = j + 1, .cache = cache[1], .extents = s0->extents }
-                        }, 3, y_offset, shading_band);
+                            { .h = s0->tiles[i].h,   .y = s0->y - y_offset, .i = i,     .j = j,     .cache = cache[0], .extents = s1->extents},
+                            { .h = s0->tiles[i+1].h, .y = s0->y - y_offset, .i = i + 1, .j = j,     .cache = cache[0], .extents = s1->extents },
+                            { .h = s1->tiles[i+1].h, .y = s1->y - y_offset, .i = i + 1, .j = j + 1, .cache = cache[1], .extents = s0->extents }
+                        }, 3, shading_band);
                     }
                 }
                 // draw prop (if any)
                 int prop_id = t0->prop_id;
                 if (prop_id) {
-                    Point3d pos, res;
-                    v_lerp(&v0, &v2, t0->prop_t, &pos);
+                    const float t = t0->prop_t;
+                    Point3d pos = {
+                        .x = v0.x + GROUND_CELL_SIZE * t,
+                        .y = v0.y + (s1->tiles[i + 1].h + s1->y - s0->tiles[i].h - s0->y) * t,
+                        .z = v0.z + GROUND_CELL_SIZE * t
+                    };
                     if (prop_id == PROP_COIN) {
                         // adjust coin height
                         pos.z += 2.f;
                     }
+                    Point3d res;
                     m_x_v(m, pos.v, res.v);
                     if (res.z > Z_NEAR && res.z < (float)(GROUND_CELL_SIZE * MAX_TILE_DIST)) {
                         if (prop_id == PROP_COIN) {
