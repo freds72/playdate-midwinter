@@ -19,7 +19,44 @@ typedef struct {
     Timeline timelines[MAX_TIMELINES];
 } Section;
 
-Section _sections[] = {
+Section _chill_sections[] = {
+    // nothing
+    {
+        .random = 0,
+        .timelines = {
+            {.timeline = "." },
+            {.timeline = NULL }
+        }
+    },
+    // cabins
+    {
+        .random = 0,
+        .timelines = {
+            {.timeline = "t" },
+            {.timeline = NULL }
+        }
+    },
+    // hot air balloon
+    {
+        .random = 0,
+        .timelines = {
+            {.timeline = "h" },
+            {.timeline = NULL }
+        }
+    },
+    // eagle(s)
+    {
+        .random = 1,
+        .timelines = {
+            {.timeline = "e" },
+            {.timeline = "....e.." },
+            {.timeline = NULL }
+        }
+    },
+};
+
+// red track
+Section _endless_sections[] = {
     // nothing
     {
         .random = 0,
@@ -115,12 +152,43 @@ Section _sections[] = {
     }
 };
 
+// black track (race)
+Section _race_sections[] = {
+    // nothing
+    {
+        .random = 0,
+        .timelines = {
+            {.timeline = "." },
+            {.timeline = NULL }
+        }
+    }
+};
+
+typedef struct {
+    // number of sections
+    int n;
+    // track sections
+    Section* sections;
+} SectionCatalog;
+
+// all track types
+#define CATALOG_ENTRY(s) { .n = sizeof(s) / sizeof(Section), .sections = s}
+
+static SectionCatalog _catalog[3] = {
+    CATALOG_ENTRY(_chill_sections),
+    CATALOG_ENTRY(_endless_sections),
+    CATALOG_ENTRY(_race_sections)
+};
+
 struct {
+    int min_cooldown;
+    int max_cooldown;
     int cooldown;
     int t;
     size_t max_len;
     Timeline* lanes[MAX_TIMELINES];
-    Section* active;
+    SectionCatalog catalog;
+    Section* active_section;
 } _section_director;
 
 static void reset_track_timers(TrackTimers *timers, int is_main)
@@ -152,12 +220,12 @@ static int update_track(Track *track)
     return 0;
 
   // 
-  if (!_section_director.active) {
+  if (!_section_director.active_section) {
       _section_director.cooldown--;
       if (_section_director.cooldown < 0) {
           // pick a random section
-          Section* s = &_sections[0]; // randi(sizeof(_sections) / sizeof(Section))];
-          _section_director.active = s;
+          Section* s = &_section_director.catalog.sections[randi(_section_director.catalog.n)];
+          _section_director.active_section = s;
           _section_director.t = 0;
           // pick random lanes
           int lanes[] = { 0,1,2,3,4,5,6,7 };
@@ -176,7 +244,7 @@ static int update_track(Track *track)
       }
   }
 
-  if (_section_director.active) {
+  if (_section_director.active_section) {
       strcpy(_tracks.pattern, "        ");
       if (_section_director.t < _section_director.max_len) {
           int t = _section_director.t;
@@ -192,8 +260,8 @@ static int update_track(Track *track)
           return 1;
       }
       else {
-          _section_director.active = NULL;
-          _section_director.cooldown = 8;
+          _section_director.active_section = NULL;
+          _section_director.cooldown = lerpi(_section_director.min_cooldown, _section_director.max_cooldown, randf());
       }
   }
 
@@ -247,21 +315,24 @@ static int update_track(Track *track)
 
 // generate ski tracks
 // xmin/xmax: min/max world coordinates for track
-void make_tracks(const int xmin, const int xmax, const int max_tracks, const float twist, Tracks **out)
+void make_tracks(const int xmin, const int xmax, GroundParams params, Tracks **out)
 {
   float angle = 0.25f + 0.45f * randf();
 
   // set global range
   _tracks.xmin = xmin;
   _tracks.xmax = xmax;
-  _tracks.max_tracks = max_tracks;
+  _tracks.max_tracks = params.num_tracks;
   _tracks.n = 0;
-  _tracks.twist = twist;
+  _tracks.twist = params.twist;
   strcpy(_tracks.pattern, "        ");
 
   // section director
-  _section_director.active = NULL;
-  _section_director.cooldown = 24;
+  _section_director.active_section = NULL;
+  _section_director.min_cooldown = params.min_cooldown;
+  _section_director.max_cooldown = params.max_cooldown;
+  _section_director.cooldown = lerpi(params.min_cooldown, params.max_cooldown, randf());
+  _section_director.catalog = _catalog[params.track_type];
 
   add_track(lerpf(xmin, xmax, randf()), cosf(detauify(angle)), 1);
 
@@ -325,17 +396,22 @@ void update_tracks()
 void tracks_init(PlaydateAPI* playdate) {
     pd = playdate;
 
-    _section_director.active = NULL;
+    _section_director.active_section = NULL;
     _section_director.cooldown = 24;
+    // 
+    
     // initialize timeline string lenghts
-    for (int i = 0; i < sizeof(_sections) / sizeof(Section); ++i) {
-        Section* s = &_sections[i];
-        int j = 0;
-        while (s->timelines[j].timeline) {
-            s->timelines[j].len = strlen(s->timelines[j].timeline);
-            j++;
+    for (int k = 0; k < 3; ++k) {
+        SectionCatalog* catalog = &_catalog[k];
+        for (int i = 0; i < catalog->n; ++i) {
+            Section* s = &catalog->sections[i];
+            int j = 0;
+            while (s->timelines[j].timeline) {
+                s->timelines[j].len = strlen(s->timelines[j].timeline);
+                j++;
+            }
+            if (j >= MAX_TIMELINES)
+                pd->system->error("Too many timelines on section: %i - %i/%i", i, j, MAX_TIMELINES);
         }
-        if (j >= MAX_TIMELINES)
-            pd->system->error("Too many timelines on section: %i - %i/%i", i, j, MAX_TIMELINES);
     }
 }

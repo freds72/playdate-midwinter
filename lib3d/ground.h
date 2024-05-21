@@ -5,12 +5,14 @@
 
 typedef struct {
   float slope;
-  float bonus_t;
-  float total_t;
   float props_rate;
   float twist;
-  int props[16];
+  // number of tracks
   int num_tracks;
+  int track_type;
+  // min/max time between sections
+  int min_cooldown;
+  int max_cooldown;
 } GroundParams;
 
 typedef struct {

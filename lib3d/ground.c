@@ -318,7 +318,7 @@ void make_ground(GroundParams params) {
     _ground.max_pz = 0;
 
     // init track generator
-    make_tracks(4 * GROUND_CELL_SIZE, (GROUND_SIZE - 5)*GROUND_CELL_SIZE, params.num_tracks, params.twist, &_ground.tracks);
+    make_tracks(4 * GROUND_CELL_SIZE, (GROUND_SIZE - 5)*GROUND_CELL_SIZE, params, &_ground.tracks);
     update_tracks();
 
     for (int i = 0; i < GROUND_SIZE; ++i) {

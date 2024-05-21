@@ -9,8 +9,12 @@ import 'models.lua'
 local gfx = playdate.graphics
 local font = gfx.font.new('font/whiteglove-stroked')
 local memoFont = {
-	[gfx.kColorBlack]=gfx.font.new('font/Memo-Black'),
-	[gfx.kColorWhite]=gfx.font.new('font/Memo-White')
+	[gfx.kColorBlack]=gfx.font.new('font/More-15-Black'),
+	[gfx.kColorWhite]=gfx.font.new('font/More-15-White')
+}
+local outlineFont = {
+	[gfx.kColorBlack]=gfx.font.new('font/More-15-Black-Outline'),
+	[gfx.kColorWhite]=gfx.font.new('font/More-15-White-Outline')
 }
 
 local _inputs={
@@ -746,7 +750,7 @@ function make_snowball(pos)
 		self.m_shadow = m
 
 		-- roll!!!
-		local m = make_m_x_rot(base_angle-4*time())
+		local m = make_m_x_rot(base_angle-3*time())
 		m=m_x_m(m,make_m_from_v(n))
 		m[13]=pos[1]
 		-- offset ball radius
@@ -857,14 +861,14 @@ function menu_state()
 
 	local tree_prop,bush_prop,cow_prop={sx=112,sy=16,r=1.4,sfx={9,10}},{sx=96,sy=32,r=1,sfx={9,10}},{sx=112,sy=48,r=1,sfx={4}}
 	local panels={
-		{state=play_state,panel=make_panel("MARMOTTES","piste verte",12),c=1,params={name="Marmottes",dslot=0,slope=1.5,twist=1.5,tracks=1,bonus_t=2,total_t=30*30,record_t=records[1],props={tree_prop},props_rate=0.95}},
-		{state=play_state,panel=make_panel("BIQUETTES","piste rouge",18),c=8,params={name="Biquettes",dslot=1,slope=2,twist=3,tracks=2,bonus_t=1.5,total_t=20*30,record_t=records[2],props={tree_prop,bush_prop},props_rate=0.97,}},
-		{state=play_state,panel=make_panel("CHAMOIS","piste noire",21),c=0,params={name="Chamois",dslot=2,slope=2.25,twist=6,tracks=3,bonus_t=1.5,total_t=15*30,record_t=records[3],props={tree_prop,tree_prop,tree_prop,cow_prop},props_rate=0.97,}},
+		{state=play_state,panel=make_panel("MARMOTTES","piste verte",12),c=1,params={name="Marmottes",dslot=0,slope=1.5,twist=1.5,num_tracks=1,bonus_t=2,total_t=30*30,record_t=records[1],props_rate=0.95,track_type=0,min_cooldown=30*30,max_cooldown=30*90}},
+		{state=play_state,panel=make_panel("BIQUETTES","piste rouge",18),c=8,params={name="Biquettes",dslot=1,slope=2,twist=3,num_tracks=2,bonus_t=1.5,total_t=20*30,record_t=records[2],props_rate=0.97,track_type=1,min_cooldown=8,max_cooldown=12}},
+		{state=play_state,panel=make_panel("CHAMOIS","piste noire",21),c=0,params={name="Chamois",dslot=2,slope=2.25,twist=6,num_tracks=3,bonus_t=1.5,total_t=15*30,record_t=records[3],props_rate=0.97,track_type=2,min_cooldown=8,max_cooldown=8}},
 		{state=shop_state,panel=make_direction("Shop"),transition=station_state}
 	}
 	local sel,sel_tgt,blink=0,0,false
 
-	ground=make_ground({slope=0,tracks=0,props_rate=0.90,props={tree_prop}})
+	ground=make_ground({slope=0,tracks=0,props_rate=0.90,props={tree_prop},twist=0,track_type=0})
 
 	-- reset cam	
 	cam=make_cam()
@@ -1320,12 +1324,13 @@ function play_state(params)
 					if t%30==0 then sfx(2) end
 					if t%8<4 then bk=gfx.kColorWhite end
 				end
-				gfx.lockFocus(time_img)
-				time_img:clear(gfx.kColorClear)
-				print_regular(time_tostr(t,"."),0,-4,bk)
-				gfx.unlockFocus()
+				--gfx.lockFocus(time_img)
+				--time_img:clear(gfx.kColorClear)
+				print_regular(time_tostr(t,"."),nil,2,bk)
+				--gfx.unlockFocus()
 				-- bigger text for remaining time
-				time_img:drawScaled(169,2,2)
+				--time_img:drawScaled(169,2,2)
+
 				print_regular("sec",233,7,gfx.kColorBlack)
 
 				for i=1,#bonus do
@@ -1782,17 +1787,9 @@ function time_tostr(t,sep)
 end
 
 function print_bold(s,x,y,c)  
-	c=c or gfx.kColorBlack
-	local align=not x and kTextAlignment.center
-	x=x or 200	
-	local cnot=c==gfx.kColorBlack and gfx.kColorWhite or gfx.kColorBlack
-	for i=-1,1 do
-		for j=-1,1 do
-			print_regular(s,x+i,y+j,cnot,align)
-		end
-	end
-
-	print_regular(s,x,y,c,align)
+	gfx.setFont(outlineFont[c or gfx.kColorBlack])
+	align = align or x and kTextAlignment.left or kTextAlignment.center
+  gfx.drawTextAligned(s,x or 200,y,align)
 end
 
 function print_regular(s,x,y,c,align)
