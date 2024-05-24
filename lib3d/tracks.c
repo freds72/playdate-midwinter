@@ -38,9 +38,13 @@ Section _chill_sections[] = {
     },
     // hot air balloon
     {
-        .random = 0,
+        .random = 1,
         .timelines = {
             {.timeline = "h" },
+            {.timeline = "." },
+            {.timeline = "." },
+            {.timeline = "." },
+            {.timeline = "." },
             {.timeline = NULL }
         }
     },

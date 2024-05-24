@@ -815,7 +815,7 @@ function menu_state()
 	local best_y = -20
 	local tree_prop,bush_prop,cow_prop={sx=112,sy=16,r=1.4,sfx={9,10}},{sx=96,sy=32,r=1,sfx={9,10}},{sx=112,sy=48,r=1,sfx={4}}
 	local panels={
-		{state=play_state,panel=make_panel("MARMOTTES","piste verte",12),c=1,params={name="Marmottes",dslot=1,slope=1.5,twist=1.5,num_tracks=1,bonus_t=2,total_t=30*30,props_rate=0.95,track_type=0,min_cooldown=30*30,max_cooldown=30*90}},
+		{state=play_state,panel=make_panel("MARMOTTES","piste verte",12),c=1,params={name="Marmottes",dslot=1,slope=1.5,twist=1.5,num_tracks=1,bonus_t=2,total_t=30*30,props_rate=0.95,track_type=0,min_cooldown=30*5,max_cooldown=30*35}},
 		{state=play_state,panel=make_panel("BIQUETTES","piste rouge",18),c=8,params={name="Biquettes",dslot=2,slope=2,twist=3,num_tracks=2,bonus_t=1.5,total_t=20*30,props_rate=0.97,track_type=1,min_cooldown=8,max_cooldown=12}},
 		{state=play_state,panel=make_panel("CHAMOIS","piste noire",21),c=0,params={name="Chamois",dslot=3,slope=2.25,twist=6,num_tracks=3,bonus_t=1.5,total_t=15*30,props_rate=0.97,track_type=2,min_cooldown=8,max_cooldown=8}},
 		{state=shop_state,panel=make_direction("Shop"),transition=station_state}
@@ -908,7 +908,7 @@ function menu_state()
 			print_regular("$".._save_state.coins,0,0,gfx.kColorWhite)
 
 			if sel==sel_tgt and panels[sel+1].params then
-				local s="Best: ".._save_state["best_"..panels[sel+1].params.dslot].."m"
+				local s="".._save_state["best_"..panels[sel+1].params.dslot].."m"
 				print_regular(s,nil,best_y,gfx.kColorWhite)
 			end
 		end		
@@ -1206,7 +1206,37 @@ function play_state(params)
 					return true
 				end
 			})
-		end
+		end,
+		-- hot air balloon
+		h=function(lane)
+			add(actors,{
+				id=models.PROP_BALLOON,
+				pos={(15.5-lane/2)*4,-16,30.5*4},
+				m={
+					1,0,0,0,
+					0,1,0,0,
+					0,0,1,0,
+					0,0,0,1},
+				update=function(self,offset)
+					local pos=self.pos
+
+					-- shift
+					v_add(pos,offset)
+					-- todo: find a last costly solution
+					local newy=ground:find_face(pos)
+					if newy then pos[2]=newy end
+
+					-- out of landscape?
+					if pos[3]<0 then return end
+
+					local m=self.m
+					m[13]=pos[1]
+					m[14]=pos[2]
+					m[15]=pos[3]
+					return true
+				end
+			})
+		end		
 	}
 
 	return
@@ -1251,11 +1281,12 @@ function play_state(params)
 				end
 				if plyr.distance>best_distance then
 					best_distance = plyr.distance
-					_save_state["best_"..params.dslot] = best_distance
+					_save_state["best_"..params.dslot] = flr(best_distance)
 				end
 
 				-- handle commands (only if new)
 				if prev_slice_id~=slice_id then
+					print("command: "..commands)
 					for i=1,#commands do
 						local c=string.sub(commands,i,i)
 						if command_handlers[c] then
@@ -1390,7 +1421,7 @@ function plyr_death_state(pos,total_distance,total_tricks,params)
 
 	-- save records (if any)
 	if total_distance>_save_state["best_"..params.dslot] then
-		_save_state["best_"..params.dslot] = total_distance
+		_save_state["best_"..params.dslot] = flr(total_distance)
 	end
 	
 	-- stop ski sfx
