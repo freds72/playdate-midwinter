@@ -295,7 +295,7 @@ static int update_track(Track *track)
   {
     // reset
     reset_track_timers(&track->timers, 0);
-    track->u = _tracks.twist * sinf(detauify(0.45f * randf()));
+    track->u = _tracks.twist * (1.6f * randf() - 0.8f);
     // offshoot?
     if (_tracks.n < _tracks.max_tracks && randf() < 0.25f)
     {

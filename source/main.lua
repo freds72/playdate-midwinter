@@ -815,14 +815,15 @@ function menu_state()
 	local best_y = -20
 	local tree_prop,bush_prop,cow_prop={sx=112,sy=16,r=1.4,sfx={9,10}},{sx=96,sy=32,r=1,sfx={9,10}},{sx=112,sy=48,r=1,sfx={4}}
 	local panels={
-		{state=play_state,panel=make_panel("MARMOTTES","piste verte",12),c=1,params={name="Marmottes",dslot=1,slope=1.5,twist=1.5,num_tracks=1,bonus_t=2,total_t=30*30,props_rate=0.95,track_type=0,min_cooldown=30*5,max_cooldown=30*35}},
+		{state=play_state,panel=make_panel("MARMOTTES","piste verte",12),c=1,params={name="Marmottes",dslot=1,slope=1.5,twist=2.5,num_tracks=1,bonus_t=2,total_t=30*30,props_rate=0.95,track_type=0,min_cooldown=30*5,max_cooldown=30*35}},
 		{state=play_state,panel=make_panel("BIQUETTES","piste rouge",18),c=8,params={name="Biquettes",dslot=2,slope=2,twist=3,num_tracks=2,bonus_t=1.5,total_t=20*30,props_rate=0.97,track_type=1,min_cooldown=8,max_cooldown=12}},
 		{state=play_state,panel=make_panel("CHAMOIS","piste noire",21),c=0,params={name="Chamois",dslot=3,slope=2.25,twist=6,num_tracks=3,bonus_t=1.5,total_t=15*30,props_rate=0.97,track_type=2,min_cooldown=8,max_cooldown=8}},
 		{state=shop_state,panel=make_direction("Shop"),transition=station_state}
 	}
 	local sel,sel_tgt,blink=0,0,false
-
-	ground=make_ground({slope=0,tracks=0,props_rate=0.90,props={tree_prop},twist=0,track_type=0})
+	-- background actors
+	local actors={}
+	ground=make_ground({slope=0,tracks=0,props_rate=0.90,twist=0,track_type=0,min_cooldown=9999,max_cooldown=9999})
 
 	-- reset cam	
 	cam=make_cam()
@@ -872,12 +873,48 @@ function menu_state()
 					next_state(p.transition or zoomin_state,p.state,p.params)
 				end)
 			end
+			if #actors<3 and rnd()<0.5 then
+				local vel=0.2 + 0.2*rnd()
+				add(actors,{
+					id=pick{models.PROP_SKIER,models.PROP_SLED},
+					pos={(16.5+rnd()*4)*4,0,0.5*4},
+					m={
+						1,0,0,0,
+						0,1,0,0,
+						0,0,1,0,
+						0,0,0,1},
+					update=function(self)
+						local pos=self.pos
+						pos[3]+=vel
+						if pos[3]>31.5*4 then return end
+
+						local m=self.m
+						m[13]=pos[1]
+						m[14]=pos[2]
+						m[15]=pos[3]			
+						return true
+					end
+				})
+			end
+
+			for i=#actors,1,-1 do
+				local a=actors[i]
+				if not a:update() then
+					table.remove(actors,i)
+				end
+			end
 
 			--
 			cam:track({64,0,64},sel_tgt/#panels,v_up)
 		end,
 		-- draw
 		function()
+			for _,a in pairs(actors) do
+				ground:add_render_prop(a.id,a.m)
+				if a.m_shadow then
+					ground:add_render_prop(models.PROP_SHADOW,a.m_shadow)
+				end
+			end
 
 			ground:draw(cam)
 
@@ -1651,8 +1688,8 @@ function _init()
 		_save_state.version = 1
 		_save_state.coins = 0
 		_save_state.best_1 = 1000
-		_save_state.best_2 = 1000
-		_save_state.best_3 = 1000
+		_save_state.best_2 = 500
+		_save_state.best_3 = 250
 	end
 
 	-- init state machine
