@@ -202,17 +202,17 @@ static void make_slice(GroundSlice* slice, float y) {
 
     // generate height
     for (int i = 0; i < GROUND_SIZE; ++i) {
-        slice->tiles[i].h = (perlin2d((16.f * i) / GROUND_SIZE, _ground.noise_y_offset, 0.25f, 4)) * 4.f * active_params.slope;
-        slice->tiles[i].prop_id = 0;
+        GroundTile* tile = &slice->tiles[i];
+        tile->h = (perlin2d((16.f * i) / GROUND_SIZE, _ground.noise_y_offset, 0.25f, 4)) * 4.f * active_params.slope;
+        tile->prop_id = 0;
         // 
+        if (i > 2 && i< GROUND_SIZE - 2 && randf() > active_params.props_rate) {
+            tile->prop_id = trees[(int)(3.f * randf())];
+            tile->prop_t = randf();
+        }
     }
 
     _ground.noise_y_offset += (active_params.slope + randf()) / 4.f;
-    // side walls + nice transition
-    slice->tiles[0].h = 15.f + 5.f * randf();
-    slice->tiles[1].h = lerpf(slice->tiles[0].h, slice->tiles[1].h, 0.666f);
-    slice->tiles[GROUND_SIZE - 1].h = 15.f + 5.f * randf();
-    slice->tiles[GROUND_SIZE - 2].h = lerpf(slice->tiles[GROUND_SIZE - 1].h, slice->tiles[GROUND_SIZE - 2].h, 0.666f);
 
     int imin = 3, imax = GROUND_SIZE - 3;
     float main_track_x = GROUND_CELL_SIZE * (imin + imax) / 2.f;
@@ -226,18 +226,6 @@ static void make_slice(GroundSlice* slice, float y) {
             main_track_x = t->x;
             imin = i0;
             imax = i1;
-            for (int i = 1; i < i0 - 2; ++i) {
-                if (randf() > active_params.props_rate) {
-                    slice->tiles[i].prop_id = trees[(int)(3.f * randf())];
-                    slice->tiles[i].prop_t = randf();
-                }
-            }
-            for (int i = i1+2; i < GROUND_SIZE - 1; ++i) {
-                if (randf() > active_params.props_rate) {
-                    slice->tiles[i].prop_id = trees[(int)(3.f * randf())];
-                    slice->tiles[i].prop_t = randf();
-                }
-            }
             for (int i = i0; i < i1; ++i) {
                 // remove props from track
                 int prop_id = 0;
@@ -257,26 +245,6 @@ static void make_slice(GroundSlice* slice, float y) {
                 slice->tiles[i].prop_id = prop_id;
                 slice->tiles[i].prop_t = prop_t;
             }
-            // race markers
-            if (_ground.slice_id % 8 == 0) {
-                is_checkpoint = 1;
-                // checkoint pole
-                slice->tiles[i0].prop_id = PROP_CHECKPOINT_LEFT;
-                slice->tiles[i0].prop_t = 0.5f;
-
-                slice->tiles[i1].prop_id = PROP_CHECKPOINT_RIGHT;
-                slice->tiles[i1].prop_t = 0.5f;
-            }
-            if (_ground.slice_id % 3 == 0) {
-                if (t->u > 0.1f) {
-                    slice->tiles[i0 - 2].prop_id = trees[(int)(3.f * randf())];
-                    slice->tiles[i0 - 2].prop_t = randf();
-                }
-                else if (t->u < -0.1f) {
-                    slice->tiles[i1 + 2].prop_id = trees[(int)(3.f * randf())];
-                    slice->tiles[i1 + 2].prop_t = randf();
-                }
-            }
         }
         else {
             // side tracks are less obvious
@@ -288,11 +256,6 @@ static void make_slice(GroundSlice* slice, float y) {
                     slice->tiles[i].prop_id = 0;
                 }
             }
-            // coins
-            if (_ground.slice_id % 4 == 0) {
-                slice->tiles[ii].prop_id = PROP_COIN;
-                slice->tiles[ii].prop_t = 0.5f;
-            }
         }
     }
 
@@ -301,6 +264,30 @@ static void make_slice(GroundSlice* slice, float y) {
     slice->extents[1] = imax;
 
     slice->is_checkpoint = is_checkpoint;
+
+    // side walls
+    slice->tiles[0].h = 15.f + 5.f * randf();
+    slice->tiles[GROUND_SIZE - 1].h = 15.f + 5.f * randf();
+    if (active_params.tight_mode) {
+        for (int i = 1; i < imin - 1; i++) {
+            slice->tiles[i].h = slice->tiles[0].h;
+            slice->tiles[i].prop_id = 0;
+        }
+        for (int i = GROUND_SIZE - 2; i > imax + 1; i--) {
+            slice->tiles[i].h = slice->tiles[GROUND_SIZE - 1].h;
+            slice->tiles[i].prop_id = 0;
+        }
+        imin--;
+        imax++;
+    }
+    else
+    {
+        imin = 2;
+        imax = GROUND_SIZE - 2;
+    }
+    //  + nice transition
+    slice->tiles[imin].h = lerpf(slice->tiles[imin - 1].h, slice->tiles[imin].h, lerpf(0.666f,0.8f,randf()));
+    slice->tiles[imax].h = lerpf(slice->tiles[imax + 1].h, slice->tiles[imax].h, lerpf(0.666f,0.8f,randf()));
 
     _ground.slice_id++;
 

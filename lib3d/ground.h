@@ -7,6 +7,7 @@ typedef struct {
   float slope;
   float props_rate;
   float twist;
+  int tight_mode;
   // number of tracks
   int num_tracks;
   int track_type;

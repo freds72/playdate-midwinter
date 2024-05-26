@@ -47,7 +47,8 @@ static int ground_params_new(lua_State* L)
     p->slope = 0;
     p->num_tracks = 0;
     p->props_rate = 0.1f;
-    
+	p->tight_mode = 0;
+
 	pd->lua->pushObject(p, "lib3d.GroundParams", 0);
 	return 1;
 }
@@ -71,6 +72,7 @@ static int ground_params_index(lua_State* L)
 	C_TO_LUA(p, min_cooldown, Int);
 	C_TO_LUA(p, max_cooldown, Int);
 	C_TO_LUA(p, track_type, Int);
+	C_TO_LUA(p, tight_mode, Int);
 
 	// fallback
 	pd->lua->pushNil();	
@@ -90,6 +92,7 @@ static int ground_params_newindex(lua_State* L)
 	LUA_TO_C(p, min_cooldown, Int);
 	LUA_TO_C(p, max_cooldown, Int);
 	LUA_TO_C(p, track_type, Int);
+	LUA_TO_C(p, tight_mode, Int);
 
 	return 0;
 }

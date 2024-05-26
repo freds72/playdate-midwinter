@@ -50,6 +50,10 @@ end
 local cos = function(a)
   return math.cos(2*a*math.pi)
 end
+local function sgn(a)
+	return a>=0 and 1 or -1
+end
+
 local sqrt = math.sqrt
 local flr = math.floor
 local max=math.max
@@ -234,6 +238,16 @@ function make_m_x_rot(angle)
 		1,0,0,0,
 		0,c,-s,0,
 		0,s,c,0,
+		0,0,0,1
+	}
+end
+
+function make_m_y_rot(angle)
+	local c,s=cos(angle),-sin(angle)
+	return {
+		c,0,-s,0,
+		0,1,0,0,
+		s,0,c,0,
 		0,0,0,1
 	}
 end
@@ -815,9 +829,9 @@ function menu_state()
 	local best_y = -20
 	local tree_prop,bush_prop,cow_prop={sx=112,sy=16,r=1.4,sfx={9,10}},{sx=96,sy=32,r=1,sfx={9,10}},{sx=112,sy=48,r=1,sfx={4}}
 	local panels={
-		{state=play_state,panel=make_panel("MARMOTTES","piste verte",12),c=1,params={name="Marmottes",dslot=1,slope=1.5,twist=2.5,num_tracks=1,bonus_t=2,total_t=30*30,props_rate=0.95,track_type=0,min_cooldown=30*5,max_cooldown=30*35}},
-		{state=play_state,panel=make_panel("BIQUETTES","piste rouge",18),c=8,params={name="Biquettes",dslot=2,slope=2,twist=3,num_tracks=2,bonus_t=1.5,total_t=20*30,props_rate=0.97,track_type=1,min_cooldown=8,max_cooldown=12}},
-		{state=play_state,panel=make_panel("CHAMOIS","piste noire",21),c=0,params={name="Chamois",dslot=3,slope=2.25,twist=6,num_tracks=3,bonus_t=1.5,total_t=15*30,props_rate=0.97,track_type=2,min_cooldown=8,max_cooldown=8}},
+		{state=play_state,panel=make_panel("MARMOTTES","piste verte",12),c=1,params={name="Marmottes",slope=1.5,twist=2.5,num_tracks=1,tight_mode=0,props_rate=0.95,track_type=0,min_cooldown=30*5,max_cooldown=30*35}},
+		{state=play_state,panel=make_panel("BIQUETTES","piste rouge",18),c=8,params={name="Biquettes",dslot=2,slope=2,twist=3,num_tracks=2,tight_mode=1,props_rate=0.97,track_type=1,min_cooldown=8,max_cooldown=12}},
+		{state=play_state,panel=make_panel("CHAMOIS","piste noire",21),c=0,params={name="Chamois",dslot=3,slope=2.25,twist=6,num_tracks=3,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=8,max_cooldown=8}},
 		{state=shop_state,panel=make_direction("Shop"),transition=station_state}
 	}
 	local sel,sel_tgt,blink=0,0,false
@@ -875,23 +889,22 @@ function menu_state()
 			end
 			if #actors<3 and rnd()<0.5 then
 				local vel=0.2 + 0.2*rnd()
+				local rot=0.1*rnd()
+				local freq=1+2*rnd()
+				if rnd()>0.5 then vel=-vel end
 				add(actors,{
 					id=pick{models.PROP_SKIER,models.PROP_SLED},
-					pos={(16.5+rnd()*4)*4,0,0.5*4},
-					m={
-						1,0,0,0,
-						0,1,0,0,
-						0,0,1,0,
-						0,0,0,1},
+					pos={(16.5+rnd()*4)*4,0,vel>0 and 0.5*4 or 31.5*4},
 					update=function(self)
 						local pos=self.pos
 						pos[3]+=vel
-						if pos[3]>31.5*4 then return end
+						if pos[3]>31.5*4 or pos[3]<0.5*4 then return end
 
-						local m=self.m
+						local m=make_m_y_rot((vel>=0 and 0 or 0.5)+rot*cos(time()/freq))
 						m[13]=pos[1]
 						m[14]=pos[2]
 						m[15]=pos[3]			
+						self.m=m
 						return true
 					end
 				})
@@ -944,8 +957,9 @@ function menu_state()
 
 			print_regular("$".._save_state.coins,0,0,gfx.kColorWhite)
 
-			if sel==sel_tgt and panels[sel+1].params then
-				local s="".._save_state["best_"..panels[sel+1].params.dslot].."m"
+			local params=panels[sel+1].params
+			if sel==sel_tgt and params and params.dslot then
+				local s="".._save_state["best_"..params.dslot].."m"
 				print_regular(s,nil,best_y,gfx.kColorWhite)
 			end
 		end		
@@ -1090,7 +1104,7 @@ end
 function play_state(params)
 	local help_ttl=0
 	-- read data slot
-	local best_distance = _save_state["best_"..params.dslot]	
+	local best_distance = params.dslot and _save_state["best_"..params.dslot]	
 	local prev_slice_id
 	-- warning signs
 	local warnings={}
@@ -1316,7 +1330,7 @@ function play_state(params)
 						end)
 					end
 				end
-				if plyr.distance>best_distance then
+				if best_distance and plyr.distance>best_distance then
 					best_distance = plyr.distance
 					_save_state["best_"..params.dslot] = flr(best_distance)
 				end
@@ -1396,8 +1410,11 @@ function play_state(params)
 				-- current track
 				print_small(params.name,399 - gfx.getTextSize(params.name),0,gfx.kColorBlack)
 
-				-- total distance
-				print_regular(flr(plyr.distance).."m",nil,0,bk)
+				-- chill mode?
+				if best_distance then
+					-- total distance
+					print_regular(flr(plyr.distance).."m",nil,0,bk)
+				end
 
 				local y_bonus = 28
 				local t=30*time()
@@ -1457,7 +1474,7 @@ function plyr_death_state(pos,total_distance,total_tricks,params)
 	local text_ttl,active_text,text=10,"yikes!",{"ouch!","aie!","pok!","weee!"}
 
 	-- save records (if any)
-	if total_distance>_save_state["best_"..params.dslot] then
+	if params.dslot and total_distance>_save_state["best_"..params.dslot] then
 		_save_state["best_"..params.dslot] = flr(total_distance)
 	end
 	
@@ -1879,22 +1896,26 @@ function time_tostr(t,sep)
 	return padding(flr(t/30)%60)..sep..padding(flr(10*t/3)%100)
 end
 
+function print_text(s,x,y)
+	if not x then
+		x=200 - gfx.getTextSize(s) / 2
+	end
+  gfx.drawTextAligned(s,x,y,kTextAlignment.left)
+end
+
 function print_bold(s,x,y,c)  
 	gfx.setFont(outlineFont[c or gfx.kColorBlack])
-	align = align or x and kTextAlignment.left or kTextAlignment.center
-  gfx.drawTextAligned(s,x or 200,y,align)
+	print_text(s,x,y)
 end
 
 function print_regular(s,x,y,c,align)
 	gfx.setFont(largeFont[c or gfx.kColorBlack])
-	align = align or x and kTextAlignment.left or kTextAlignment.center
-  gfx.drawTextAligned(s,x or 200,y,align)
+	print_text(s,x,y)
 end
 
 function print_small(s,x,y,c,align)
 	gfx.setFont(smallFont[c or gfx.kColorBlack])
-	align = align or x and kTextAlignment.left or kTextAlignment.center
-  gfx.drawTextAligned(s,x or 200,y,align)
+	print_text(s,x,y)
 end
 
 -- *********************
