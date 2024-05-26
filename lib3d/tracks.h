@@ -2,6 +2,7 @@
 #define _tracks_h
 
 #include <pd_api.h>
+#include "ground.h"
 
 #define MAX_TIMELINES 8
 
@@ -37,7 +38,7 @@ typedef struct {
   char pattern[MAX_TIMELINES + 1];
 } Tracks;
 
-void make_tracks(const int xmin, const int xmax, const int max_tracks, const float twist, Tracks** out);
+void make_tracks(const int xmin, const int xmax, GroundParams params, Tracks** out);
 void update_tracks();
 void tracks_init(PlaydateAPI* playdate);
 

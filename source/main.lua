@@ -8,9 +8,17 @@ import 'models.lua'
 
 local gfx = playdate.graphics
 local font = gfx.font.new('font/whiteglove-stroked')
-local memoFont = {
+local smallFont = {
 	[gfx.kColorBlack]=gfx.font.new('font/Memo-Black'),
 	[gfx.kColorWhite]=gfx.font.new('font/Memo-White')
+}
+local largeFont = {
+	[gfx.kColorBlack]=gfx.font.new('font/More-15-Black'),
+	[gfx.kColorWhite]=gfx.font.new('font/More-15-White')
+}
+local outlineFont = {
+	[gfx.kColorBlack]=gfx.font.new('font/More-15-Black-Outline'),
+	[gfx.kColorWhite]=gfx.font.new('font/More-15-White-Outline')
 }
 
 local _inputs={
@@ -42,6 +50,10 @@ end
 local cos = function(a)
   return math.cos(2*a*math.pi)
 end
+local function sgn(a)
+	return a>=0 and 1 or -1
+end
+
 local sqrt = math.sqrt
 local flr = math.floor
 local max=math.max
@@ -226,6 +238,16 @@ function make_m_x_rot(angle)
 		1,0,0,0,
 		0,c,-s,0,
 		0,s,c,0,
+		0,0,0,1
+	}
+end
+
+function make_m_y_rot(angle)
+	local c,s=cos(angle),-sin(angle)
+	return {
+		c,0,-s,0,
+		0,1,0,0,
+		s,0,c,0,
 		0,0,0,1
 	}
 end
@@ -486,30 +508,19 @@ function make_body(p)
 	}	
 end
 
-function make_plyr(p,params)
+function make_plyr(p,on_trick)
 	local body=make_body(p)
 
-	local body_update=body.update
-
-	local coins,combo_ttl,combo=0,0,1
+	local body_update=body.update	
 	local hit_ttl,jump_ttl=8,0
 	
 	local spin_angle,spin_prev=0
 
 	-- timers + avoid free airtime on drop!
-	local t,bonus,total_t,total_tricks,reverse_t,air_t=params.total_t,{},0,0,0,-60
-	local whoa_sfx={5,6,7}
-
-	-- time bonus cannot be negative!
-	local function add_time_bonus(tb,msg)
-		t=t+tb*30
-		local ttl=12+rnd(12)
-		add(bonus,{t="+"..tb.."s",msg=msg,x=rnd(5),ttl=ttl,duration=ttl})
-		-- trick?
-		if msg then sfx(pick(whoa_sfx)) total_tricks=total_tricks+1 end
-	end
+	local reverse_t,air_t=0,0
 
 	body.hp = 3
+	body.distance = 0
 	body.control=function(self)	
 		local da=0
 		if playdate.isCrankDocked() then
@@ -525,9 +536,9 @@ function make_plyr(p,params)
 			if air_t>23 then
 				-- pro trick? :)
 				if reverse_t>0 then
-					add_time_bonus(2,"reverse air!")
+					on_trick(2,"reverse air!")
 				else
-					add_time_bonus(1,"air!")
+					on_trick(1,"air!")
 				end
 			end
 			air_t=0
@@ -548,9 +559,7 @@ function make_plyr(p,params)
 	end
 
 	body.update=function(self)
-		t-=1
 		hit_ttl-=1
-		total_t+=1
 
 		-- collision detection
 		local pos,angle,_,velocity=self:get_pos()
@@ -570,7 +579,7 @@ function make_plyr(p,params)
 		end
 		
 		if abs(spin_angle)>1 then
-			add_time_bonus(2,"360!")
+			on_trick(2,"360!")
 			spin_prev=nil
 		end
 
@@ -580,13 +589,7 @@ function make_plyr(p,params)
 			cam:shake()
 			self.dead=true
 		elseif hit_type==3 then
-			coins += combo
-			if combo_ttl>0 then
-				combo = min(combo+1,99)
-			end
-			-- reset ttl
-			combo_ttl = 45
-			_coin_sfx:play()
+			-- todo: remove coins
 		elseif hit_type==4 then
 			--
 			if self.on_ground then
@@ -599,31 +602,16 @@ function make_plyr(p,params)
 			_treehit_sfx:play()
 			cam:shake()
 			-- temporary invincibility
-			hit_ttl=20
+			hit_ttl=15
 			self.hp-=1
 			-- kill tricks
 			reverse_t,spin_prev=0
-		end
-				
-		combo_ttl -= 1
-		if combo_ttl<=0 then			
-			combo_ttl = 0
-			combo = 1
 		end
 
 		self.on_track=true
 		local slice=ground:get_track(pos)
 		self.gps=slice.angle+angle
-
-		if pos[1]>=slice.xmin and pos[1]<=slice.xmax then			
-			if slice.is_checkpoint then
-				if pos[3]>slice.z then
-					add_time_bonus(params.bonus_t)
-					_checkpoint_sfx:play()
-					ground:clear_checkpoint(pos)
-				end
-			end
-		else
+		if pos[1]<slice.xmin and pos[1]>slice.xmax then			
 			self.on_track=nil
 		end
 
@@ -635,27 +623,19 @@ function make_plyr(p,params)
 		end
 
 		if reverse_t>30 then
-			add_time_bonus(3,"reverse!")
+			on_trick(3,"reverse!")
 			reverse_t=0
-		end
-
-		for _,b in pairs(bonus) do
-			b.ttl-=1
-			if b.ttl<0 then del(bonus,b) end
-		end
+		end			
 
 		if self.hp<=0 then
-			self.dead=true			
-		elseif t<0 then
-			self.time_over,self.dead=true,true
+			self.dead=true
 		end
 
 		-- call parent
 		body_update(self)
-	end
-
-	body.score=function()
-		return t,bonus,total_t,total_tricks,coins,combo,combo_ttl/45
+		-- total distance
+		-- 2: crude 1 game unit = 2 meters
+		body.distance+=max(0,2*velocity[3])
 	end
 
 	-- wrapper
@@ -746,7 +726,7 @@ function make_snowball(pos)
 		self.m_shadow = m
 
 		-- roll!!!
-		local m = make_m_x_rot(base_angle-4*time())
+		local m = make_m_x_rot(base_angle-3*time())
 		m=m_x_m(m,make_m_from_v(n))
 		m[13]=pos[1]
 		-- offset ball radius
@@ -846,25 +826,18 @@ end
 
 function menu_state()
   local starting
-   
-	-- default records (number of frames)
-	local records={900,600,450}
-	for i=0,2 do
-		local t=3000--dget(i)
-		-- avoid bogus data
-		records[i+1]=t>0 and t or records[i+1]
-	end
-
+	local best_y = -20
 	local tree_prop,bush_prop,cow_prop={sx=112,sy=16,r=1.4,sfx={9,10}},{sx=96,sy=32,r=1,sfx={9,10}},{sx=112,sy=48,r=1,sfx={4}}
 	local panels={
-		{state=play_state,panel=make_panel("MARMOTTES","piste verte",12),c=1,params={name="Marmottes",dslot=0,slope=1.5,twist=1.5,tracks=1,bonus_t=2,total_t=30*30,record_t=records[1],props={tree_prop},props_rate=0.95}},
-		{state=play_state,panel=make_panel("BIQUETTES","piste rouge",18),c=8,params={name="Biquettes",dslot=1,slope=2,twist=3,tracks=2,bonus_t=1.5,total_t=20*30,record_t=records[2],props={tree_prop,bush_prop},props_rate=0.97,}},
-		{state=play_state,panel=make_panel("CHAMOIS","piste noire",21),c=0,params={name="Chamois",dslot=2,slope=2.25,twist=6,tracks=3,bonus_t=1.5,total_t=15*30,record_t=records[3],props={tree_prop,tree_prop,tree_prop,cow_prop},props_rate=0.97,}},
+		{state=play_state,panel=make_panel("MARMOTTES","piste verte",12),c=1,params={name="Marmottes",slope=1.5,twist=2.5,num_tracks=1,tight_mode=0,props_rate=0.95,track_type=0,min_cooldown=30*5,max_cooldown=30*35}},
+		{state=play_state,panel=make_panel("BIQUETTES","piste rouge",18),c=8,params={name="Biquettes",dslot=2,slope=2,twist=3,num_tracks=2,tight_mode=1,props_rate=0.97,track_type=1,min_cooldown=8,max_cooldown=12}},
+		{state=play_state,panel=make_panel("CHAMOIS","piste noire",21),c=0,params={name="Chamois",dslot=3,slope=2.25,twist=6,num_tracks=3,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=8,max_cooldown=8}},
 		{state=shop_state,panel=make_direction("Shop"),transition=station_state}
 	}
 	local sel,sel_tgt,blink=0,0,false
-
-	ground=make_ground({slope=0,tracks=0,props_rate=0.90,props={tree_prop}})
+	-- background actors
+	local actors={}
+	ground=make_ground({slope=0,tracks=0,props_rate=0.90,twist=0,track_type=0,min_cooldown=9999,max_cooldown=9999})
 
 	-- reset cam	
 	cam=make_cam()
@@ -886,14 +859,15 @@ function menu_state()
 	return
 		-- update
 		function()
-			if playdate.buttonJustReleased(playdate.kButtonLeft) then sel-=1 end
-			if playdate.buttonJustReleased(playdate.kButtonRight) then sel+=1 end
+			if playdate.buttonJustReleased(playdate.kButtonLeft) then sel-=1 best_y=-20 end
+			if playdate.buttonJustReleased(playdate.kButtonRight) then sel+=1 best_y=-20 end
 			sel=mid(sel,0,#panels-1)
-
+			
   		sel_tgt=lerp(sel_tgt,sel,0.18)
    		-- snap when close to target
 			if abs(sel_tgt-sel)<0.01 then
 				sel_tgt=sel
+				best_y = lerp(best_y,0,0.3)
 			end			
 
 			if not starting and playdate.buttonJustReleased(playdate.kButtonA) then
@@ -913,12 +887,47 @@ function menu_state()
 					next_state(p.transition or zoomin_state,p.state,p.params)
 				end)
 			end
+			if #actors<3 and rnd()<0.5 then
+				local vel=0.2 + 0.2*rnd()
+				local rot=0.1*rnd()
+				local freq=1+2*rnd()
+				if rnd()>0.5 then vel=-vel end
+				add(actors,{
+					id=pick{models.PROP_SKIER,models.PROP_SLED},
+					pos={(16.5+rnd()*4)*4,0,vel>0 and 0.5*4 or 31.5*4},
+					update=function(self)
+						local pos=self.pos
+						pos[3]+=vel
+						if pos[3]>31.5*4 or pos[3]<0.5*4 then return end
+
+						local m=make_m_y_rot((vel>=0 and 0 or 0.5)+rot*cos(time()/freq))
+						m[13]=pos[1]
+						m[14]=pos[2]
+						m[15]=pos[3]			
+						self.m=m
+						return true
+					end
+				})
+			end
+
+			for i=#actors,1,-1 do
+				local a=actors[i]
+				if not a:update() then
+					table.remove(actors,i)
+				end
+			end
 
 			--
 			cam:track({64,0,64},sel_tgt/#panels,v_up)
 		end,
 		-- draw
 		function()
+			for _,a in pairs(actors) do
+				ground:add_render_prop(a.id,a.m)
+				if a.m_shadow then
+					ground:add_render_prop(models.PROP_SHADOW,a.m_shadow)
+				end
+			end
 
 			ground:draw(cam)
 
@@ -940,15 +949,18 @@ function menu_state()
 			-- ski mask
 			_mask:draw(0,0)
 			
-			print_regular("Select: ⬅️ ➡️",2,2,gfx.kColorWhite)
-			if (time()%1)<0.5 then 
-				local s="Go: Ⓐ"
-				print_regular(s,398-gfx.getTextSize(s),2,gfx.kColorWhite)
+			local help="⬅️➡️"
+			if (time()%2)<1 then 
+				help="Ⓐ"
 			end
+			print_regular(help,399-gfx.getTextSize(help),0,gfx.kColorWhite)
 
-			if sel==sel_tgt and panels[sel+1].params then
-				local s="Best: "..time_tostr(panels[sel+1].params.record_t)
-				print_regular(s,nil,2,gfx.kColorWhite)
+			print_regular("$".._save_state.coins,0,0,gfx.kColorWhite)
+
+			local params=panels[sel+1].params
+			if sel==sel_tgt and params and params.dslot then
+				local s="".._save_state["best_"..params.dslot].."m"
+				print_regular(s,nil,best_y,gfx.kColorWhite)
 			end
 		end		
 end
@@ -1091,13 +1103,25 @@ end
 
 function play_state(params)
 	local help_ttl=0
-	local time_img = gfx.image.new(32,9)
+	-- read data slot
+	local best_distance = params.dslot and _save_state["best_"..params.dslot]	
 	local prev_slice_id
 	-- warning signs
 	local warnings={}
-	-- test
-	local spawn_ttl=30
 
+	-- trick event
+	local combo_ttl,bonus,total_tricks,coins,bonus_coins=0,{},0,_save_state.coins
+	local function register_trick(type,msg)
+		total_tricks+=1
+		local prev=bonus[#bonus]
+		-- add to combo only if different trick
+		if not prev or prev.msg~=msg then
+			add(bonus,{x=-60,t=0,msg=msg})
+			-- 3s to get another trick
+			combo_ttl=90
+		end
+	end
+	
 	-- stop music
 	music(-1,250)
 
@@ -1107,10 +1131,8 @@ function play_state(params)
 	actors,ground={},make_ground(params)
 
 	-- create player in correct direction
-	plyr=make_plyr(ground:get_pos(),params)
+	plyr=make_plyr(ground:get_pos(),register_trick)
 	_tracked = plyr
-
-	add(actors,make_npc(plyr.pos))
 
 	-- reset cam	
 	cam=make_cam()
@@ -1121,7 +1143,7 @@ function play_state(params)
 	-- command handlers
 	local command_handlers={
 		-- snowball!!
-		['B']=function(lane)
+		B=function(lane)
 			local y_velocity,z_velocity = 0,1+rnd(0.25)
 			local y_force,on_ground = 0
 			local base_angle = rnd()
@@ -1137,8 +1159,6 @@ function play_state(params)
 			add(actors,{
 				id=models.PROP_SNOWBALL,
 				pos=pos,
-				shift=function(self,offset)
-				end,
 				update=function(self,offset)
 					-- shift
 					v_add(pos,offset)
@@ -1196,7 +1216,8 @@ function play_state(params)
 				end
 			})
 		end,
-		['w']=function(lane)
+		-- warning sign
+		w=function(lane)
 			do_async(function()
 				warnings[lane]=_warning_avalanche
 				wait_async(40)
@@ -1206,7 +1227,67 @@ function play_state(params)
 				wait_async(5)
 				warnings[lane]=nil
 			end)
-		end
+		end,
+		-- (tele)cabin
+		t=function()
+			add(actors,{
+				id=models.PROP_CABINS,
+				pos={15.5*4,-16,30.5*4},
+				m={
+					1,0,0,0,
+					0,1,0,0,
+					0,0,1,0,
+					0,0,0,1},
+				update=function(self,offset)
+					local pos=self.pos
+
+					-- shift
+					v_add(pos,offset)
+					-- todo: find a last costly solution
+					local newy=ground:find_face(pos)
+					if newy then pos[2]=newy end
+
+					-- out of landscape?
+					if pos[3]<0 then return end
+
+					local m=self.m
+					m[13]=pos[1]
+					m[14]=pos[2]
+					m[15]=pos[3]					
+					return true
+				end
+			})
+		end,
+		-- hot air balloon
+		h=function(lane)
+			add(actors,{
+				id=models.PROP_BALLOON,
+				pos={(15.5-lane/2)*4,-16,30.5*4},
+				m={
+					1,0,0,0,
+					0,1,0,0,
+					0,0,1,0,
+					0,0,0,1},
+				update=function(self,offset)
+					local pos=self.pos
+
+					-- shift
+					v_add(pos,offset)
+					-- todo: find a last costly solution
+					local newy=ground:find_face(pos)
+					if newy then pos[2]=newy end
+
+					-- out of landscape?
+					if pos[3]<0 then return end
+
+					local m=self.m
+					m[13]=pos[1]
+					m[14]=pos[2]
+					m[15]=pos[3]
+					return true
+				end
+			})
+		end		
 	}
 
 	return
@@ -1225,8 +1306,38 @@ function play_state(params)
 			_tracked.pos[3] = z
 
 			if plyr then
+				for _,b in pairs(bonus) do
+					b.t+=1
+					b.x=lerp(b.x,4,0.25)
+				end
+				combo_ttl-=1
+				if combo_ttl<=0 then
+					combo_ttl=0
+					if #bonus>0 then
+						local tmp={table.unpack(bonus)}
+						-- add total line
+						do_async(function()
+							local multi=min(#tmp,4)
+							bonus_coins = 1<<multi
+							wait_async(30)
+							for i=1,bonus_coins do
+								coins += 1
+								wait_async(3)
+							end
+							_save_state.coins = coins
+							bonus_coins = nil							
+							bonus={}
+						end)
+					end
+				end
+				if best_distance and plyr.distance>best_distance then
+					best_distance = plyr.distance
+					_save_state["best_"..params.dslot] = flr(best_distance)
+				end
+
 				-- handle commands (only if new)
 				if prev_slice_id~=slice_id then
+					print("command: "..commands)
 					for i=1,#commands do
 						local c=string.sub(commands,i,i)
 						if command_handlers[c] then
@@ -1257,8 +1368,7 @@ function play_state(params)
 					cam:shake()
 
 					-- latest score
-					local _,_,total_t,total_tricks=plyr:score()
-					next_state(plyr_death_state,pos,total_t,total_tricks,params,plyr.time_over)
+					next_state(plyr_death_state,pos,flr(plyr.distance),total_tricks,params)
 					-- not active
 					plyr=nil
 				else	
@@ -1288,54 +1398,35 @@ function play_state(params)
 
 			if plyr then
 				local pos,a,steering=plyr:get_pos()
-				local t,bonus,total_t,_,coins,combo,combo_ttl=plyr:score()
 				local dy=plyr.height*24
 				-- ski
 				local xoffset=6*cos(time()/4)
 				_ski:draw(152+xoffset,210+dy-steering*14,gfx.kImageFlippedX)
 				_ski:draw(228-xoffset,210+dy+steering*14)
 			
-				-- seiko(tm) watch!
-				_seiko:draw(2,2)
-				-- draw hp				
-				gfx.setColor(plyr.hp==1 and t%8<4 and gfx.kColorBlack or gfx.kColorWhite)
-				for i=0,plyr.hp-1 do
-					gfx.fillRect(23+i*6,12,4,3)
-				end
-				-- combo counter
-				print_regular(combo.."x",41,16,gfx.kColorWhite,kTextAlignment.right)
-				-- combo timer
-				gfx.setColor(gfx.kColorWhite)
-				gfx.fillRect(11,33,28*combo_ttl,2)
-
 				-- coins
-				print_regular("$"..coins,48,5,gfx.kColorBlack)
+				print_small("$"..coins,0,0,gfx.kColorBlack)
 
 				-- current track
-				print_regular(params.name,49,20,gfx.kColorBlack)
+				print_small(params.name,399 - gfx.getTextSize(params.name),0,gfx.kColorBlack)
 
-				-- warning sound under 5s
-				local bk,y_trick=gfx.kColorBlack,110
-				if t<150 then
-					if t%30==0 then sfx(2) end
-					if t%8<4 then bk=gfx.kColorWhite end
+				-- chill mode?
+				if best_distance then
+					-- total distance
+					print_regular(flr(plyr.distance).."m",nil,0,bk)
 				end
-				gfx.lockFocus(time_img)
-				time_img:clear(gfx.kColorClear)
-				print_regular(time_tostr(t,"."),0,-4,bk)
-				gfx.unlockFocus()
-				-- bigger text for remaining time
-				time_img:drawScaled(169,2,2)
-				print_regular("sec",233,7,gfx.kColorBlack)
 
+				local y_bonus = 28
+				local t=30*time()
 				for i=1,#bonus do
-					local b=bonus[i]					
-					
-					if b.ttl/b.duration>0.5 or t%2==0 then
-						print_bold(b.t,200+b.x-#b.t/1.5,95 + b.ttl,gfx.kColorWhite)
+					local b=bonus[i]										
+					if b.t>15 or t%4<2 then
+						print_small(b.msg,b.x,y_bonus,gfx.kColorBlack)
+						y_bonus += 12
 					end
-					-- handle edge case if multiple tricks!
-					if b.msg then print_bold(b.msg,nil,y_trick,gfx.kColorWhite) y_trick-=9 end
+				end
+				if bonus_coins and t%4<2 then
+					print_bold("="..bonus_coins.."x",4,y_bonus,gfx.kColorWhite)
 				end
 
 				if plyr.gps and not plyr.on_track then
@@ -1353,8 +1444,7 @@ function play_state(params)
 					
 				if help_ttl<90 then
 					-- help msg?
-					print_regular(_input.action.glyph.." Jump",nil,162)
-					print_regular(_input.back.glyph.." Restart (hold)",nil,178)					
+					print_regular(_input.back.glyph.."Restart/Jump".._input.action.glyph,nil,162)
 				end					
 
 				-- any warning messages?
@@ -1366,12 +1456,12 @@ function play_state(params)
 		end		
 end
 
-function plyr_death_state(pos,total_t,total_tricks,params,time_over)
+function plyr_death_state(pos,total_distance,total_tricks,params)
 	-- convert to string
 	local active_msg,msgs=0,{
-		"total time: "..time_tostr(total_t),
-		"total tricks: "..total_tricks}	
-	local gameover_y,msg_y,msg_tgt_y,msg_tgt_i=260,-20,{16,-20},0
+		"Distance: "..total_distance.."m",
+		"Total Tricks: "..total_tricks}	
+	local gameover_y,msg_y,msg_tgt_y,msg_tgt_i=260,-20,{16,-30},0
 
 	local prev_update,prev_draw = _update_state,_draw_state
 
@@ -1384,9 +1474,8 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 	local text_ttl,active_text,text=10,"yikes!",{"ouch!","aie!","pok!","weee!"}
 
 	-- save records (if any)
-	if total_t>params.record_t then
-    -- todo: save record
-		-- dset(params.dslot,total_t)
+	if params.dslot and total_distance>_save_state["best_"..params.dslot] then
+		_save_state["best_"..params.dslot] = flr(total_distance)
 	end
 	
 	-- stop ski sfx
@@ -1399,7 +1488,7 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 			prev_update()
 
 			msg_y=lerp(msg_y,msg_tgt_y[msg_tgt_i+1],0.08)
-			gameover_y=lerp(gameover_y,42+8*sin(time()/4),0.06)
+			gameover_y=lerp(gameover_y,48+8*sin(time()/4),0.06)
 
 			if abs(msg_y-msg_tgt_y[msg_tgt_i+1])<1 then msg_tgt_i+=1 end
 			if msg_tgt_i>#msg_tgt_y-1 then msg_tgt_i=0 active_msg=(active_msg+1)%2 end
@@ -1414,12 +1503,7 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 				cam:shake()
 			end
 			-- keep camera off side walls
-			if time_over then
-				cam:track(p,0,v_up)
-			else
-				
-				cam:track({mid(p[1],8,29*4),p[2],p[3]+16},0.5,v_up,0.2)
-			end
+			cam:track({mid(p[1],8,29*4),p[2],p[3]+16},0.5,v_up,0.2)
 
 			if playdate.buttonJustReleased(_input.back.id) then
 				next_state(zoomin_state,menu_state)
@@ -1434,17 +1518,14 @@ function plyr_death_state(pos,total_t,total_tricks,params,time_over)
 
 			print_bold(msgs[active_msg+1],nil,msg_y,gfx.kColorWhite)
 			local x,y=rnd(4)-2,msg_y+8+rnd(4)-2
-			if active_msg==0 and total_t>params.record_t then print_bold("!new record!",x+250,y) end
-			if active_msg==1 then print_bold(tricks_rating[min(flr(total_tricks/5)+1,4)],x+270,y) end
 
 			if text_ttl>0 and not time_over then
-				print_regular(active_text,120,50+text_ttl)
+				print_regular(active_text,120,80+text_ttl)
 			end
 			_game_over:draw(200-211/2,gameover_y)
 
 			if (time()%1)<0.5 then
-				print_regular(_input.back.glyph.." Menu",nil,162)
-				print_regular(_input.action.glyph.."Restart",nil,178)
+				print_regular(_input.back.glyph.."Menu/Restart".._input.action.glyph,nil,162)
 			end
 		end
 end
@@ -1478,13 +1559,11 @@ function restart_state(params)
 			gfx.unlockFocus()
 			screen:draw(0,0)
 
-			print_bold("Reset? ".._input.back.glyph,nil,110,gfx.kColorBlack)
-			gfx.setLineWidth(3)
-			gfx.setColor(gfx.kColorBlack)
-			gfx.drawArc(225,118,12,0,(360*ttl)/max_ttl)
+			print_bold("Reset?".._input.back.glyph,nil,110,gfx.kColorBlack)
 		end
 end
 
+------------------------------------------------
 -- helper to create a direction panel
 function make_direction(text)
 	gfx.setFont(panelFont)
@@ -1568,9 +1647,31 @@ function make_panel(text_up,text_low,figure)
 	return panel
 end
 
-function _init()
-	-- todo: save
+-------------------------------------
+-- load & save helpers
+-- Function that saves game data
+function saveGameData()
+	-- Serialize game data table into the datastore
+	if _save_state then
+		playdate.datastore.write(_save_state)
+	end
+end
 
+-- Automatically save game data when the player chooses
+-- to exit the game via the System Menu or Menu button
+function playdate.gameWillTerminate()
+	saveGameData()
+end
+
+-- Automatically save game data when the device goes
+-- to low-power sleep mode because of a low battery
+function playdate.gameWillSleep()
+	saveGameData()
+end
+
+--------------------------------------
+-- startup function - mimics pico8 semantic
+function _init()
 	-- todo: remove (only for benchmarks)
 	-- srand(12)
 
@@ -1594,6 +1695,20 @@ function _init()
 
 	_warning_avalanche = gfx.image.new("images/warning_avalanche")
 	_warning_skiier = gfx.image.new("images/warning_skiier")
+
+	-- load game state
+	-- Call near the start of your game to load saved data
+	_save_state = playdate.datastore.read()
+	if not _save_state then
+		-- default values
+		_save_state = {}
+		_save_state.version = 1
+		_save_state.coins = 0
+		_save_state.best_1 = 1000
+		_save_state.best_2 = 500
+		_save_state.best_3 = 250
+	end
+
 	-- init state machine
 	next_state(loading_state)
 end
@@ -1781,24 +1896,26 @@ function time_tostr(t,sep)
 	return padding(flr(t/30)%60)..sep..padding(flr(10*t/3)%100)
 end
 
-function print_bold(s,x,y,c)  
-	c=c or gfx.kColorBlack
-	local align=not x and kTextAlignment.center
-	x=x or 200	
-	local cnot=c==gfx.kColorBlack and gfx.kColorWhite or gfx.kColorBlack
-	for i=-1,1 do
-		for j=-1,1 do
-			print_regular(s,x+i,y+j,cnot,align)
-		end
+function print_text(s,x,y)
+	if not x then
+		x=200 - gfx.getTextSize(s) / 2
 	end
+  gfx.drawTextAligned(s,x,y,kTextAlignment.left)
+end
 
-	print_regular(s,x,y,c,align)
+function print_bold(s,x,y,c)  
+	gfx.setFont(outlineFont[c or gfx.kColorBlack])
+	print_text(s,x,y)
 end
 
 function print_regular(s,x,y,c,align)
-  gfx.setFont(memoFont[c or gfx.kColorBlack])
-	align = align or x and kTextAlignment.left or kTextAlignment.center
-  gfx.drawTextAligned(s,x or 200,y,align)
+	gfx.setFont(largeFont[c or gfx.kColorBlack])
+	print_text(s,x,y)
+end
+
+function print_small(s,x,y,c,align)
+	gfx.setFont(smallFont[c or gfx.kColorBlack])
+	print_text(s,x,y)
 end
 
 -- *********************

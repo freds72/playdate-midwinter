@@ -72,6 +72,11 @@ inline float lerpf(const float a, const float b, const float t) {
   return a + (b - a) * t;
 }
 
+// lerp between 2 int values
+inline int lerpi(const int a, const int b, const float t) {
+    return (int)lerpf((float)a, (float)b, t);
+}
+
 void make_v(const Point3d a, Point3d b, Point3d* out);
 float v_dot(const float* a, const float* b);
 void v_normz(float* a);

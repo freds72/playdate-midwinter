@@ -20,6 +20,12 @@ SpallProfile spall_ctx;
 SpallBuffer  spall_buffer;
 #endif
 
+// helper macros
+#define C_TO_LUA(s, name, type) \
+	do {if ( strcmp(arg, #name) == 0 ) { pd->lua->push ## type (s->name); return 1; } } while(0)
+#define LUA_TO_C(s, name, type) \
+	do {if ( strcmp(arg, #name) == 0 ) { p->name = pd->lua->getArg ## type (argc++); } } while(0)
+
 static PlaydateAPI* pd = NULL;
 
 static void* getArgObject(int n, char* type)
@@ -35,14 +41,14 @@ static void* getArgObject(int n, char* type)
 static GroundParams* getGroundParams(int n)			{ return getArgObject(n, "lib3d.GroundParams"); }
 
 /// Ground Params
-
 static int ground_params_new(lua_State* L)
 {
 	GroundParams* p = lib3d_malloc(sizeof(GroundParams));
     p->slope = 0;
     p->num_tracks = 0;
     p->props_rate = 0.1f;
-    
+	p->tight_mode = 0;
+
 	pd->lua->pushObject(p, "lib3d.GroundParams", 0);
 	return 1;
 }
@@ -59,33 +65,34 @@ static int ground_params_index(lua_State* L)
 	GroundParams* p = getGroundParams(1);
 	const char* arg = pd->lua->getArgString(2);
 	
-	if ( strcmp(arg, "slope") == 0 )
-		pd->lua->pushFloat(p->slope);
-	else if ( strcmp(arg, "tracks") == 0 )
-		pd->lua->pushInt(p->num_tracks);
-	else if ( strcmp(arg, "props_rate") == 0 )
-		pd->lua->pushFloat(p->props_rate);
-	else if (strcmp(arg, "twist") == 0)
-		pd->lua->pushFloat(p->twist);
-	else
-		pd->lua->pushNil();
-	
+	C_TO_LUA(p, slope, Float);
+	C_TO_LUA(p, num_tracks, Int);
+	C_TO_LUA(p, props_rate, Float);
+	C_TO_LUA(p, twist, Float);
+	C_TO_LUA(p, min_cooldown, Int);
+	C_TO_LUA(p, max_cooldown, Int);
+	C_TO_LUA(p, track_type, Int);
+	C_TO_LUA(p, tight_mode, Int);
+
+	// fallback
+	pd->lua->pushNil();	
 	return 1;
 }
 
 static int ground_params_newindex(lua_State* L)
 {
-	GroundParams* p = getGroundParams(1);
-	const char* arg = pd->lua->getArgString(2);
+	int argc = 1;
+	GroundParams* p = getGroundParams(argc++);
+	const char* arg = pd->lua->getArgString(argc++);
 	
-	if ( strcmp(arg, "slope") == 0 )
-		p->slope = pd->lua->getArgFloat(3);
-	else if ( strcmp(arg, "tracks") == 0 )
-		p->num_tracks = pd->lua->getArgInt(3);
-	else if ( strcmp(arg, "props_rate") == 0 )
-		p->props_rate = pd->lua->getArgFloat(3);
-	else if (strcmp(arg, "twist") == 0)
-		p->twist = pd->lua->getArgFloat(3);
+	LUA_TO_C(p, slope, Float);
+	LUA_TO_C(p, num_tracks, Int);
+	LUA_TO_C(p, props_rate, Float);
+	LUA_TO_C(p, twist, Float);
+	LUA_TO_C(p, min_cooldown, Int);
+	LUA_TO_C(p, max_cooldown, Int);
+	LUA_TO_C(p, track_type, Int);
+	LUA_TO_C(p, tight_mode, Int);
 
 	return 0;
 }
