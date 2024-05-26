@@ -156,6 +156,24 @@ Section _endless_sections[] = {
     }
 };
 
+// test
+Section _test_sections[] = {
+    {
+        .random = 0,
+        .timelines = {
+            {.timeline = "TTTTTTTTTTTTTTTTTTTTTT"},
+            {.timeline = "......................"},
+            {.timeline = "......................"},
+            {.timeline = "......................"},
+            {.timeline = "......................"},
+            {.timeline = "......................"},
+            {.timeline = "TTTTTTTTTTTTTTTTTTTTTT"},
+            {.timeline = NULL }
+        }
+    }
+};
+
+
 // black track (race)
 Section _race_sections[] = {
     // nothing
@@ -178,10 +196,11 @@ typedef struct {
 // all track types
 #define CATALOG_ENTRY(s) { .n = sizeof(s) / sizeof(Section), .sections = s}
 
-static SectionCatalog _catalog[3] = {
+static SectionCatalog _catalog[] = {
     CATALOG_ENTRY(_chill_sections),
     CATALOG_ENTRY(_endless_sections),
-    CATALOG_ENTRY(_race_sections)
+    CATALOG_ENTRY(_race_sections),
+    CATALOG_ENTRY(_test_sections)
 };
 
 struct {
@@ -405,7 +424,7 @@ void tracks_init(PlaydateAPI* playdate) {
     // 
     
     // initialize timeline string lenghts
-    for (int k = 0; k < 3; ++k) {
+    for (int k = 0; k < sizeof(_catalog) / sizeof(SectionCatalog); ++k) {
         SectionCatalog* catalog = &_catalog[k];
         for (int i = 0; i < catalog->n; ++i) {
             Section* s = &catalog->sections[i];

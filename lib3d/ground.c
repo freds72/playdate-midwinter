@@ -46,6 +46,8 @@ typedef struct {
     // main track position
     int extents[2];
     int is_checkpoint;
+    // tracks positions as bitmask
+    uint32_t tracks_mask;
     float y;
     // main track extents
     float center;
@@ -197,6 +199,7 @@ static void make_slice(GroundSlice* slice, float y) {
     y = _ground.slice_y;
     // capture height
     slice->y = y;
+    slice->tracks_mask = 0;
 
     update_tracks();
 
@@ -244,6 +247,7 @@ static void make_slice(GroundSlice* slice, float y) {
 
                 slice->tiles[i].prop_id = prop_id;
                 slice->tiles[i].prop_t = prop_t;
+                slice->tracks_mask |= 1 << i;
             }
         }
         else {
@@ -255,6 +259,7 @@ static void make_slice(GroundSlice* slice, float y) {
                 if (slice->tiles[i].prop_id >= PROP_TREE0 && slice->tiles[i].prop_id <= PROP_TREE_SNOW && randf() > 0.5f) {
                     slice->tiles[i].prop_id = 0;
                 }
+                slice->tracks_mask |= 1 << i;
             }
         }
     }
@@ -825,7 +830,7 @@ typedef struct {
 
 typedef struct {
     int i, j;
-    int* extents;
+    uint32_t mask;
     float h;
     float y;
     CameraPoint* cache;
@@ -980,7 +985,7 @@ static void push_tile(GroundFace* f, const float* m, GroundSliceCoord* coords, i
             res->u = (4.0f + c.h) / 8.f;
             // constant: snow contrast
             // shading: track contrast
-            res->light = 0.5f + (c.i >= c.extents[0] && c.i <= c.extents[1]?0.75f:0.f);
+            res->light = 0.5f + (!!(c.mask & (1 << c.i))) * 0.75f;
         }
         
         outcode &= cp->outcode;
@@ -1250,10 +1255,10 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                     if (v_dot(f0->n.v, cv.v) < 0.f)
                     {
                         push_tile(f0, m, (GroundSliceCoord[]) {
-                            { .h = s0->tiles[i].h,   .y = s0->y - y_offset, .i = i,     .j = j,     .cache = cache[0], .extents = s1->extents },
-                            { .h = s0->tiles[i+1].h, .y = s0->y - y_offset, .i = i + 1, .j = j,     .cache = cache[0], .extents = s1->extents },
-                            { .h = s1->tiles[i+1].h, .y = s1->y - y_offset, .i = i + 1, .j = j + 1, .cache = cache[1], .extents = s0->extents },
-                            { .h = s1->tiles[i].h,   .y = s1->y - y_offset, .i = i,     .j = j + 1, .cache = cache[1], .extents = s0->extents }
+                            { .h = s0->tiles[i].h,   .y = s0->y - y_offset, .i = i,     .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
+                            { .h = s0->tiles[i+1].h, .y = s0->y - y_offset, .i = i + 1, .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
+                            { .h = s1->tiles[i+1].h, .y = s1->y - y_offset, .i = i + 1, .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask },
+                            { .h = s1->tiles[i].h,   .y = s1->y - y_offset, .i = i,     .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask }
                         }, 4, shading_band);
                     }
                 }
@@ -1261,18 +1266,18 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                     if (v_dot(f0->n.v, cv.v) < 0.f)
                     {
                         push_tile(f0, m, (GroundSliceCoord[]) {
-                            { .h = s0->tiles[i].h,     .y = s0->y - y_offset, .i = i,      .j = j,     .cache = cache[0], .extents = s1->extents},
-                            { .h = s1->tiles[i + 1].h, .y = s1->y - y_offset, .i = i + 1,  .j = j + 1, .cache = cache[1], .extents = s0->extents },
-                            { .h = s1->tiles[i].h,     .y = s1->y - y_offset, .i = i,      .j = j + 1, .cache = cache[1], .extents = s0->extents }
+                            { .h = s0->tiles[i].h,     .y = s0->y - y_offset, .i = i,      .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
+                            { .h = s1->tiles[i + 1].h, .y = s1->y - y_offset, .i = i + 1,  .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask },
+                            { .h = s1->tiles[i].h,     .y = s1->y - y_offset, .i = i,      .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask }
                         }, 3, shading_band);
                     }
                     const GroundFace* f1 = &t0->f1;
                     if (v_dot(f1->n.v, cv.v) < 0.f)
                     {
                         push_tile(f1, m, (GroundSliceCoord[]) {
-                            { .h = s0->tiles[i].h,   .y = s0->y - y_offset, .i = i,     .j = j,     .cache = cache[0], .extents = s1->extents},
-                            { .h = s0->tiles[i+1].h, .y = s0->y - y_offset, .i = i + 1, .j = j,     .cache = cache[0], .extents = s1->extents },
-                            { .h = s1->tiles[i+1].h, .y = s1->y - y_offset, .i = i + 1, .j = j + 1, .cache = cache[1], .extents = s0->extents }
+                            { .h = s0->tiles[i].h,   .y = s0->y - y_offset, .i = i,     .j = j,     .cache = cache[0], .mask = s1->tracks_mask},
+                            { .h = s0->tiles[i+1].h, .y = s0->y - y_offset, .i = i + 1, .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
+                            { .h = s1->tiles[i+1].h, .y = s1->y - y_offset, .i = i + 1, .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask }
                         }, 3, shading_band);
                     }
                 }
