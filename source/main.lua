@@ -1408,7 +1408,9 @@ function play_state(params)
 				print_small("$"..coins,0,0,gfx.kColorBlack)
 
 				-- current track
-				print_small(params.name,399 - gfx.getTextSize(params.name),0,gfx.kColorBlack)
+				local x = 399 - gfx.getTextSize(params.name)
+				print_small(params.name,x,0,gfx.kColorBlack)
+				_mountain_icon:draw(x - 14,3)
 
 				-- chill mode?
 				if best_distance then
@@ -1689,9 +1691,9 @@ function _init()
 	_panel_pole = gfx.image.new("images/panel_pole")
 	_panel_slices = gfx.nineSlice.new("images/panel",6,5,10,30)
 
-	_seiko = gfx.image.new("images/watch")
 	_game_over = gfx.image.new("images/game_over")
 	_dir_icon = gfx.image.new("images/checkpoint_lock")
+	_mountain_icon = gfx.image.new("images/mountain_icon")
 
 	_warning_avalanche = gfx.image.new("images/warning_avalanche")
 	_warning_skiier = gfx.image.new("images/warning_skiier")

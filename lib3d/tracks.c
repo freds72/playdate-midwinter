@@ -16,6 +16,8 @@ typedef struct {
 typedef struct {
     // random placement?
     int random;
+    // section width (computed)
+    int width;
     Timeline timelines[MAX_TIMELINES];
 } Section;
 
@@ -25,6 +27,9 @@ Section _chill_sections[] = {
         .random = 0,
         .timelines = {
             {.timeline = "." },
+            {.timeline = "." },
+            {.timeline = "." },
+            {.timeline = "." },
             {.timeline = NULL }
         }
     },
@@ -32,6 +37,9 @@ Section _chill_sections[] = {
     {
         .random = 0,
         .timelines = {
+            {.timeline = "." },
+            {.timeline = "." },
+            {.timeline = "." },
             {.timeline = "t" },
             {.timeline = NULL }
         }
@@ -52,6 +60,8 @@ Section _chill_sections[] = {
     {
         .random = 1,
         .timelines = {
+            {.timeline = "." },
+            {.timeline = "." },
             {.timeline = "e" },
             {.timeline = "....e.." },
             {.timeline = NULL }
@@ -82,7 +92,7 @@ Section _endless_sections[] = {
     {
         .random = 1,
         .timelines = {
-            {.timeline = "T..CC" },
+            {.timeline = "T.." },
             {.timeline = NULL }
         }
     },
@@ -106,24 +116,6 @@ Section _endless_sections[] = {
             {.timeline = "w....W....R"},
             {.timeline = "w...W...RCC"},
             {.timeline = "w....W....R"},
-            {.timeline = NULL }
-        }
-    },
-    // coins arrow
-    {
-        .random = 0,
-        .timelines = {
-            {.timeline = "....CC"},
-            {.timeline = "...CC."},
-            {.timeline = "....CC"},
-            {.timeline = NULL }
-        }
-    },
-    // coins
-    {
-        .random = 1,
-        .timelines = {
-            {.timeline = "CCCCCC"},
             {.timeline = NULL }
         }
     },
@@ -170,7 +162,21 @@ Section _test_sections[] = {
             {.timeline = "TTTTTTTTTTTTTTTTTTTTTT"},
             {.timeline = NULL }
         }
+    },
+    {
+        .random = 0,
+        .timelines = {
+            {.timeline = "TT.TT.."},
+            {.timeline = "..TTT.........."},
+            {.timeline = "....TTT........"},
+            {.timeline = "......TTT......"},
+            {.timeline = "........TTTT..."},
+            {.timeline = ".."},
+            {.timeline = "TTTTTTTTTTTTTTT"},
+            {.timeline = NULL }
+        }
     }
+
 };
 
 
@@ -429,10 +435,12 @@ void tracks_init(PlaydateAPI* playdate) {
         for (int i = 0; i < catalog->n; ++i) {
             Section* s = &catalog->sections[i];
             int j = 0;
+            // cache length of string
             while (s->timelines[j].timeline) {
                 s->timelines[j].len = strlen(s->timelines[j].timeline);
                 j++;
             }
+            s->width = j;
             if (j >= MAX_TIMELINES)
                 pd->system->error("Too many timelines on section: %i - %i/%i", i, j, MAX_TIMELINES);
         }

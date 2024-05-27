@@ -204,15 +204,11 @@ static void make_slice(GroundSlice* slice, float y) {
     update_tracks();
 
     // generate height
+    uint32_t shadow_mask = 0;
     for (int i = 0; i < GROUND_SIZE; ++i) {
         GroundTile* tile = &slice->tiles[i];
         tile->h = (perlin2d((16.f * i) / GROUND_SIZE, _ground.noise_y_offset, 0.25f, 4)) * 4.f * active_params.slope;
         tile->prop_id = 0;
-        // 
-        if (i > 2 && i< GROUND_SIZE - 2 && randf() > active_params.props_rate) {
-            tile->prop_id = trees[(int)(3.f * randf())];
-            tile->prop_t = randf();
-        }
     }
 
     _ground.noise_y_offset += (active_params.slope + randf()) / 4.f;
@@ -220,11 +216,14 @@ static void make_slice(GroundSlice* slice, float y) {
     int imin = 3, imax = GROUND_SIZE - 3;
     float main_track_x = GROUND_CELL_SIZE * (imin + imax) / 2.f;
     int is_checkpoint = 0;
+    // TODO: improve
+    int track_width = active_params.tight_mode? MAX_TIMELINES:4;
     Tracks* tracks = _ground.tracks;
     for (int k = 0; k < tracks->n; ++k) {
         Track* t = &tracks->tracks[k];
         const int ii = (int)(t->x / GROUND_CELL_SIZE);
-        const int i0 = ii - 3, i1 = ii + 2;
+        // center on track
+        const int i0 = ii - track_width /2, i1 = ii + track_width / 2 - 1;
         if (t->is_main) {
             main_track_x = t->x;
             imin = i0;
@@ -233,14 +232,17 @@ static void make_slice(GroundSlice* slice, float y) {
                 // remove props from track
                 int prop_id = 0;
                 float prop_t = 0.5f;
-                // todo: center on track?
                 switch (_ground.tracks->pattern[i - i0]) {
                 case 'W': prop_id = PROP_WARNING; break;
                 case 'R': prop_id = PROP_ROCK; break;
                 case 'M': prop_id = PROP_COW; prop_t = randf(); break;
-                case 'C': prop_id = PROP_COIN; break;
                 case 'J': prop_id = PROP_JUMPPAD; break;
-                case 'T': prop_id = trees[(int)(3.f * randf())]; prop_t = randf(); break;
+                case 'T': 
+                    prop_id = trees[(int)(3.f * randf())]; 
+                    prop_t = randf(); 
+                    // tree shading
+                    shadow_mask |= 0x3 << i;
+                    break;
                 default:
                     ;
                 }
@@ -253,13 +255,27 @@ static void make_slice(GroundSlice* slice, float y) {
         else {
             // side tracks are less obvious
             for (int i = i0; i < i1; ++i) {
-                // slice->h[i] = t->h + slice->h[i] / 2.0f;
-                // slice->h[i] = t->h;
-                // remove some props
-                if (slice->tiles[i].prop_id >= PROP_TREE0 && slice->tiles[i].prop_id <= PROP_TREE_SNOW && randf() > 0.5f) {
-                    slice->tiles[i].prop_id = 0;
-                }
                 slice->tracks_mask |= 1 << i;
+            }
+        }
+
+        // random filling
+        for (int i = 3; i < i0 - 1; i++) {
+            GroundTile* tile = &slice->tiles[i];
+            if (randf() > active_params.props_rate) {
+                tile->prop_id = trees[(int)(3.f * randf())];
+                tile->prop_t = randf();
+                // slight shading under trees
+                shadow_mask |= 0x3 << i;
+            }
+        }
+        for (int i = i1 + 1; i < GROUND_SIZE - 2; i++) {
+            GroundTile* tile = &slice->tiles[i];
+            if (randf() > active_params.props_rate) {
+                tile->prop_id = trees[(int)(3.f * randf())];
+                tile->prop_t = randf();
+                // slight shading under trees
+                shadow_mask |= 0x3 << i;
             }
         }
     }
@@ -284,12 +300,17 @@ static void make_slice(GroundSlice* slice, float y) {
         }
         imin--;
         imax++;
+        // kill track shading
+        slice->tracks_mask = 0;
     }
     else
     {
         imin = 2;
         imax = GROUND_SIZE - 2;
     }
+
+    // apply props shadows
+    slice->tracks_mask |= shadow_mask;
     //  + nice transition
     slice->tiles[imin].h = lerpf(slice->tiles[imin - 1].h, slice->tiles[imin].h, lerpf(0.666f,0.8f,randf()));
     slice->tiles[imax].h = lerpf(slice->tiles[imax + 1].h, slice->tiles[imax].h, lerpf(0.666f,0.8f,randf()));
