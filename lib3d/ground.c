@@ -13,9 +13,6 @@
 #include "models.h"
 #include "spall.h"
 
-#define GROUND_SIZE 32
-#define GROUND_CELL_SIZE 4
-
 #define Z_NEAR 0.5f
 #define Z_FAR 64.f
 
@@ -216,14 +213,11 @@ static void make_slice(GroundSlice* slice, float y) {
     int imin = 3, imax = GROUND_SIZE - 3;
     float main_track_x = GROUND_CELL_SIZE * (imin + imax) / 2.f;
     int is_checkpoint = 0;
-    // TODO: improve
-    int track_width = active_params.tight_mode? MAX_TIMELINES:4;
-    Tracks* tracks = _ground.tracks;
+    Tracks* tracks = _ground.tracks;    
     for (int k = 0; k < tracks->n; ++k) {
         Track* t = &tracks->tracks[k];
-        const int ii = (int)(t->x / GROUND_CELL_SIZE);
         // center on track
-        const int i0 = ii - track_width /2, i1 = ii + track_width / 2 - 1;
+        const int i0 = t->imin, i1 = t->imax + 1;
         if (t->is_main) {
             main_track_x = t->x;
             imin = i0;
@@ -917,14 +911,13 @@ static void draw_tile(struct Drawable_s* drawable, uint8_t* bitmap) {
     // 
     texfill(pts, n, _dither_ramps, bitmap);
 
-    /*
     float x0 = pts[n - 1].x, y0 = pts[n - 1].y;
     for (int i = 0; i < n; ++i) {
         float x1 = pts[i].x, y1 = pts[i].y;
         pd->graphics->drawLine(x0,y0,x1,y1, 1, kColorBlack);
         x0 = x1, y0 = y1;
     }
-    */
+
     // END_FUNC();
 }
 

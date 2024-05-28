@@ -1463,7 +1463,7 @@ function plyr_death_state(pos,total_distance,total_tricks,params)
 	local active_msg,msgs=0,{
 		"Distance: "..total_distance.."m",
 		"Total Tricks: "..total_tricks}	
-	local gameover_y,msg_y,msg_tgt_y,msg_tgt_i=260,-20,{16,-30},0
+	local gameover_y,msg_y,msg_tgt_y,msg_tgt_i=260,-20,{16,-40},0
 
 	local prev_update,prev_draw = _update_state,_draw_state
 
