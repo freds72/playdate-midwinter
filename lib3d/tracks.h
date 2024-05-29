@@ -19,6 +19,10 @@ typedef struct {
   int age;
   int is_main;
   int is_dead;
+  int width;
+  // track extent (absolute)
+  int imin;
+  int imax;
   // slope positions
   float x;
   float h;

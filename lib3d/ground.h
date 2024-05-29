@@ -3,6 +3,9 @@
 
 #include "3dmath.h"
 
+#define GROUND_SIZE 32
+#define GROUND_CELL_SIZE 4
+
 typedef struct {
   float slope;
   float props_rate;

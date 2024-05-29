@@ -829,9 +829,9 @@ function menu_state()
 	local best_y = -20
 	local tree_prop,bush_prop,cow_prop={sx=112,sy=16,r=1.4,sfx={9,10}},{sx=96,sy=32,r=1,sfx={9,10}},{sx=112,sy=48,r=1,sfx={4}}
 	local panels={
-		{state=play_state,panel=make_panel("MARMOTTES","piste verte",12),c=1,params={name="Marmottes",slope=1.5,twist=2.5,num_tracks=1,tight_mode=0,props_rate=0.95,track_type=0,min_cooldown=30*5,max_cooldown=30*35}},
-		{state=play_state,panel=make_panel("BIQUETTES","piste rouge",18),c=8,params={name="Biquettes",dslot=2,slope=2,twist=3,num_tracks=2,tight_mode=1,props_rate=0.97,track_type=1,min_cooldown=8,max_cooldown=12}},
-		{state=play_state,panel=make_panel("CHAMOIS","piste noire",21),c=0,params={name="Chamois",dslot=3,slope=2.25,twist=6,num_tracks=3,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=8,max_cooldown=8}},
+		{state=play_state,panel=make_panel("MARMOTTES","piste verte",12),c=1,params={name="Marmottes",slope=1.5,twist=2.5,num_tracks=3,tight_mode=0,props_rate=0.95,track_type=0,min_cooldown=30*5,max_cooldown=30*35}},
+		{state=play_state,panel=make_panel("BIQUETTES","piste rouge",18),c=8,params={name="Biquettes",dslot=2,slope=2,twist=3,num_tracks=1,tight_mode=1,props_rate=0.97,track_type=3,min_cooldown=8,max_cooldown=12}},
+		{state=play_state,panel=make_panel("CHAMOIS","piste noire",21),c=0,params={name="Chamois",dslot=3,slope=2.25,twist=6,num_tracks=1,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=8,max_cooldown=8}},
 		{state=shop_state,panel=make_direction("Shop"),transition=station_state}
 	}
 	local sel,sel_tgt,blink=0,0,false
@@ -1408,7 +1408,9 @@ function play_state(params)
 				print_small("$"..coins,0,0,gfx.kColorBlack)
 
 				-- current track
-				print_small(params.name,399 - gfx.getTextSize(params.name),0,gfx.kColorBlack)
+				local x = 399 - gfx.getTextSize(params.name)
+				print_small(params.name,x,0,gfx.kColorBlack)
+				_mountain_icon:draw(x - 14,3)
 
 				-- chill mode?
 				if best_distance then
@@ -1461,7 +1463,7 @@ function plyr_death_state(pos,total_distance,total_tricks,params)
 	local active_msg,msgs=0,{
 		"Distance: "..total_distance.."m",
 		"Total Tricks: "..total_tricks}	
-	local gameover_y,msg_y,msg_tgt_y,msg_tgt_i=260,-20,{16,-30},0
+	local gameover_y,msg_y,msg_tgt_y,msg_tgt_i=260,-20,{16,-40},0
 
 	local prev_update,prev_draw = _update_state,_draw_state
 
@@ -1689,9 +1691,9 @@ function _init()
 	_panel_pole = gfx.image.new("images/panel_pole")
 	_panel_slices = gfx.nineSlice.new("images/panel",6,5,10,30)
 
-	_seiko = gfx.image.new("images/watch")
 	_game_over = gfx.image.new("images/game_over")
 	_dir_icon = gfx.image.new("images/checkpoint_lock")
+	_mountain_icon = gfx.image.new("images/mountain_icon")
 
 	_warning_avalanche = gfx.image.new("images/warning_avalanche")
 	_warning_skiier = gfx.image.new("images/warning_skiier")
