@@ -278,6 +278,20 @@ function make_m_from_v(up)
 	}
 end
 
+function make_m_lookat(from,to)
+	local fwd=make_v(from,to)
+	v_normz(fwd)
+	local right=v_cross(v_up,fwd)
+	v_normz(right)
+	local up=v_cross(fwd,right)
+	return {
+		right[1],right[2],right[3],0,
+		up[1],up[2],up[3],0,
+		fwd[1],fwd[2],fwd[3],0,
+		0,0,0,1
+	}
+end
+
 -- only invert 3x3 part
 function m_inv(m)
 	m[2],m[5]=m[5],m[2]
@@ -304,7 +318,7 @@ local actors,ground,plyr,cam,_tracked={}
 local k_far,k_near,k_right,k_left,z_near=0,2,4,8,0.2
 
 -- camera
-function make_cam()
+function make_cam(pos)
 	--
 	local up={0,1,0}
 
@@ -313,7 +327,7 @@ function make_cam()
 	camera()
 
 	return {
-		pos={0,0,0},
+		pos=pos and v_clone(pos) or {0,0,0},
 		angle=0,
 		m=make_m_from_v_angle(v_up,0),
 		shake=function(self,scale)
@@ -327,6 +341,20 @@ function make_cam()
 				shkx,shky=0,0
 			end
 			camera(shkx,shky)
+		end,
+		look=function(self,to)
+			local pos=self.pos
+			local m=make_m_lookat(pos,to)
+			-- inverse view matrix
+			m_inv(m)
+			self.m=m_x_m(m,{
+				1,0,0,0,
+				0,1,0,0,
+				0,0,1,0,
+				-pos[1],-pos[2],-pos[3],1
+			})
+			
+			self.pos=pos
 		end,
 		track=function(self,pos,a,u,power)
    			pos=v_clone(pos)
@@ -827,20 +855,19 @@ end
 function menu_state()
   local starting
 	local best_y = -20
-	local tree_prop,bush_prop,cow_prop={sx=112,sy=16,r=1.4,sfx={9,10}},{sx=96,sy=32,r=1,sfx={9,10}},{sx=112,sy=48,r=1,sfx={4}}
 	local panels={
-		{state=play_state,panel=make_panel("MARMOTTES","piste verte",12),c=1,params={name="Marmottes",slope=1.5,twist=2.5,num_tracks=3,tight_mode=0,props_rate=0.95,track_type=0,min_cooldown=30*5,max_cooldown=30*35}},
-		{state=play_state,panel=make_panel("BIQUETTES","piste rouge",18),c=8,params={name="Biquettes",dslot=2,slope=2,twist=3,num_tracks=1,tight_mode=1,props_rate=0.97,track_type=3,min_cooldown=8,max_cooldown=12}},
-		{state=play_state,panel=make_panel("CHAMOIS","piste noire",21),c=0,params={name="Chamois",dslot=3,slope=2.25,twist=6,num_tracks=1,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=8,max_cooldown=8}},
-		{state=shop_state,panel=make_direction("Shop"),transition=station_state}
+		{state=play_state,loc=vgroups.MOUNTAIN_GREEN_TRACK,help="Chill mood?\nEnjoy the snow!",params={name="Marmottes",slope=1.5,twist=2.5,num_tracks=3,tight_mode=0,props_rate=0.95,track_type=0,min_cooldown=30*5,max_cooldown=30*35}},
+		{state=play_state,loc=vgroups.MOUNTAIN_RED_TRACK,help="Death Canyon\nHow far can you go?",params={name="Biquettes",dslot=2,slope=2,twist=3,num_tracks=1,tight_mode=1,props_rate=0.97,track_type=3,min_cooldown=8,max_cooldown=12}},
+		{state=play_state,loc=vgroups.MOUNTAIN_BLACK_TRACK,help="Endless Race\nTake over mania!",params={name="Chamois",dslot=3,slope=2.25,twist=6,num_tracks=1,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=8,max_cooldown=8}},
+		{state=shop_state,loc=vgroups.MOUNTAIN_SHOP,help="Shopping Mall.\nSpend you hard earned $",params={name="Shop"},transition=station_state}
 	}
-	local sel,sel_tgt,blink=0,0,false
+	local sel,blink=0,false
+	local particles={}
 	-- background actors
 	local actors={}
-	ground=make_ground({slope=0,tracks=0,props_rate=0.90,twist=0,track_type=0,min_cooldown=9999,max_cooldown=9999})
 
 	-- reset cam	
-	cam=make_cam()
+	cam=make_cam({0,0.8,-0.5})
 
 	music(0)
 	_ski_sfx:stop()
@@ -856,23 +883,27 @@ function menu_state()
 		_flip_crank = value and -1 or 1
 	end)	
 
+	add(actors,{
+		id=models.PROP_MOUNTAIN,
+		pos={0.5,0,1},
+		update=function(self)
+			local m=make_m_y_rot(time()/16)
+			local pos=self.pos
+			m[13]=pos[1]
+			m[14]=pos[2]
+			m[15]=pos[3]
+			self.m=m
+		end
+	})
+	
 	return
 		-- update
 		function()
-			if playdate.buttonJustReleased(playdate.kButtonLeft) then sel-=1 best_y=-20 end
-			if playdate.buttonJustReleased(playdate.kButtonRight) then sel+=1 best_y=-20 end
+			if playdate.buttonJustReleased(playdate.kButtonLeft) then sel-=1 end
+			if playdate.buttonJustReleased(playdate.kButtonRight) then sel+=1 end
 			sel=mid(sel,0,#panels-1)
 			
-  		sel_tgt=lerp(sel_tgt,sel,0.18)
-   		-- snap when close to target
-			if abs(sel_tgt-sel)<0.01 then
-				sel_tgt=sel
-				best_y = lerp(best_y,0,0.3)
-			end			
-
 			if not starting and playdate.buttonJustReleased(playdate.kButtonA) then
-				-- snap track
-				sel_tgt=sel
 				sfx(8)
 				-- sub-state
         starting=true
@@ -887,81 +918,75 @@ function menu_state()
 					next_state(p.transition or zoomin_state,p.state,p.params)
 				end)
 			end
-			if #actors<3 and rnd()<0.5 then
-				local vel=0.2 + 0.2*rnd()
-				local rot=0.1*rnd()
-				local freq=1+2*rnd()
-				if rnd()>0.5 then vel=-vel end
-				add(actors,{
-					id=pick{models.PROP_SKIER,models.PROP_SLED},
-					pos={(16.5+rnd()*4)*4,0,vel>0 and 0.5*4 or 31.5*4},
-					update=function(self)
-						local pos=self.pos
-						pos[3]+=vel
-						if pos[3]>31.5*4 or pos[3]<0.5*4 then return end
 
-						local m=make_m_y_rot((vel>=0 and 0 or 0.5)+rot*cos(time()/freq))
-						m[13]=pos[1]
-						m[14]=pos[2]
-						m[15]=pos[3]			
-						self.m=m
-						return true
-					end
-				})
+			for _,a in pairs(actors) do
+				a:update()
 			end
 
-			for i=#actors,1,-1 do
-				local a=actors[i]
-				if not a:update() then
-					table.remove(actors,i)
+			local sel_y = (sel//1)*28 + 80
+			for i=1,24+rnd(24) do
+				if rnd()>0.5 then
+					add(particles,{
+						x = rnd(130),
+						y = sel_y + 32 - rnd(16),
+						radius = 16 + rnd(8),
+						update=function(self)
+							self.radius = lerp(self.radius,0,0.1)
+							if self.radius<1 then return end
+							return true
+						end
+					})
 				end
 			end
 
+			for i=#particles,1,-1 do
+				local p=particles[i]
+				if not p:update() then
+					table.remove(particles,i)
+				end
+			end
 			--
-			cam:track({64,0,64},sel_tgt/#panels,v_up)
+			cam:look({0,0,1})
 		end,
 		-- draw
 		function()
+			cls(gfx.kColorWhite)
+			
+			_game_title:draw(10,6)
+			print_small("By FReDS72",10,60)
+
 			for _,a in pairs(actors) do
-				ground:add_render_prop(a.id,a.m)
-				if a.m_shadow then
-					ground:add_render_prop(models.PROP_SHADOW,a.m_shadow)
-				end
+				lib3d.add_render_prop(a.id,table.unpack(a.m))
+			end
+			lib3d.render_props(cam.pos[1],cam.pos[2],cam.pos[3],table.unpack(cam.m))
+
+			local sel_panel = panels[sel+1]
+			-- get size
+			local help_w,help_h = gfx.getTextSize(sel_panel.help)
+			local help_y = 240 - help_h - 32
+			gfx.setColor(gfx.kColorBlack)
+			gfx.fillRect(280 - (help_w+16)/2,help_y,help_w+16,help_h+16)
+			print_small(sel_panel.help,280-help_w/2,help_y+8,gfx.kColorWhite)			
+
+			-- draw "level" position on 3d model
+			local v = m_x_v(actors[1].m, sel_panel.loc)
+			v = m_x_v(cam.m, v)
+			local x,y = cam:project2d(v)
+			gfx.setColor(gfx.kColorBlack)
+			gfx.drawLine(280,help_y,x,y)
+
+			-- selection effect
+			gfx.setColor(gfx.kColorBlack)
+			for _,p in pairs(particles) do
+				gfx.fillCircleAtPoint(p.x,p.y,p.radius)
 			end
 
-			ground:draw(cam)
-
-			local a,da=0.25-0.05,-1/#panels
+			local y=90
 			for i=1,#panels do
-				local v={8*cos(a),0.8,-8*sin(a)}
-				v_add(v,cam.pos)
-				v=m_x_v(cam.m,v)
-				if v[3]>0 then
-					local x0,y0=cam:project2d(v)
-					local p=panels[i]
-					local w,h=p.panel:getSize()
-					_panel_pole:draw(x0-4,y0+20)
-					p.panel:draw(x0-w/2,y0-16)
-				end
-				a+=da
-			end
-			
-			-- ski mask
-			_mask:draw(0,0)
-			
-			local help="⬅️➡️"
-			if (time()%2)<1 then 
-				help="Ⓐ"
-			end
-			print_regular(help,399-gfx.getTextSize(help),0,gfx.kColorWhite)
-
-			print_regular("$".._save_state.coins,0,0,gfx.kColorWhite)
-
-			local params=panels[sel+1].params
-			if sel==sel_tgt and params and params.dslot then
-				local s="".._save_state["best_"..params.dslot].."m"
-				print_regular(s,nil,best_y,gfx.kColorWhite)
-			end
+				local panel = panels[i]
+				print_regular(panel.params.name, 10, y, panel==sel_panel and gfx.kColorWhite or gfx.kColorBlack)
+				y += 28
+			end			
 		end		
 end
 
@@ -1692,11 +1717,13 @@ function _init()
 	_panel_slices = gfx.nineSlice.new("images/panel",6,5,10,30)
 
 	_game_over = gfx.image.new("images/game_over")
+	_game_title = gfx.image.new("images/game_title")
 	_dir_icon = gfx.image.new("images/checkpoint_lock")
 	_mountain_icon = gfx.image.new("images/mountain_icon")
 
 	_warning_avalanche = gfx.image.new("images/warning_avalanche")
 	_warning_skiier = gfx.image.new("images/warning_skiier")
+
 
 	-- load game state
 	-- Call near the start of your game to load saved data
@@ -1839,6 +1866,9 @@ function make_ground(params)
 		end,
 		draw=function(self,cam)
 			lib3d.render_ground(cam.pos[1],cam.pos[2],cam.pos[3],cam.angle%1,table.unpack(cam.m))
+		end,
+		draw_props=function(self,cam)
+			lib3d.render_props(cam.pos[1],cam.pos[2],cam.pos[3],table.unpack(cam.m))
 		end,
 		find_face=function(self,p)
 			local y,nx,ny,nz=lib3d.get_face(table.unpack(p))

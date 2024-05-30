@@ -60,8 +60,8 @@ typedef struct {
 
 // faces
 
-// tree1 face properties & coordinates
-static ThreeDFace tree1_faces[8] = { { 
+    // tree1 face properties & coordinates
+    static ThreeDFace tree1_faces[8] = { { 
     .n = { .v = {0.9981f,0.0609f,-0.0000f} },
     .cp = 0.4902f, 
     .flags = 4,
@@ -118,9 +118,9 @@ static ThreeDFace tree1_faces[8] = { {
     .material=10,
     .vertices={ { .v = {-2.0601f,1.9645f,-2.3176f} },{ .v = {0.0215f,8.0400f,0.0245f} },{ .v = {-0.9453f,1.5399f,2.9363f} } }
     } };
-
-// checkpoint_left face properties & coordinates
-static ThreeDFace checkpoint_left_faces[7] = { { 
+    
+    // checkpoint_left face properties & coordinates
+    static ThreeDFace checkpoint_left_faces[7] = { { 
     .n = { .v = {-0.7071f,0.0000f,-0.7071f} },
     .cp = 0.1000f, 
     .flags = 4,
@@ -170,9 +170,9 @@ static ThreeDFace checkpoint_left_faces[7] = { {
         .material=12,
         .vertices={ { .v = {0.1417f,2.1084f,-0.0000f} },{ .v = {0.8748f,2.4644f,-0.0000f} },{ .v = {0.1417f,2.8046f,-0.0000f} } }
         } };
-
-// checkpoint_right face properties & coordinates
-static ThreeDFace checkpoint_right_faces[7] = { { 
+    
+    // checkpoint_right face properties & coordinates
+    static ThreeDFace checkpoint_right_faces[7] = { { 
     .n = { .v = {0.7071f,0.0000f,0.7071f} },
     .cp = 0.1000f, 
     .flags = 4,
@@ -222,9 +222,9 @@ static ThreeDFace checkpoint_right_faces[7] = { {
         .material=14,
         .vertices={ { .v = {-0.1417f,2.1084f,0.0000f} },{ .v = {-0.8748f,2.4644f,0.0000f} },{ .v = {-0.1417f,2.8046f,0.0000f} } }
         } };
-
-// tree_snow face properties & coordinates
-static ThreeDFace tree_snow_faces[11] = { { 
+    
+    // tree_snow face properties & coordinates
+    static ThreeDFace tree_snow_faces[11] = { { 
     .n = { .v = {-0.0679f,0.2031f,0.9768f} },
     .cp = 1.9509f, 
     .flags = 6,
@@ -302,9 +302,9 @@ static ThreeDFace tree_snow_faces[11] = { {
     .material=13,
     .vertices={ { .v = {0.0046f,0.3902f,-0.7195f} },{ .v = {0.0027f,1.5500f,-0.5470f} },{ .v = {-0.5363f,1.6393f,-0.0061f} },{ .v = {-0.7834f,-0.0226f,-0.0088f} } }
     } };
-
-// tree0 face properties & coordinates
-static ThreeDFace tree0_faces[8] = { { 
+    
+    // tree0 face properties & coordinates
+    static ThreeDFace tree0_faces[8] = { { 
     .n = { .v = {-0.6739f,0.1028f,-0.7316f} },
     .cp = 0.5623f, 
     .flags = 4,
@@ -361,9 +361,9 @@ static ThreeDFace tree0_faces[8] = { {
     .material=9,
     .vertices={ { .v = {-3.1096f,1.9010f,-0.3123f} },{ .v = {0.0082f,11.4811f,0.0002f} },{ .v = {1.2966f,1.9010f,2.8565f} } }
     } };
-
-// snowball face properties & coordinates
-static ThreeDFace snowball_faces[24] = { { 
+    
+    // snowball face properties & coordinates
+    static ThreeDFace snowball_faces[24] = { { 
     .n = { .v = {0.2157f,-0.9021f,0.3737f} },
     .cp = 0.9021f, 
     .flags = 0,
@@ -532,9 +532,9 @@ static ThreeDFace snowball_faces[24] = { {
     .material=4,
     .vertices={ { .v = {-0.6124f,0.7071f,0.3536f} },{ .v = {-0.0000f,1.0000f,-0.0000f} },{ .v = {0.0000f,0.7071f,0.7071f} } }
     } };
-
-// splash face properties & coordinates
-static ThreeDFace splash_faces[16] = { { 
+    
+    // splash face properties & coordinates
+    static ThreeDFace splash_faces[16] = { { 
     .n = { .v = {-0.2805f,0.6802f,-0.6772f} },
     .cp = -0.6772f, 
     .flags = 0,
@@ -647,9 +647,9 @@ static ThreeDFace splash_faces[16] = { {
         .material=2,
         .vertices={ { .v = {0.7071f,0.0000f,0.7071f} },{ .v = {1.5075f,0.4634f,0.7703f} },{ .v = {1.0000f,0.0000f,0.0000f} } }
         } };
-
-// rock face properties & coordinates
-static ThreeDFace rock_faces[5] = { { 
+    
+    // rock face properties & coordinates
+    static ThreeDFace rock_faces[5] = { { 
     .n = { .v = {0.3466f,0.9380f,0.0000f} },
     .cp = 1.3894f, 
     .flags = 4,
@@ -685,9 +685,9 @@ static ThreeDFace rock_faces[5] = { {
     .material=14,
     .vertices={ { .v = {-0.6095f,0.5196f,-1.5515f} },{ .v = {-0.3781f,1.6210f,-0.9543f} },{ .v = {-0.8699f,1.8028f,0.3447f} },{ .v = {-2.4285f,-1.0043f,1.0820f} } }
     } };
-
-// pole face properties & coordinates
-static ThreeDFace pole_faces[5] = { { 
+    
+    // pole face properties & coordinates
+    static ThreeDFace pole_faces[5] = { { 
     .n = { .v = {0.7071f,0.0000f,0.7071f} },
     .cp = 0.1000f, 
     .flags = 4,
@@ -723,9 +723,9 @@ static ThreeDFace pole_faces[5] = { {
     .material=10,
     .vertices={ { .v = {0.0000f,2.0000f,-0.1414f} },{ .v = {0.1414f,2.0000f,-0.0000f} },{ .v = {0.0000f,2.0000f,0.1414f} },{ .v = {-0.1414f,2.0000f,0.0000f} } }
     } };
-
-// cow face properties & coordinates
-static ThreeDFace cow_faces[102] = { { 
+    
+    // cow face properties & coordinates
+    static ThreeDFace cow_faces[102] = { { 
     .n = { .v = {0.9878f,0.1499f,0.0423f} },
     .cp = 1.1165f, 
     .flags = 4,
@@ -1440,9 +1440,9 @@ static ThreeDFace cow_faces[102] = { {
     .material=13,
     .vertices={ { .v = {-0.8990f,3.2713f,-2.2299f} },{ .v = {-0.5017f,3.2572f,-2.1936f} },{ .v = {-0.5299f,3.5707f,-2.1938f} },{ .v = {-0.9183f,3.4859f,-2.2301f} } }
     } };
-
-// bear face properties & coordinates
-static ThreeDFace bear_faces[68] = { { 
+    
+    // bear face properties & coordinates
+    static ThreeDFace bear_faces[68] = { { 
     .n = { .v = {0.9701f,0.2425f,0.0000f} },
     .cp = 1.2127f, 
     .flags = 4,
@@ -1919,9 +1919,9 @@ static ThreeDFace bear_faces[68] = { {
     .material=2,
     .vertices={ { .v = {-1.5000f,-1.0000f,1.0000f} },{ .v = {-1.0000f,1.0000f,1.0000f} },{ .v = {-1.0000f,0.6723f,1.7660f} } }
     } };
-
-// helo face properties & coordinates
-static ThreeDFace helo_faces[69] = { { 
+    
+    // helo face properties & coordinates
+    static ThreeDFace helo_faces[69] = { { 
     .n = { .v = {-0.8244f,-0.5498f,0.1346f} },
     .cp = 3.8504f, 
     .flags = 0,
@@ -2405,9 +2405,9 @@ static ThreeDFace helo_faces[69] = { {
         .material=2,
         .vertices={ { .v = {1.1760f,-0.1339f,20.4053f} },{ .v = {1.1760f,4.3661f,17.8073f} },{ .v = {1.1760f,4.3661f,23.0034f} },{ .v = {1.1760f,1.3661f,23.0034f} } }
         } };
-
-// warning face properties & coordinates
-static ThreeDFace warning_faces[16] = { { 
+    
+    // warning face properties & coordinates
+    static ThreeDFace warning_faces[16] = { { 
     .n = { .v = {-0.0000f,0.0000f,-1.0000f} },
     .cp = -0.0031f, 
     .flags = 4,
@@ -2520,9 +2520,9 @@ static ThreeDFace warning_faces[16] = { {
         .material=2,
         .vertices={ { .v = {2.0000f,2.3667f,0.0031f} },{ .v = {-2.0000f,2.3667f,0.0031f} },{ .v = {-2.0000f,1.3667f,0.0031f} },{ .v = {2.0000f,1.3667f,0.0031f} } }
         } };
-
-// jumppad face properties & coordinates
-static ThreeDFace jumppad_faces[9] = { { 
+    
+    // jumppad face properties & coordinates
+    static ThreeDFace jumppad_faces[9] = { { 
     .n = { .v = {-1.0000f,0.0000f,-0.0000f} },
     .cp = 1.0000f, 
     .flags = 6,
@@ -2586,9 +2586,9 @@ static ThreeDFace jumppad_faces[9] = { {
     .material=2,
     .vertices={ { .v = {-1.0000f,0.0000f,-0.5000f} },{ .v = {1.0000f,0.0000f,-0.5000f} },{ .v = {1.0000f,0.5000f,0.5000f} },{ .v = {-1.0000f,0.5000f,0.5000f} } }
     } };
-
-// shadow face properties & coordinates
-static ThreeDFace shadow_faces[1] = { { 
+    
+    // shadow face properties & coordinates
+    static ThreeDFace shadow_faces[1] = { { 
     .n = { .v = {0.0000f,1.0000f,0.0000f} },
     .cp = 0.0000f, 
     .flags = 4,
@@ -2596,9 +2596,9 @@ static ThreeDFace shadow_faces[1] = { {
     .material=12,
     .vertices={ { .v = {-0.0000f,0.0000f,-0.9899f} },{ .v = {0.9899f,0.0000f,-0.0000f} },{ .v = {0.0000f,0.0000f,0.9899f} },{ .v = {-0.9899f,0.0000f,0.0000f} } }
     } };
-
-// snowball_player face properties & coordinates
-static ThreeDFace snowball_player_faces[55] = { { 
+    
+    // snowball_player face properties & coordinates
+    static ThreeDFace snowball_player_faces[55] = { { 
     .n = { .v = {0.4706f,0.3377f,0.8152f} },
     .cp = 1.0179f, 
     .flags = 4,
@@ -2984,9 +2984,9 @@ static ThreeDFace snowball_player_faces[55] = { {
         .material=10,
         .vertices={ { .v = {1.3218f,-0.2492f,1.4466f} },{ .v = {1.2730f,-0.3832f,1.4848f} },{ .v = {1.3729f,-0.5101f,1.2893f} },{ .v = {1.4426f,-0.3187f,1.2348f} } }
         } };
-
-// start face properties & coordinates
-static ThreeDFace start_faces[25] = { { 
+    
+    // start face properties & coordinates
+    static ThreeDFace start_faces[25] = { { 
     .n = { .v = {-1.0000f,0.0000f,-0.0000f} },
     .cp = 1.0000f, 
     .flags = 4,
@@ -3162,9 +3162,9 @@ static ThreeDFace start_faces[25] = { {
     .material=12,
     .vertices={ { .v = {1.0000f,8.0000f,1.0000f} },{ .v = {-1.0000f,8.0000f,1.0000f} },{ .v = {-1.0000f,8.0000f,-1.0000f} },{ .v = {1.0000f,8.0000f,-1.0000f} } }
     } };
-
-// skier_left face properties & coordinates
-static ThreeDFace skier_left_faces[108] = { { 
+    
+    // skier_left face properties & coordinates
+    static ThreeDFace skier_left_faces[108] = { { 
     .n = { .v = {1.0000f,0.0000f,0.0000f} },
     .cp = -0.3000f, 
     .flags = 4,
@@ -3921,9 +3921,9 @@ static ThreeDFace skier_left_faces[108] = { {
     .material=2,
     .vertices={ { .v = {0.8351f,2.0705f,0.4637f} },{ .v = {0.6669f,1.9682f,0.8118f} },{ .v = {0.0177f,2.3199f,0.6385f} } }
     } };
-
-// skier face properties & coordinates
-static ThreeDFace skier_faces[110] = { { 
+    
+    // skier face properties & coordinates
+    static ThreeDFace skier_faces[110] = { { 
     .n = { .v = {1.0000f,0.0000f,0.0000f} },
     .cp = -0.3000f, 
     .flags = 4,
@@ -4694,9 +4694,9 @@ static ThreeDFace skier_faces[110] = { {
     .material=2,
     .vertices={ { .v = {0.4820f,2.1194f,0.1707f} },{ .v = {0.9042f,1.7490f,0.1737f} },{ .v = {1.0634f,1.9243f,0.2600f} } }
     } };
-
-// skier_right face properties & coordinates
-static ThreeDFace skier_right_faces[110] = { { 
+    
+    // skier_right face properties & coordinates
+    static ThreeDFace skier_right_faces[110] = { { 
     .n = { .v = {-1.0000f,0.0000f,0.0000f} },
     .cp = -0.3000f, 
     .flags = 4,
@@ -5467,9 +5467,9 @@ static ThreeDFace skier_right_faces[110] = { {
     .material=12,
     .vertices={ { .v = {-0.3056f,0.7197f,-0.0250f} },{ .v = {-0.3056f,0.6173f,0.3617f} },{ .v = {-0.0970f,1.0335f,0.2980f} },{ .v = {-0.0970f,1.1359f,-0.0887f} } }
     } };
-
-// cabins face properties & coordinates
-static ThreeDFace cabins_faces[82] = { { 
+    
+    // cabins face properties & coordinates
+    static ThreeDFace cabins_faces[82] = { { 
     .n = { .v = {0.0000f,1.0000f,0.0000f} },
     .cp = 18.0000f, 
     .flags = 7,
@@ -6044,9 +6044,9 @@ static ThreeDFace cabins_faces[82] = { {
         .material=12,
         .vertices={ { .v = {-49.6534f,17.9804f,3.1000f} },{ .v = {-49.8912f,17.9828f,3.1000f} },{ .v = {-51.3813f,16.7671f,3.1000f} },{ .v = {-50.6338f,16.7255f,3.1000f} } }
         } };
-
-// balloon face properties & coordinates
-static ThreeDFace balloon_faces[36] = { { 
+    
+    // balloon face properties & coordinates
+    static ThreeDFace balloon_faces[36] = { { 
     .n = { .v = {-0.9063f,0.0000f,-0.4226f} },
     .cp = 0.7000f, 
     .flags = 4,
@@ -6299,9 +6299,9 @@ static ThreeDFace balloon_faces[36] = { {
     .material=2,
     .vertices={ { .v = {-4.6489f,16.0000f,0.4068f} },{ .v = {-3.2873f,19.2998f,0.2876f} },{ .v = {-1.3946f,19.2998f,2.9907f} },{ .v = {-1.9722f,16.0000f,4.2295f} } }
     } };
-
-// sled face properties & coordinates
-static ThreeDFace sled_faces[26] = { { 
+    
+    // sled face properties & coordinates
+    static ThreeDFace sled_faces[26] = { { 
     .n = { .v = {-1.0000f,0.0000f,-0.0000f} },
     .cp = 0.5000f, 
     .flags = 7,
@@ -6484,1151 +6484,1354 @@ static ThreeDFace sled_faces[26] = { {
     .material=12,
     .vertices={ { .v = {-0.1800f,0.3000f,-0.3000f} },{ .v = {-0.1800f,0.5000f,-0.3000f} },{ .v = {0.1800f,0.5000f,-0.3000f} },{ .v = {0.1800f,0.3000f,-0.3000f} } }
     } };
-
-// mountain face properties & coordinates
-static ThreeDFace mountain_faces[163] = { { 
+    
+    // mountain face properties & coordinates
+    static ThreeDFace mountain_faces[192] = { { 
     .n = { .v = {0.2287f,-0.0000f,-0.9735f} },
     .cp = 0.6466f, 
     .flags = 0,
     .edges = 0x00,
-    .material=13,
-    .vertices={ { .v = {0.1539f,0.0802f,-0.6281f} },{ .v = {0.1839f,0.0802f,-0.6210f} },{ .v = {0.1689f,0.0949f,-0.6245f} } }
+    .material=7,
+    .vertices={ { .v = {0.1539f,0.0684f,-0.6281f} },{ .v = {0.1839f,0.0684f,-0.6210f} },{ .v = {0.1689f,0.0831f,-0.6245f} } }
     },{ 
     .n = { .v = {-0.0403f,0.9125f,0.4070f} },
     .cp = -0.1494f, 
     .flags = 4,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.6779f,0.0014f,-0.3030f} },{ .v = {0.4698f,0.0458f,-0.4365f} },{ .v = {0.5954f,0.1646f,-0.6771f} },{ .v = {0.6492f,0.1539f,-0.6612f} } }
     },{ 
     .n = { .v = {0.0611f,0.9940f,-0.0902f} },
     .cp = 0.1079f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=5,
     .vertices={ { .v = {-0.0160f,0.0187f,-1.0007f} },{ .v = {0.3846f,-0.0058f,-0.9991f} },{ .v = {0.2717f,0.0276f,-0.7078f} } }
     },{ 
     .n = { .v = {0.0000f,1.0000f,0.0000f} },
-    .cp = 0.0494f, 
+    .cp = 0.0375f, 
     .flags = 4,
     .edges = 0x00,
-    .material=12,
-    .vertices={ { .v = {0.1539f,0.0494f,-0.6281f} },{ .v = {0.1609f,0.0494f,-0.6581f} },{ .v = {0.1910f,0.0494f,-0.6511f} },{ .v = {0.1839f,0.0494f,-0.6210f} } }
+    .material=15,
+    .vertices={ { .v = {0.1539f,0.0375f,-0.6281f} },{ .v = {0.1609f,0.0375f,-0.6581f} },{ .v = {0.1910f,0.0375f,-0.6511f} },{ .v = {0.1839f,0.0375f,-0.6210f} } }
     },{ 
-    .n = { .v = {0.2410f,0.9336f,-0.2651f} },
-    .cp = 0.2788f, 
+    .n = { .v = {0.0586f,0.9944f,-0.0878f} },
+    .cp = 0.1054f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
-    .vertices={ { .v = {-0.0160f,0.0187f,-1.0007f} },{ .v = {0.2717f,0.0276f,-0.7078f} },{ .v = {-0.0360f,0.1089f,-0.7009f} } }
+    .material=5,
+    .vertices={ { .v = {-0.0160f,0.0187f,-1.0007f} },{ .v = {0.2717f,0.0276f,-0.7078f} },{ .v = {-0.0360f,0.0463f,-0.7009f} } }
     },{ 
     .n = { .v = {0.3906f,-0.0000f,-0.9205f} },
     .cp = 0.6459f, 
     .flags = 0,
     .edges = 0x00,
-    .material=13,
-    .vertices={ { .v = {0.2026f,0.0723f,-0.6156f} },{ .v = {0.2310f,0.0723f,-0.6036f} },{ .v = {0.2168f,0.0870f,-0.6096f} } }
+    .material=9,
+    .vertices={ { .v = {0.2026f,0.0605f,-0.6156f} },{ .v = {0.2310f,0.0605f,-0.6036f} },{ .v = {0.2168f,0.0752f,-0.6096f} } }
     },{ 
     .n = { .v = {-0.3586f,0.9015f,-0.2423f} },
     .cp = 0.0989f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=3,
     .vertices={ { .v = {0.5954f,0.1646f,-0.6771f} },{ .v = {0.2717f,0.0276f,-0.7078f} },{ .v = {0.3846f,-0.0058f,-0.9991f} } }
     },{ 
-    .n = { .v = {0.1916f,0.9711f,0.1422f} },
-    .cp = -0.0008f, 
+    .n = { .v = {0.2182f,0.9610f,-0.1701f} },
+    .cp = 0.1559f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
-    .vertices={ { .v = {0.2250f,0.0256f,-0.4833f} },{ .v = {-0.0658f,0.0869f,-0.5100f} },{ .v = {-0.0360f,0.1089f,-0.7009f} } }
+    .material=6,
+    .vertices={ { .v = {0.2250f,0.0256f,-0.4833f} },{ .v = {-0.0658f,0.0869f,-0.5100f} },{ .v = {-0.0360f,0.0463f,-0.7009f} } }
     },{ 
     .n = { .v = {-0.0809f,0.9967f,-0.0079f} },
     .cp = 0.0111f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=5,
     .vertices={ { .v = {0.2717f,0.0276f,-0.7078f} },{ .v = {0.4698f,0.0458f,-0.4365f} },{ .v = {0.2250f,0.0256f,-0.4833f} } }
     },{ 
     .n = { .v = {-0.3977f,0.8880f,0.2308f} },
     .cp = -0.2469f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=5,
     .vertices={ { .v = {0.2717f,0.0276f,-0.7078f} },{ .v = {0.5954f,0.1646f,-0.6771f} },{ .v = {0.4698f,0.0458f,-0.4365f} } }
     },{ 
     .n = { .v = {0.0093f,0.9680f,-0.2509f} },
     .cp = 0.1484f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=4,
     .vertices={ { .v = {-0.4620f,0.0022f,-0.6001f} },{ .v = {-0.3716f,0.0520f,-0.4045f} },{ .v = {-0.7799f,0.0523f,-0.4184f} } }
     },{ 
     .n = { .v = {0.0203f,0.8155f,-0.5783f} },
     .cp = 0.2688f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=3,
     .vertices={ { .v = {-0.7799f,0.0523f,-0.4184f} },{ .v = {-0.3716f,0.0520f,-0.4045f} },{ .v = {-0.7206f,0.1313f,-0.3050f} } }
     },{ 
     .n = { .v = {-0.1690f,0.9710f,-0.1693f} },
     .cp = 0.1818f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=4,
     .vertices={ { .v = {-0.0658f,0.0869f,-0.5100f} },{ .v = {-0.3716f,0.0520f,-0.4045f} },{ .v = {-0.4620f,0.0022f,-0.6001f} } }
     },{ 
     .n = { .v = {-0.3248f,0.8811f,-0.3437f} },
     .cp = 0.2732f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=3,
     .vertices={ { .v = {0.0197f,0.2122f,-0.2695f} },{ .v = {-0.1619f,0.1225f,-0.3278f} },{ .v = {-0.0658f,0.0869f,-0.5100f} } }
     },{ 
     .n = { .v = {-0.1105f,0.6939f,-0.7116f} },
     .cp = 0.3368f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=2,
     .vertices={ { .v = {0.2250f,0.0256f,-0.4833f} },{ .v = {0.1895f,0.1635f,-0.3433f} },{ .v = {0.0197f,0.2122f,-0.2695f} } }
     },{ 
     .n = { .v = {0.2626f,0.7198f,-0.6426f} },
     .cp = 0.3881f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=4,
     .vertices={ { .v = {0.2250f,0.0256f,-0.4833f} },{ .v = {0.3359f,0.0674f,-0.3912f} },{ .v = {0.1895f,0.1635f,-0.3433f} } }
     },{ 
     .n = { .v = {-0.5173f,0.8052f,-0.2900f} },
     .cp = 0.5669f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=2,
     .vertices={ { .v = {-0.7206f,0.1313f,-0.3050f} },{ .v = {-0.8853f,0.0542f,-0.2252f} },{ .v = {-0.7799f,0.0523f,-0.4184f} } }
     },{ 
     .n = { .v = {0.4490f,0.5649f,-0.6924f} },
     .cp = -0.0382f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=4,
     .vertices={ { .v = {-0.7206f,0.1313f,-0.3050f} },{ .v = {-0.5426f,0.1687f,-0.1590f} },{ .v = {-0.6894f,0.2024f,-0.2268f} } }
     },{ 
     .n = { .v = {0.1057f,0.9247f,-0.3658f} },
     .cp = 0.1568f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=4,
     .vertices={ { .v = {-0.7206f,0.1313f,-0.3050f} },{ .v = {-0.3716f,0.0520f,-0.4045f} },{ .v = {-0.5426f,0.1687f,-0.1590f} } }
     },{ 
     .n = { .v = {0.4032f,0.6840f,-0.6079f} },
     .cp = 0.4193f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=5,
     .vertices={ { .v = {0.3359f,0.0674f,-0.3912f} },{ .v = {0.4782f,0.0394f,-0.3282f} },{ .v = {0.3768f,0.2053f,-0.2089f} } }
     },{ 
     .n = { .v = {0.1817f,0.9824f,0.0435f} },
     .cp = 0.1114f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.6779f,0.0014f,-0.3030f} },{ .v = {0.4782f,0.0394f,-0.3282f} },{ .v = {0.4698f,0.0458f,-0.4365f} } }
     },{ 
     .n = { .v = {-0.1443f,0.7281f,-0.6701f} },
     .cp = 0.3322f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=2,
     .vertices={ { .v = {0.0197f,0.2122f,-0.2695f} },{ .v = {-0.1339f,0.2949f,-0.1466f} },{ .v = {-0.1619f,0.1225f,-0.3278f} } }
     },{ 
     .n = { .v = {0.0293f,0.4002f,-0.9160f} },
     .cp = 0.3854f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=2,
     .vertices={ { .v = {0.1895f,0.1635f,-0.3433f} },{ .v = {0.2219f,0.5844f,-0.1584f} },{ .v = {0.1099f,0.5610f,-0.1722f} } }
     },{ 
     .n = { .v = {0.1341f,0.9671f,-0.2163f} },
     .cp = 0.1248f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=5,
     .vertices={ { .v = {-0.5426f,0.1687f,-0.1590f} },{ .v = {-0.4068f,0.1240f,-0.2749f} },{ .v = {-0.3965f,0.1783f,-0.0256f} } }
     },{ 
     .n = { .v = {-0.6510f,0.3554f,-0.6707f} },
     .cp = 0.2433f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=0,
     .vertices={ { .v = {0.1099f,0.5610f,-0.1722f} },{ .v = {0.0348f,0.5333f,-0.1140f} },{ .v = {0.0197f,0.2122f,-0.2695f} } }
     },{ 
     .n = { .v = {0.7958f,0.5888f,-0.1418f} },
     .cp = 0.4503f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.4782f,0.0394f,-0.3282f} },{ .v = {0.5226f,0.0355f,-0.0955f} },{ .v = {0.3768f,0.2053f,-0.2089f} } }
     },{ 
     .n = { .v = {0.1895f,0.9817f,-0.0195f} },
     .cp = 0.1358f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.4782f,0.0394f,-0.3282f} },{ .v = {0.6779f,0.0014f,-0.3030f} },{ .v = {0.5226f,0.0355f,-0.0955f} } }
     },{ 
     .n = { .v = {-0.3568f,0.9311f,-0.0751f} },
     .cp = 0.3833f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=4,
     .vertices={ { .v = {-0.8853f,0.0542f,-0.2252f} },{ .v = {-0.6613f,0.1545f,-0.0462f} },{ .v = {-1.0003f,0.0137f,-0.1802f} } }
     },{ 
     .n = { .v = {-0.2305f,0.8718f,-0.4322f} },
     .cp = 0.3513f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=7,
     .vertices={ { .v = {-0.1339f,0.2949f,-0.1466f} },{ .v = {-0.2180f,0.3381f,-0.0145f} },{ .v = {-0.2719f,0.2017f,-0.2608f} } }
     },{ 
     .n = { .v = {-0.2317f,0.9138f,0.3336f} },
     .cp = 0.4297f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.1099f,0.5610f,-0.1722f} },{ .v = {0.2219f,0.5844f,-0.1584f} },{ .v = {0.1628f,0.5220f,-0.0286f} } }
     },{ 
     .n = { .v = {0.1184f,0.9727f,-0.1994f} },
     .cp = 0.1316f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=5,
     .vertices={ { .v = {-0.5426f,0.1687f,-0.1590f} },{ .v = {-0.3965f,0.1783f,-0.0256f} },{ .v = {-0.5557f,0.2090f,0.0299f} } }
     },{ 
     .n = { .v = {-0.0941f,0.8796f,-0.4663f} },
     .cp = 0.3247f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=3,
     .vertices={ { .v = {-0.2180f,0.3381f,-0.0145f} },{ .v = {-0.2884f,0.3173f,-0.0395f} },{ .v = {-0.2719f,0.2017f,-0.2608f} } }
     },{ 
     .n = { .v = {-0.4640f,0.4339f,-0.7723f} },
     .cp = 0.3033f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=0,
     .vertices={ { .v = {0.0348f,0.5333f,-0.1140f} },{ .v = {-0.0487f,0.6951f,0.0271f} },{ .v = {-0.1339f,0.2949f,-0.1466f} } }
     },{ 
     .n = { .v = {0.9085f,0.3385f,0.2451f} },
     .cp = 0.3606f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=15,
     .vertices={ { .v = {0.3768f,0.2053f,-0.2089f} },{ .v = {0.3430f,0.0952f,0.0685f} },{ .v = {0.2219f,0.5844f,-0.1584f} } }
     },{ 
     .n = { .v = {0.3894f,0.7868f,-0.4789f} },
     .cp = 0.4878f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=5,
     .vertices={ { .v = {0.0348f,0.5333f,-0.1140f} },{ .v = {0.1628f,0.5220f,-0.0286f} },{ .v = {0.0989f,0.6164f,0.0745f} } }
     },{ 
     .n = { .v = {0.7811f,0.4324f,0.4504f} },
     .cp = 0.3399f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.3430f,0.0952f,0.0685f} },{ .v = {0.1692f,0.2821f,0.1905f} },{ .v = {0.1628f,0.5220f,-0.0286f} } }
     },{ 
     .n = { .v = {-0.3374f,0.7331f,0.5905f} },
     .cp = 0.3584f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {-0.5557f,0.2090f,0.0299f} },{ .v = {-0.5265f,0.0510f,0.2427f} },{ .v = {-0.6891f,0.0658f,0.1315f} } }
     },{ 
     .n = { .v = {0.0508f,0.8052f,0.5908f} },
     .cp = 0.1577f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {-0.4138f,0.1669f,0.0751f} },{ .v = {-0.5265f,0.0510f,0.2427f} },{ .v = {-0.5557f,0.2090f,0.0299f} } }
     },{ 
     .n = { .v = {-0.7910f,0.6081f,-0.0672f} },
     .cp = 0.4238f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=2,
     .vertices={ { .v = {-0.3965f,0.1783f,-0.0256f} },{ .v = {-0.2884f,0.3173f,-0.0395f} },{ .v = {-0.4138f,0.1669f,0.0751f} } }
     },{ 
     .n = { .v = {0.1582f,0.7101f,0.6861f} },
     .cp = 0.5044f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.0989f,0.6164f,0.0745f} },{ .v = {-0.0335f,0.6011f,0.1208f} },{ .v = {-0.0487f,0.6951f,0.0271f} } }
     },{ 
     .n = { .v = {0.3354f,0.9369f,0.0982f} },
     .cp = 0.2110f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.5924f,0.0076f,0.0525f} },{ .v = {0.3680f,0.0771f,0.1562f} },{ .v = {0.3430f,0.0952f,0.0685f} } }
     },{ 
     .n = { .v = {-0.6548f,0.7202f,0.2292f} },
     .cp = 0.4084f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=4,
     .vertices={ { .v = {-0.2884f,0.3173f,-0.0395f} },{ .v = {-0.1314f,0.3949f,0.1654f} },{ .v = {-0.4138f,0.1669f,0.0751f} } }
     },{ 
     .n = { .v = {0.5646f,0.3741f,0.7357f} },
     .cp = 0.3412f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.1692f,0.2821f,0.1905f} },{ .v = {0.0629f,0.2774f,0.2744f} },{ .v = {0.0989f,0.6164f,0.0745f} } }
     },{ 
     .n = { .v = {0.2287f,0.0000f,-0.9735f} },
     .cp = 0.6466f, 
     .flags = 4,
     .edges = 0x00,
-    .material=13,
-    .vertices={ { .v = {0.1539f,0.0494f,-0.6281f} },{ .v = {0.1839f,0.0494f,-0.6210f} },{ .v = {0.1839f,0.0802f,-0.6210f} },{ .v = {0.1539f,0.0802f,-0.6281f} } }
+    .material=7,
+    .vertices={ { .v = {0.1539f,0.0375f,-0.6281f} },{ .v = {0.1839f,0.0375f,-0.6210f} },{ .v = {0.1839f,0.0684f,-0.6210f} },{ .v = {0.1539f,0.0684f,-0.6281f} } }
     },{ 
     .n = { .v = {-0.1040f,0.9547f,0.2789f} },
     .cp = 0.1711f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {-0.6891f,0.0658f,0.1315f} },{ .v = {-0.5265f,0.0510f,0.2427f} },{ .v = {-0.7739f,0.0130f,0.2806f} } }
     },{ 
     .n = { .v = {-0.3659f,0.8623f,0.3501f} },
     .cp = 0.3216f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=5,
     .vertices={ { .v = {-0.4138f,0.1669f,0.0751f} },{ .v = {-0.2453f,0.1217f,0.3624f} },{ .v = {-0.5265f,0.0510f,0.2427f} } }
     },{ 
     .n = { .v = {-0.6404f,0.6067f,0.4710f} },
     .cp = 0.4016f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=5,
     .vertices={ { .v = {-0.4138f,0.1669f,0.0751f} },{ .v = {-0.1314f,0.3949f,0.1654f} },{ .v = {-0.2453f,0.1217f,0.3624f} } }
     },{ 
     .n = { .v = {-0.2891f,0.6363f,0.7152f} },
     .cp = 0.4076f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {-0.1314f,0.3949f,0.1654f} },{ .v = {-0.0339f,0.1944f,0.3832f} },{ .v = {-0.2453f,0.1217f,0.3624f} } }
     },{ 
     .n = { .v = {0.0884f,0.7522f,0.6529f} },
     .cp = 0.3934f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {-0.1314f,0.3949f,0.1654f} },{ .v = {0.0629f,0.2774f,0.2744f} },{ .v = {-0.0339f,0.1944f,0.3832f} } }
     },{ 
     .n = { .v = {-0.0035f,0.8273f,-0.5617f} },
     .cp = -0.0253f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=3,
     .vertices={ { .v = {0.5924f,0.0076f,0.0525f} },{ .v = {0.6102f,0.2493f,0.4083f} },{ .v = {0.3680f,0.0771f,0.1562f} } }
     },{ 
     .n = { .v = {0.1633f,0.8123f,-0.5599f} },
     .cp = 0.0735f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=4,
     .vertices={ { .v = {0.5924f,0.0076f,0.0525f} },{ .v = {0.8510f,0.0023f,0.1203f} },{ .v = {0.6102f,0.2493f,0.4083f} } }
     },{ 
     .n = { .v = {-1.0000f,-0.0000f,0.0000f} },
     .cp = -0.1248f, 
     .flags = 4,
     .edges = 0x00,
-    .material=14,
-    .vertices={ { .v = {0.1248f,0.0635f,-0.6005f} },{ .v = {0.1248f,0.0635f,-0.6314f} },{ .v = {0.1248f,0.0944f,-0.6314f} },{ .v = {0.1248f,0.0944f,-0.6005f} } }
+    .material=4,
+    .vertices={ { .v = {0.1248f,0.0370f,-0.6005f} },{ .v = {0.1248f,0.0370f,-0.6314f} },{ .v = {0.1248f,0.0679f,-0.6314f} },{ .v = {0.1248f,0.0679f,-0.6005f} } }
     },{ 
     .n = { .v = {0.4628f,0.8814f,-0.0949f} },
     .cp = 0.3065f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.2155f,0.2651f,0.2834f} },{ .v = {0.3656f,0.1960f,0.3743f} },{ .v = {0.2080f,0.2767f,0.3554f} } }
     },{ 
     .n = { .v = {0.5335f,0.8088f,-0.2474f} },
     .cp = 0.4262f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.8510f,0.0023f,0.1203f} },{ .v = {0.9071f,0.0252f,0.3159f} },{ .v = {0.6102f,0.2493f,0.4083f} } }
     },{ 
     .n = { .v = {-0.2430f,0.8632f,0.4425f} },
     .cp = 0.3456f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.0629f,0.2774f,0.2744f} },{ .v = {0.2080f,0.2767f,0.3554f} },{ .v = {-0.0339f,0.1944f,0.3832f} } }
     },{ 
     .n = { .v = {0.0000f,-0.0000f,-1.0000f} },
     .cp = 0.6005f, 
     .flags = 4,
     .edges = 0x00,
-    .material=14,
-    .vertices={ { .v = {0.0940f,0.0635f,-0.6005f} },{ .v = {0.1248f,0.0635f,-0.6005f} },{ .v = {0.1248f,0.0944f,-0.6005f} },{ .v = {0.0940f,0.0944f,-0.6005f} } }
+    .material=4,
+    .vertices={ { .v = {0.0940f,0.0370f,-0.6005f} },{ .v = {0.1248f,0.0370f,-0.6005f} },{ .v = {0.1248f,0.0679f,-0.6005f} },{ .v = {0.0940f,0.0679f,-0.6005f} } }
     },{ 
     .n = { .v = {-0.0000f,0.0000f,1.0000f} },
     .cp = -0.6314f, 
     .flags = 0,
     .edges = 0x00,
-    .material=12,
-    .vertices={ { .v = {0.1248f,0.0944f,-0.6314f} },{ .v = {0.0940f,0.0944f,-0.6314f} },{ .v = {0.1094f,0.1091f,-0.6314f} } }
+    .material=15,
+    .vertices={ { .v = {0.1248f,0.0679f,-0.6314f} },{ .v = {0.0940f,0.0679f,-0.6314f} },{ .v = {0.1094f,0.0825f,-0.6314f} } }
     },{ 
     .n = { .v = {-0.2551f,0.8061f,0.5340f} },
     .cp = 0.2646f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.4355f,0.1683f,0.4496f} },{ .v = {0.4324f,0.0167f,0.6769f} },{ .v = {0.3656f,0.1960f,0.3743f} } }
     },{ 
     .n = { .v = {-0.4676f,0.8823f,0.0539f} },
     .cp = 0.4238f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=4,
     .vertices={ { .v = {-0.7570f,0.0497f,0.4813f} },{ .v = {-0.6252f,0.1153f,0.5511f} },{ .v = {-0.7711f,0.0290f,0.6986f} } }
     },{ 
     .n = { .v = {0.0956f,0.9857f,0.1385f} },
     .cp = 0.0731f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {-0.2797f,0.0113f,0.6402f} },{ .v = {-0.3774f,0.0031f,0.7663f} },{ .v = {-0.4243f,0.0501f,0.4640f} } }
     },{ 
     .n = { .v = {0.2882f,0.8328f,0.4726f} },
     .cp = 0.4584f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.4324f,0.0167f,0.6769f} },{ .v = {0.1144f,0.1307f,0.6699f} },{ .v = {0.2080f,0.2767f,0.3554f} } }
     },{ 
     .n = { .v = {-0.0620f,0.8308f,0.5531f} },
     .cp = 0.3615f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.4355f,0.1683f,0.4496f} },{ .v = {0.6726f,0.0099f,0.7140f} },{ .v = {0.4324f,0.0167f,0.6769f} } }
     },{ 
     .n = { .v = {0.3883f,0.7624f,0.5177f} },
     .cp = 0.6384f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.8696f,0.0329f,0.5325f} },{ .v = {0.6726f,0.0099f,0.7140f} },{ .v = {0.6102f,0.2493f,0.4083f} } }
     },{ 
     .n = { .v = {-0.1957f,0.9184f,0.3439f} },
     .cp = 0.4178f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {-0.6252f,0.1153f,0.5511f} },{ .v = {-0.6083f,0.0084f,0.8462f} },{ .v = {-0.7711f,0.0290f,0.6986f} } }
     },{ 
     .n = { .v = {0.1359f,0.9339f,0.3306f} },
     .cp = 0.2049f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {-0.3774f,0.0031f,0.7663f} },{ .v = {-0.6083f,0.0084f,0.8462f} },{ .v = {-0.6252f,0.1153f,0.5511f} } }
     },{ 
     .n = { .v = {0.3214f,0.9120f,0.2547f} },
     .cp = 0.3266f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.4324f,0.0167f,0.6769f} },{ .v = {0.2683f,0.0125f,0.8989f} },{ .v = {0.1144f,0.1307f,0.6699f} } }
     },{ 
     .n = { .v = {0.1413f,0.9152f,0.3774f} },
     .cp = 0.3886f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.2683f,0.0125f,0.8989f} },{ .v = {0.0818f,-0.0003f,0.9998f} },{ .v = {0.1144f,0.1307f,0.6699f} } }
     },{ 
     .n = { .v = {-0.6889f,-0.7249f,0.0000f} },
-    .cp = -0.1544f, 
+    .cp = -0.1352f, 
     .flags = 4,
     .edges = 0x00,
-    .material=13,
-    .vertices={ { .v = {0.1248f,0.0944f,-0.6005f} },{ .v = {0.1248f,0.0944f,-0.6314f} },{ .v = {0.1094f,0.1091f,-0.6314f} },{ .v = {0.1094f,0.1091f,-0.6005f} } }
+    .material=7,
+    .vertices={ { .v = {0.1248f,0.0679f,-0.6005f} },{ .v = {0.1248f,0.0679f,-0.6314f} },{ .v = {0.1094f,0.0825f,-0.6314f} },{ .v = {0.1094f,0.0825f,-0.6005f} } }
     },{ 
     .n = { .v = {0.9735f,0.0000f,0.2287f} },
     .cp = 0.0062f, 
     .flags = 4,
     .edges = 0x00,
-    .material=12,
-    .vertices={ { .v = {0.1609f,0.0494f,-0.6581f} },{ .v = {0.1539f,0.0494f,-0.6281f} },{ .v = {0.1539f,0.0802f,-0.6281f} },{ .v = {0.1609f,0.0802f,-0.6581f} } }
+    .material=15,
+    .vertices={ { .v = {0.1609f,0.0375f,-0.6581f} },{ .v = {0.1539f,0.0375f,-0.6281f} },{ .v = {0.1539f,0.0684f,-0.6281f} },{ .v = {0.1609f,0.0684f,-0.6581f} } }
     },{ 
-    .n = { .v = {-0.1790f,0.9387f,-0.2946f} },
-    .cp = 0.3152f, 
+    .n = { .v = {-0.0911f,0.9911f,-0.0974f} },
+    .cp = 0.1174f, 
     .flags = 0,
     .edges = 0x00,
     .material=5,
-    .vertices={ { .v = {-0.0160f,0.0187f,-1.0007f} },{ .v = {-0.0360f,0.1089f,-0.7009f} },{ .v = {-0.3539f,0.0028f,-0.8458f} } }
+    .vertices={ { .v = {-0.0160f,0.0187f,-1.0007f} },{ .v = {-0.0360f,0.0463f,-0.7009f} },{ .v = {-0.3539f,0.0028f,-0.8458f} } }
     },{ 
     .n = { .v = {-0.1139f,0.9070f,-0.4054f} },
     .cp = 0.3559f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=3,
     .vertices={ { .v = {0.6370f,0.0249f,-1.0011f} },{ .v = {0.5954f,0.1646f,-0.6771f} },{ .v = {0.3846f,-0.0058f,-0.9991f} } }
     },{ 
     .n = { .v = {0.2802f,0.8942f,-0.3493f} },
     .cp = 0.5504f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=5,
     .vertices={ { .v = {0.5954f,0.1646f,-0.6771f} },{ .v = {0.6370f,0.0249f,-1.0011f} },{ .v = {0.6492f,0.1539f,-0.6612f} } }
     },{ 
     .n = { .v = {0.2348f,0.9060f,-0.3521f} },
     .cp = 0.5247f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=5,
     .vertices={ { .v = {0.6370f,0.0249f,-1.0011f} },{ .v = {0.9248f,0.0100f,-0.8478f} },{ .v = {0.6492f,0.1539f,-0.6612f} } }
     },{ 
     .n = { .v = {0.6706f,-0.7249f,0.1575f} },
-    .cp = -0.0539f, 
+    .cp = -0.0453f, 
     .flags = 4,
     .edges = 0x00,
-    .material=12,
-    .vertices={ { .v = {0.1609f,0.0802f,-0.6581f} },{ .v = {0.1539f,0.0802f,-0.6281f} },{ .v = {0.1689f,0.0949f,-0.6245f} },{ .v = {0.1760f,0.0949f,-0.6546f} } }
+    .material=15,
+    .vertices={ { .v = {0.1609f,0.0684f,-0.6581f} },{ .v = {0.1539f,0.0684f,-0.6281f} },{ .v = {0.1689f,0.0831f,-0.6245f} },{ .v = {0.1760f,0.0831f,-0.6546f} } }
     },{ 
     .n = { .v = {0.4180f,0.9049f,-0.0806f} },
     .cp = 0.4639f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.6492f,0.1539f,-0.6612f} },{ .v = {0.9248f,0.0100f,-0.8478f} },{ .v = {0.9998f,-0.0003f,-0.5741f} } }
     },{ 
-    .n = { .v = {-0.3388f,0.9392f,0.0558f} },
-    .cp = 0.0754f, 
-    .flags = 0,
-    .edges = 0x00,
-    .material=5,
-    .vertices={ { .v = {-0.0360f,0.1089f,-0.7009f} },{ .v = {-0.0658f,0.0869f,-0.5100f} },{ .v = {-0.3539f,0.0028f,-0.8458f} } }
-    },{ 
-    .n = { .v = {0.2565f,0.9646f,0.0620f} },
-    .cp = 0.0524f, 
+    .n = { .v = {-0.0364f,0.9763f,-0.2131f} },
+    .cp = 0.1959f, 
     .flags = 0,
     .edges = 0x00,
     .material=4,
-    .vertices={ { .v = {0.2717f,0.0276f,-0.7078f} },{ .v = {0.2250f,0.0256f,-0.4833f} },{ .v = {-0.0360f,0.1089f,-0.7009f} } }
+    .vertices={ { .v = {-0.0360f,0.0463f,-0.7009f} },{ .v = {-0.0658f,0.0869f,-0.5100f} },{ .v = {-0.3539f,0.0028f,-0.8458f} } }
+    },{ 
+    .n = { .v = {0.0612f,0.9979f,0.0217f} },
+    .cp = 0.0288f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=6,
+    .vertices={ { .v = {0.2717f,0.0276f,-0.7078f} },{ .v = {0.2250f,0.0256f,-0.4833f} },{ .v = {-0.0360f,0.0463f,-0.7009f} } }
     },{ 
     .n = { .v = {-0.1906f,0.9783f,-0.0812f} },
     .cp = 0.1389f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=4,
     .vertices={ { .v = {-0.3539f,0.0028f,-0.8458f} },{ .v = {-0.0658f,0.0869f,-0.5100f} },{ .v = {-0.4620f,0.0022f,-0.6001f} } }
     },{ 
     .n = { .v = {-0.1683f,0.8343f,-0.5250f} },
     .cp = 0.3946f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=3,
     .vertices={ { .v = {-0.4620f,0.0022f,-0.6001f} },{ .v = {-0.7799f,0.0523f,-0.4184f} },{ .v = {-1.0000f,0.0009f,-0.4296f} } }
     },{ 
     .n = { .v = {0.3019f,0.8856f,0.3530f} },
     .cp = 0.0989f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.6492f,0.1539f,-0.6612f} },{ .v = {0.9998f,-0.0003f,-0.5741f} },{ .v = {0.6779f,0.0014f,-0.3030f} } }
     },{ 
     .n = { .v = {-0.2071f,0.9337f,-0.2919f} },
     .cp = 0.2436f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=3,
     .vertices={ { .v = {-0.0658f,0.0869f,-0.5100f} },{ .v = {-0.1619f,0.1225f,-0.3278f} },{ .v = {-0.3716f,0.0520f,-0.4045f} } }
     },{ 
     .n = { .v = {0.0048f,0.9085f,-0.4179f} },
     .cp = 0.2263f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=4,
     .vertices={ { .v = {0.2250f,0.0256f,-0.4833f} },{ .v = {0.4698f,0.0458f,-0.4365f} },{ .v = {0.3359f,0.0674f,-0.3912f} } }
     },{ 
     .n = { .v = {0.4536f,0.4471f,-0.7709f} },
     .cp = 0.4237f, 
     .flags = 4,
     .edges = 0x00,
-    .material=5,
+    .material=4,
     .vertices={ { .v = {0.3768f,0.2053f,-0.2089f} },{ .v = {0.2219f,0.5844f,-0.1584f} },{ .v = {0.1895f,0.1635f,-0.3433f} },{ .v = {0.3359f,0.0674f,-0.3912f} } }
     },{ 
     .n = { .v = {-0.2247f,0.9731f,-0.0503f} },
     .cp = 0.2472f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=4,
     .vertices={ { .v = {-1.0000f,0.0009f,-0.4296f} },{ .v = {-0.7799f,0.0523f,-0.4184f} },{ .v = {-1.0003f,0.0137f,-0.1802f} } }
     },{ 
     .n = { .v = {0.2220f,0.8302f,-0.5113f} },
     .cp = 0.3183f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=4,
     .vertices={ { .v = {-0.0658f,0.0869f,-0.5100f} },{ .v = {0.2250f,0.0256f,-0.4833f} },{ .v = {0.0197f,0.2122f,-0.2695f} } }
     },{ 
     .n = { .v = {0.1734f,0.9839f,0.0442f} },
     .cp = 0.1072f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.3359f,0.0674f,-0.3912f} },{ .v = {0.4698f,0.0458f,-0.4365f} },{ .v = {0.4782f,0.0394f,-0.3282f} } }
     },{ 
     .n = { .v = {-0.4010f,0.8874f,-0.2273f} },
     .cp = 0.4543f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=3,
     .vertices={ { .v = {-0.7799f,0.0523f,-0.4184f} },{ .v = {-0.8853f,0.0542f,-0.2252f} },{ .v = {-1.0003f,0.0137f,-0.1802f} } }
     },{ 
     .n = { .v = {-0.3831f,0.7596f,-0.5255f} },
     .cp = 0.3945f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=2,
     .vertices={ { .v = {-0.3716f,0.0520f,-0.4045f} },{ .v = {-0.2719f,0.2017f,-0.2608f} },{ .v = {-0.4068f,0.1240f,-0.2749f} } }
     },{ 
     .n = { .v = {0.0408f,0.6777f,-0.7342f} },
     .cp = 0.3171f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=3,
     .vertices={ { .v = {-0.3716f,0.0520f,-0.4045f} },{ .v = {-0.1619f,0.1225f,-0.3278f} },{ .v = {-0.2719f,0.2017f,-0.2608f} } }
     },{ 
     .n = { .v = {0.0025f,1.0000f,-0.0032f} },
     .cp = 0.0041f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=5,
     .vertices={ { .v = {0.9998f,-0.0003f,-0.5741f} },{ .v = {0.8510f,0.0023f,0.1203f} },{ .v = {0.6779f,0.0014f,-0.3030f} } }
     },{ 
     .n = { .v = {-0.5457f,0.7168f,-0.4340f} },
     .cp = 0.6197f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=1,
     .vertices={ { .v = {-0.7206f,0.1313f,-0.3050f} },{ .v = {-0.6894f,0.2024f,-0.2268f} },{ .v = {-0.8853f,0.0542f,-0.2252f} } }
     },{ 
     .n = { .v = {-0.1583f,0.8445f,-0.5116f} },
     .cp = 0.3097f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=3,
     .vertices={ { .v = {-0.3716f,0.0520f,-0.4045f} },{ .v = {-0.4068f,0.1240f,-0.2749f} },{ .v = {-0.5426f,0.1687f,-0.1590f} } }
     },{ 
     .n = { .v = {0.0921f,0.7145f,-0.6935f} },
     .cp = 0.3000f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=3,
     .vertices={ { .v = {-0.2719f,0.2017f,-0.2608f} },{ .v = {-0.1619f,0.1225f,-0.3278f} },{ .v = {-0.1339f,0.2949f,-0.1466f} } }
     },{ 
     .n = { .v = {-0.2964f,0.3269f,-0.8974f} },
     .cp = 0.3054f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=0,
     .vertices={ { .v = {0.1895f,0.1635f,-0.3433f} },{ .v = {0.1099f,0.5610f,-0.1722f} },{ .v = {0.0197f,0.2122f,-0.2695f} } }
     },{ 
     .n = { .v = {-0.8396f,0.4003f,0.3671f} },
     .cp = 0.3131f, 
     .flags = 4,
     .edges = 0x00,
-    .material=5,
+    .material=9,
     .vertices={ { .v = {-0.0335f,0.6011f,0.1208f} },{ .v = {-0.1314f,0.3949f,0.1654f} },{ .v = {-0.2180f,0.3381f,-0.0145f} },{ .v = {-0.0487f,0.6951f,0.0271f} } }
     },{ 
     .n = { .v = {0.1111f,0.9647f,0.2386f} },
     .cp = 0.0645f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {-0.6894f,0.2024f,-0.2268f} },{ .v = {-0.5426f,0.1687f,-0.1590f} },{ .v = {-0.6613f,0.1545f,-0.0462f} } }
     },{ 
     .n = { .v = {-0.4246f,0.4107f,-0.8069f} },
     .cp = 0.2962f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=0,
     .vertices={ { .v = {0.0197f,0.2122f,-0.2695f} },{ .v = {0.0348f,0.5333f,-0.1140f} },{ .v = {-0.1339f,0.2949f,-0.1466f} } }
     },{ 
     .n = { .v = {-0.5754f,0.7639f,0.2922f} },
     .cp = 0.4850f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=4,
     .vertices={ { .v = {-0.8853f,0.0542f,-0.2252f} },{ .v = {-0.6894f,0.2024f,-0.2268f} },{ .v = {-0.6613f,0.1545f,-0.0462f} } }
     },{ 
     .n = { .v = {-0.4792f,0.8615f,-0.1678f} },
     .cp = 0.3479f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=3,
     .vertices={ { .v = {-0.2719f,0.2017f,-0.2608f} },{ .v = {-0.3965f,0.1783f,-0.0256f} },{ .v = {-0.4068f,0.1240f,-0.2749f} } }
     },{ 
     .n = { .v = {-0.1159f,0.9469f,0.3000f} },
     .cp = 0.4668f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.1099f,0.5610f,-0.1722f} },{ .v = {0.1628f,0.5220f,-0.0286f} },{ .v = {0.0348f,0.5333f,-0.1140f} } }
     },{ 
     .n = { .v = {0.2774f,0.9595f,0.0499f} },
     .cp = 0.1743f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.6779f,0.0014f,-0.3030f} },{ .v = {0.5924f,0.0076f,0.0525f} },{ .v = {0.5226f,0.0355f,-0.0955f} } }
     },{ 
     .n = { .v = {-0.4710f,0.8165f,0.3340f} },
     .cp = 0.4221f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=5,
     .vertices={ { .v = {-1.0003f,0.0137f,-0.1802f} },{ .v = {-0.6613f,0.1545f,-0.0462f} },{ .v = {-0.6891f,0.0658f,0.1315f} } }
     },{ 
     .n = { .v = {-0.3186f,0.9223f,-0.2190f} },
     .cp = 0.3632f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=3,
     .vertices={ { .v = {-0.6613f,0.1545f,-0.0462f} },{ .v = {-0.5426f,0.1687f,-0.1590f} },{ .v = {-0.5557f,0.2090f,0.0299f} } }
     },{ 
     .n = { .v = {-0.7572f,0.5541f,-0.3458f} },
     .cp = 0.4079f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=1,
     .vertices={ { .v = {-0.2719f,0.2017f,-0.2608f} },{ .v = {-0.2884f,0.3173f,-0.0395f} },{ .v = {-0.3965f,0.1783f,-0.0256f} } }
     },{ 
     .n = { .v = {-0.7067f,0.4028f,-0.5817f} },
     .cp = 0.2987f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=1,
     .vertices={ { .v = {-0.1339f,0.2949f,-0.1466f} },{ .v = {-0.0487f,0.6951f,0.0271f} },{ .v = {-0.2180f,0.3381f,-0.0145f} } }
     },{ 
     .n = { .v = {0.7262f,0.4289f,0.5373f} },
     .cp = 0.3267f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.2219f,0.5844f,-0.1584f} },{ .v = {0.3430f,0.0952f,0.0685f} },{ .v = {0.1628f,0.5220f,-0.0286f} } }
     },{ 
     .n = { .v = {0.5742f,0.7346f,0.3614f} },
     .cp = 0.2917f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=15,
     .vertices={ { .v = {0.3768f,0.2053f,-0.2089f} },{ .v = {0.5226f,0.0355f,-0.0955f} },{ .v = {0.3430f,0.0952f,0.0685f} } }
     },{ 
     .n = { .v = {0.0236f,0.9997f,-0.0119f} },
     .cp = 0.0210f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.6779f,0.0014f,-0.3030f} },{ .v = {0.8510f,0.0023f,0.1203f} },{ .v = {0.5924f,0.0076f,0.0525f} } }
     },{ 
     .n = { .v = {0.2374f,0.9599f,0.1491f} },
     .cp = 0.0731f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {-0.5557f,0.2090f,0.0299f} },{ .v = {-0.3965f,0.1783f,-0.0256f} },{ .v = {-0.4138f,0.1669f,0.0751f} } }
     },{ 
     .n = { .v = {0.5275f,0.6967f,-0.4862f} },
     .cp = 0.4453f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {-0.0487f,0.6951f,0.0271f} },{ .v = {0.0348f,0.5333f,-0.1140f} },{ .v = {0.0989f,0.6164f,0.0745f} } }
     },{ 
     .n = { .v = {0.3325f,0.9429f,0.0208f} },
     .cp = 0.2053f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.5226f,0.0355f,-0.0955f} },{ .v = {0.5924f,0.0076f,0.0525f} },{ .v = {0.3430f,0.0952f,0.0685f} } }
     },{ 
     .n = { .v = {-0.5932f,0.7535f,0.2834f} },
     .cp = 0.4956f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=4,
     .vertices={ { .v = {-0.6613f,0.1545f,-0.0462f} },{ .v = {-0.5557f,0.2090f,0.0299f} },{ .v = {-0.6891f,0.0658f,0.1315f} } }
     },{ 
     .n = { .v = {-0.2114f,0.9567f,-0.2002f} },
     .cp = 0.3724f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=4,
     .vertices={ { .v = {-0.2884f,0.3173f,-0.0395f} },{ .v = {-0.2180f,0.3381f,-0.0145f} },{ .v = {-0.1314f,0.3949f,0.1654f} } }
     },{ 
     .n = { .v = {0.0026f,0.9791f,-0.2034f} },
     .cp = -0.0464f, 
     .flags = 4,
     .edges = 0x00,
-    .material=4,
+    .material=5,
     .vertices={ { .v = {-0.4243f,0.0501f,0.4640f} },{ .v = {-0.6252f,0.1153f,0.5511f} },{ .v = {-0.7739f,0.0130f,0.2806f} },{ .v = {-0.5265f,0.0510f,0.2427f} } }
     },{ 
     .n = { .v = {0.9093f,0.2936f,0.2948f} },
     .cp = 0.2928f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.1628f,0.5220f,-0.0286f} },{ .v = {0.1692f,0.2821f,0.1905f} },{ .v = {0.0989f,0.6164f,0.0745f} } }
     },{ 
     .n = { .v = {0.0000f,0.0000f,1.0000f} },
     .cp = -0.6314f, 
     .flags = 4,
     .edges = 0x00,
-    .material=12,
-    .vertices={ { .v = {0.1248f,0.0635f,-0.6314f} },{ .v = {0.0940f,0.0635f,-0.6314f} },{ .v = {0.0940f,0.0944f,-0.6314f} },{ .v = {0.1248f,0.0944f,-0.6314f} } }
+    .material=15,
+    .vertices={ { .v = {0.1248f,0.0370f,-0.6314f} },{ .v = {0.0940f,0.0370f,-0.6314f} },{ .v = {0.0940f,0.0679f,-0.6314f} },{ .v = {0.1248f,0.0679f,-0.6314f} } }
     },{ 
     .n = { .v = {0.2416f,0.4739f,0.8468f} },
     .cp = 0.3791f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=15,
     .vertices={ { .v = {0.0989f,0.6164f,0.0745f} },{ .v = {0.0629f,0.2774f,0.2744f} },{ .v = {-0.0335f,0.6011f,0.1208f} } }
     },{ 
     .n = { .v = {0.7117f,0.7000f,-0.0585f} },
     .cp = 0.3068f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.3430f,0.0952f,0.0685f} },{ .v = {0.3680f,0.0771f,0.1562f} },{ .v = {0.1692f,0.2821f,0.1905f} } }
     },{ 
     .n = { .v = {-0.3117f,0.9375f,0.1547f} },
     .cp = 0.2968f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=5,
     .vertices={ { .v = {-1.0003f,0.0137f,-0.1802f} },{ .v = {-0.6891f,0.0658f,0.1315f} },{ .v = {-0.7739f,0.0130f,0.2806f} } }
     },{ 
     .n = { .v = {-0.2987f,0.3351f,0.8936f} },
     .cp = 0.3194f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=15,
     .vertices={ { .v = {-0.1314f,0.3949f,0.1654f} },{ .v = {-0.0335f,0.6011f,0.1208f} },{ .v = {0.0629f,0.2774f,0.2744f} } }
     },{ 
     .n = { .v = {0.6835f,0.6984f,-0.2125f} },
     .cp = 0.2722f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.1692f,0.2821f,0.1905f} },{ .v = {0.3680f,0.0771f,0.1562f} },{ .v = {0.2155f,0.2651f,0.2834f} } }
     },{ 
     .n = { .v = {0.0713f,0.9868f,0.1453f} },
     .cp = 0.3181f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.1692f,0.2821f,0.1905f} },{ .v = {0.2155f,0.2651f,0.2834f} },{ .v = {0.0629f,0.2774f,0.2744f} } }
     },{ 
     .n = { .v = {0.5688f,0.7247f,-0.3890f} },
     .cp = 0.2044f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.2155f,0.2651f,0.2834f} },{ .v = {0.3680f,0.0771f,0.1562f} },{ .v = {0.3656f,0.1960f,0.3743f} } }
     },{ 
     .n = { .v = {-0.1233f,0.8706f,-0.4763f} },
     .cp = -0.0527f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=3,
     .vertices={ { .v = {0.3680f,0.0771f,0.1562f} },{ .v = {0.6102f,0.2493f,0.4083f} },{ .v = {0.3656f,0.1960f,0.3743f} } }
     },{ 
     .n = { .v = {0.0885f,0.9847f,-0.1501f} },
     .cp = 0.2376f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=5,
     .vertices={ { .v = {0.0629f,0.2774f,0.2744f} },{ .v = {0.2155f,0.2651f,0.2834f} },{ .v = {0.2080f,0.2767f,0.3554f} } }
     },{ 
     .n = { .v = {-0.3833f,0.9137f,-0.1351f} },
     .cp = 0.2705f, 
     .flags = 0,
     .edges = 0x00,
-    .material=5,
+    .material=3,
     .vertices={ { .v = {-0.7739f,0.0130f,0.2806f} },{ .v = {-0.6252f,0.1153f,0.5511f} },{ .v = {-0.7570f,0.0497f,0.4813f} } }
     },{ 
     .n = { .v = {-0.2975f,0.9442f,0.1412f} },
     .cp = 0.2391f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=5,
     .vertices={ { .v = {-0.5265f,0.0510f,0.2427f} },{ .v = {-0.2453f,0.1217f,0.3624f} },{ .v = {-0.4243f,0.0501f,0.4640f} } }
     },{ 
     .n = { .v = {-0.2502f,0.8098f,0.5308f} },
     .cp = 0.2660f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.3656f,0.1960f,0.3743f} },{ .v = {0.6102f,0.2493f,0.4083f} },{ .v = {0.4355f,0.1683f,0.4496f} } }
     },{ 
     .n = { .v = {0.6161f,0.7837f,0.0789f} },
     .cp = 0.6035f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.6102f,0.2493f,0.4083f} },{ .v = {0.9071f,0.0252f,0.3159f} },{ .v = {0.8696f,0.0329f,0.5325f} } }
     },{ 
     .n = { .v = {-0.1731f,0.9225f,0.3451f} },
     .cp = 0.2798f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {-0.4243f,0.0501f,0.4640f} },{ .v = {-0.2453f,0.1217f,0.3624f} },{ .v = {-0.2797f,0.0113f,0.6402f} } }
     },{ 
     .n = { .v = {-0.2681f,0.9018f,0.3389f} },
     .cp = 0.3143f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {-0.0339f,0.1944f,0.3832f} },{ .v = {0.2080f,0.2767f,0.3554f} },{ .v = {0.1144f,0.1307f,0.6699f} } }
     },{ 
     .n = { .v = {0.3766f,0.8310f,0.4094f} },
     .cp = 0.4538f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.3656f,0.1960f,0.3743f} },{ .v = {0.4324f,0.0167f,0.6769f} },{ .v = {0.2080f,0.2767f,0.3554f} } }
     },{ 
     .n = { .v = {-0.1998f,0.7512f,0.6291f} },
     .cp = 0.3222f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {0.4355f,0.1683f,0.4496f} },{ .v = {0.6102f,0.2493f,0.4083f} },{ .v = {0.6726f,0.0099f,0.7140f} } }
     },{ 
     .n = { .v = {0.0000f,1.0000f,0.0000f} },
-    .cp = 0.0635f, 
+    .cp = 0.0370f, 
     .flags = 4,
     .edges = 0x00,
-    .material=12,
-    .vertices={ { .v = {0.0940f,0.0635f,-0.6005f} },{ .v = {0.0940f,0.0635f,-0.6314f} },{ .v = {0.1248f,0.0635f,-0.6314f} },{ .v = {0.1248f,0.0635f,-0.6005f} } }
+    .material=15,
+    .vertices={ { .v = {0.0940f,0.0370f,-0.6005f} },{ .v = {0.0940f,0.0370f,-0.6314f} },{ .v = {0.1248f,0.0370f,-0.6314f} },{ .v = {0.1248f,0.0370f,-0.6005f} } }
     },{ 
     .n = { .v = {0.3433f,0.9347f,0.0922f} },
     .cp = -0.0561f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {-0.4243f,0.0501f,0.4640f} },{ .v = {-0.3774f,0.0031f,0.7663f} },{ .v = {-0.6252f,0.1153f,0.5511f} } }
     },{ 
     .n = { .v = {-0.2967f,0.8995f,0.3207f} },
     .cp = 0.2985f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {-0.2797f,0.0113f,0.6402f} },{ .v = {-0.2453f,0.1217f,0.3624f} },{ .v = {0.1144f,0.1307f,0.6699f} } }
     },{ 
     .n = { .v = {-0.3346f,0.8684f,0.3659f} },
     .cp = 0.3204f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {-0.2453f,0.1217f,0.3624f} },{ .v = {-0.0339f,0.1944f,0.3832f} },{ .v = {0.1144f,0.1307f,0.6699f} } }
     },{ 
     .n = { .v = {1.0000f,0.0000f,0.0000f} },
     .cp = 0.0940f, 
     .flags = 4,
     .edges = 0x00,
-    .material=12,
-    .vertices={ { .v = {0.0940f,0.0635f,-0.6314f} },{ .v = {0.0940f,0.0635f,-0.6005f} },{ .v = {0.0940f,0.0944f,-0.6005f} },{ .v = {0.0940f,0.0944f,-0.6314f} } }
+    .material=15,
+    .vertices={ { .v = {0.0940f,0.0370f,-0.6314f} },{ .v = {0.0940f,0.0370f,-0.6005f} },{ .v = {0.0940f,0.0679f,-0.6005f} },{ .v = {0.0940f,0.0679f,-0.6314f} } }
     },{ 
     .n = { .v = {-0.2287f,0.0000f,0.9735f} },
     .cp = -0.6775f, 
     .flags = 4,
     .edges = 0x00,
-    .material=12,
-    .vertices={ { .v = {0.1910f,0.0494f,-0.6511f} },{ .v = {0.1609f,0.0494f,-0.6581f} },{ .v = {0.1609f,0.0802f,-0.6581f} },{ .v = {0.1910f,0.0802f,-0.6511f} } }
+    .material=15,
+    .vertices={ { .v = {0.1910f,0.0375f,-0.6511f} },{ .v = {0.1609f,0.0375f,-0.6581f} },{ .v = {0.1609f,0.0684f,-0.6581f} },{ .v = {0.1910f,0.0684f,-0.6511f} } }
     },{ 
     .n = { .v = {0.6889f,-0.7249f,0.0000f} },
-    .cp = -0.0037f, 
+    .cp = 0.0155f, 
     .flags = 4,
     .edges = 0x00,
-    .material=12,
-    .vertices={ { .v = {0.0940f,0.0944f,-0.6314f} },{ .v = {0.0940f,0.0944f,-0.6005f} },{ .v = {0.1094f,0.1091f,-0.6005f} },{ .v = {0.1094f,0.1091f,-0.6314f} } }
+    .material=15,
+    .vertices={ { .v = {0.0940f,0.0679f,-0.6314f} },{ .v = {0.0940f,0.0679f,-0.6005f} },{ .v = {0.1094f,0.0825f,-0.6005f} },{ .v = {0.1094f,0.0825f,-0.6314f} } }
     },{ 
     .n = { .v = {-0.6706f,-0.7249f,-0.1576f} },
-    .cp = -0.0837f, 
+    .cp = -0.0751f, 
     .flags = 4,
     .edges = 0x00,
-    .material=13,
-    .vertices={ { .v = {0.1839f,0.0802f,-0.6210f} },{ .v = {0.1910f,0.0802f,-0.6511f} },{ .v = {0.1760f,0.0949f,-0.6546f} },{ .v = {0.1689f,0.0949f,-0.6245f} } }
+    .material=6,
+    .vertices={ { .v = {0.1839f,0.0684f,-0.6210f} },{ .v = {0.1910f,0.0684f,-0.6511f} },{ .v = {0.1760f,0.0831f,-0.6546f} },{ .v = {0.1689f,0.0831f,-0.6245f} } }
     },{ 
     .n = { .v = {-0.9735f,0.0000f,-0.2287f} },
     .cp = -0.0370f, 
     .flags = 4,
     .edges = 0x00,
-    .material=14,
-    .vertices={ { .v = {0.1839f,0.0494f,-0.6210f} },{ .v = {0.1910f,0.0494f,-0.6511f} },{ .v = {0.1910f,0.0802f,-0.6511f} },{ .v = {0.1839f,0.0802f,-0.6210f} } }
+    .material=2,
+    .vertices={ { .v = {0.1839f,0.0375f,-0.6210f} },{ .v = {0.1910f,0.0375f,-0.6511f} },{ .v = {0.1910f,0.0684f,-0.6511f} },{ .v = {0.1839f,0.0684f,-0.6210f} } }
     },{ 
     .n = { .v = {-0.0000f,-0.0000f,-1.0000f} },
     .cp = 0.6005f, 
     .flags = 0,
     .edges = 0x00,
-    .material=14,
-    .vertices={ { .v = {0.0940f,0.0944f,-0.6005f} },{ .v = {0.1248f,0.0944f,-0.6005f} },{ .v = {0.1094f,0.1091f,-0.6005f} } }
+    .material=4,
+    .vertices={ { .v = {0.0940f,0.0679f,-0.6005f} },{ .v = {0.1248f,0.0679f,-0.6005f} },{ .v = {0.1094f,0.0825f,-0.6005f} } }
     },{ 
     .n = { .v = {-0.2965f,0.8973f,0.3271f} },
     .cp = 0.3025f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {-0.2797f,0.0113f,0.6402f} },{ .v = {0.1144f,0.1307f,0.6699f} },{ .v = {0.0818f,-0.0003f,0.9998f} } }
     },{ 
     .n = { .v = {-0.0186f,0.9985f,0.0509f} },
     .cp = 0.0491f, 
     .flags = 0,
     .edges = 0x00,
-    .material=4,
+    .material=6,
     .vertices={ { .v = {-0.3774f,0.0031f,0.7663f} },{ .v = {-0.2797f,0.0113f,0.6402f} },{ .v = {0.0818f,-0.0003f,0.9998f} } }
     },{ 
     .n = { .v = {-0.2287f,0.0000f,0.9735f} },
     .cp = -0.6775f, 
     .flags = 0,
     .edges = 0x00,
-    .material=12,
-    .vertices={ { .v = {0.1910f,0.0802f,-0.6511f} },{ .v = {0.1609f,0.0802f,-0.6581f} },{ .v = {0.1760f,0.0949f,-0.6546f} } }
+    .material=15,
+    .vertices={ { .v = {0.1910f,0.0684f,-0.6511f} },{ .v = {0.1609f,0.0684f,-0.6581f} },{ .v = {0.1760f,0.0831f,-0.6546f} } }
     },{ 
     .n = { .v = {0.0000f,1.0000f,0.0000f} },
-    .cp = 0.0415f, 
+    .cp = 0.0297f, 
     .flags = 4,
     .edges = 0x00,
-    .material=12,
-    .vertices={ { .v = {0.2026f,0.0415f,-0.6156f} },{ .v = {0.2147f,0.0415f,-0.6440f} },{ .v = {0.2431f,0.0415f,-0.6320f} },{ .v = {0.2310f,0.0415f,-0.6036f} } }
+    .material=15,
+    .vertices={ { .v = {0.2026f,0.0297f,-0.6156f} },{ .v = {0.2147f,0.0297f,-0.6440f} },{ .v = {0.2431f,0.0297f,-0.6320f} },{ .v = {0.2310f,0.0297f,-0.6036f} } }
     },{ 
     .n = { .v = {0.3906f,0.0000f,-0.9205f} },
     .cp = 0.6459f, 
     .flags = 4,
     .edges = 0x00,
-    .material=13,
-    .vertices={ { .v = {0.2026f,0.0415f,-0.6156f} },{ .v = {0.2310f,0.0415f,-0.6036f} },{ .v = {0.2310f,0.0723f,-0.6036f} },{ .v = {0.2026f,0.0723f,-0.6156f} } }
+    .material=9,
+    .vertices={ { .v = {0.2026f,0.0297f,-0.6156f} },{ .v = {0.2310f,0.0297f,-0.6036f} },{ .v = {0.2310f,0.0605f,-0.6036f} },{ .v = {0.2026f,0.0605f,-0.6156f} } }
     },{ 
     .n = { .v = {0.9205f,0.0000f,0.3906f} },
     .cp = -0.0539f, 
     .flags = 4,
     .edges = 0x00,
-    .material=12,
-    .vertices={ { .v = {0.2147f,0.0415f,-0.6440f} },{ .v = {0.2026f,0.0415f,-0.6156f} },{ .v = {0.2026f,0.0723f,-0.6156f} },{ .v = {0.2147f,0.0723f,-0.6440f} } }
+    .material=15,
+    .vertices={ { .v = {0.2147f,0.0297f,-0.6440f} },{ .v = {0.2026f,0.0297f,-0.6156f} },{ .v = {0.2026f,0.0605f,-0.6156f} },{ .v = {0.2147f,0.0605f,-0.6440f} } }
     },{ 
     .n = { .v = {0.6341f,-0.7249f,0.2691f} },
-    .cp = -0.0896f, 
+    .cp = -0.0810f, 
     .flags = 4,
     .edges = 0x00,
-    .material=12,
-    .vertices={ { .v = {0.2147f,0.0723f,-0.6440f} },{ .v = {0.2026f,0.0723f,-0.6156f} },{ .v = {0.2168f,0.0870f,-0.6096f} },{ .v = {0.2289f,0.0870f,-0.6380f} } }
+    .material=15,
+    .vertices={ { .v = {0.2147f,0.0605f,-0.6440f} },{ .v = {0.2026f,0.0605f,-0.6156f} },{ .v = {0.2168f,0.0752f,-0.6096f} },{ .v = {0.2289f,0.0752f,-0.6380f} } }
     },{ 
     .n = { .v = {-0.3906f,0.0000f,0.9205f} },
     .cp = -0.6767f, 
     .flags = 4,
     .edges = 0x00,
-    .material=12,
-    .vertices={ { .v = {0.2431f,0.0415f,-0.6320f} },{ .v = {0.2147f,0.0415f,-0.6440f} },{ .v = {0.2147f,0.0723f,-0.6440f} },{ .v = {0.2431f,0.0723f,-0.6320f} } }
+    .material=15,
+    .vertices={ { .v = {0.2431f,0.0297f,-0.6320f} },{ .v = {0.2147f,0.0297f,-0.6440f} },{ .v = {0.2147f,0.0605f,-0.6440f} },{ .v = {0.2431f,0.0605f,-0.6320f} } }
     },{ 
     .n = { .v = {-0.6341f,-0.7249f,-0.2691f} },
-    .cp = -0.0365f, 
+    .cp = -0.0280f, 
     .flags = 4,
     .edges = 0x00,
-    .material=13,
-    .vertices={ { .v = {0.2310f,0.0723f,-0.6036f} },{ .v = {0.2431f,0.0723f,-0.6320f} },{ .v = {0.2289f,0.0870f,-0.6380f} },{ .v = {0.2168f,0.0870f,-0.6096f} } }
+    .material=5,
+    .vertices={ { .v = {0.2310f,0.0605f,-0.6036f} },{ .v = {0.2431f,0.0605f,-0.6320f} },{ .v = {0.2289f,0.0752f,-0.6380f} },{ .v = {0.2168f,0.0752f,-0.6096f} } }
     },{ 
     .n = { .v = {-0.9205f,0.0000f,-0.3906f} },
     .cp = 0.0231f, 
     .flags = 4,
     .edges = 0x00,
-    .material=14,
-    .vertices={ { .v = {0.2310f,0.0415f,-0.6036f} },{ .v = {0.2431f,0.0415f,-0.6320f} },{ .v = {0.2431f,0.0723f,-0.6320f} },{ .v = {0.2310f,0.0723f,-0.6036f} } }
+    .material=1,
+    .vertices={ { .v = {0.2310f,0.0297f,-0.6036f} },{ .v = {0.2431f,0.0297f,-0.6320f} },{ .v = {0.2431f,0.0605f,-0.6320f} },{ .v = {0.2310f,0.0605f,-0.6036f} } }
     },{ 
     .n = { .v = {-0.3906f,0.0000f,0.9205f} },
     .cp = -0.6767f, 
     .flags = 0,
     .edges = 0x00,
-    .material=12,
-    .vertices={ { .v = {0.2431f,0.0723f,-0.6320f} },{ .v = {0.2147f,0.0723f,-0.6440f} },{ .v = {0.2289f,0.0870f,-0.6380f} } }
+    .material=15,
+    .vertices={ { .v = {0.2431f,0.0605f,-0.6320f} },{ .v = {0.2147f,0.0605f,-0.6440f} },{ .v = {0.2289f,0.0752f,-0.6380f} } }
     },{ 
     .n = { .v = {0.7692f,-0.0000f,-0.6390f} },
     .cp = 0.5614f, 
     .flags = 0,
     .edges = 0x00,
-    .material=12,
-    .vertices={ { .v = {0.2453f,0.0692f,-0.5833f} },{ .v = {0.2650f,0.0692f,-0.5595f} },{ .v = {0.2551f,0.0839f,-0.5714f} } }
+    .material=15,
+    .vertices={ { .v = {0.2453f,0.0561f,-0.5833f} },{ .v = {0.2650f,0.0561f,-0.5595f} },{ .v = {0.2551f,0.0707f,-0.5714f} } }
     },{ 
     .n = { .v = {0.0000f,1.0000f,0.0000f} },
-    .cp = 0.0383f, 
+    .cp = 0.0252f, 
     .flags = 4,
     .edges = 0x00,
-    .material=12,
-    .vertices={ { .v = {0.2453f,0.0383f,-0.5833f} },{ .v = {0.2690f,0.0383f,-0.6030f} },{ .v = {0.2887f,0.0383f,-0.5792f} },{ .v = {0.2650f,0.0383f,-0.5595f} } }
+    .material=15,
+    .vertices={ { .v = {0.2453f,0.0252f,-0.5833f} },{ .v = {0.2690f,0.0252f,-0.6030f} },{ .v = {0.2887f,0.0252f,-0.5792f} },{ .v = {0.2650f,0.0252f,-0.5595f} } }
     },{ 
     .n = { .v = {0.7692f,0.0000f,-0.6390f} },
     .cp = 0.5614f, 
     .flags = 4,
     .edges = 0x00,
-    .material=12,
-    .vertices={ { .v = {0.2453f,0.0383f,-0.5833f} },{ .v = {0.2650f,0.0383f,-0.5595f} },{ .v = {0.2650f,0.0692f,-0.5595f} },{ .v = {0.2453f,0.0692f,-0.5833f} } }
+    .material=15,
+    .vertices={ { .v = {0.2453f,0.0252f,-0.5833f} },{ .v = {0.2650f,0.0252f,-0.5595f} },{ .v = {0.2650f,0.0561f,-0.5595f} },{ .v = {0.2453f,0.0561f,-0.5833f} } }
     },{ 
     .n = { .v = {0.6390f,0.0000f,0.7692f} },
     .cp = -0.2919f, 
     .flags = 4,
     .edges = 0x00,
-    .material=12,
-    .vertices={ { .v = {0.2690f,0.0383f,-0.6030f} },{ .v = {0.2453f,0.0383f,-0.5833f} },{ .v = {0.2453f,0.0692f,-0.5833f} },{ .v = {0.2690f,0.0692f,-0.6030f} } }
+    .material=15,
+    .vertices={ { .v = {0.2690f,0.0252f,-0.6030f} },{ .v = {0.2453f,0.0252f,-0.5833f} },{ .v = {0.2453f,0.0561f,-0.5833f} },{ .v = {0.2690f,0.0561f,-0.6030f} } }
     },{ 
     .n = { .v = {0.4402f,-0.7249f,0.5299f} },
-    .cp = -0.2513f, 
+    .cp = -0.2417f, 
     .flags = 4,
     .edges = 0x00,
-    .material=12,
-    .vertices={ { .v = {0.2690f,0.0692f,-0.6030f} },{ .v = {0.2453f,0.0692f,-0.5833f} },{ .v = {0.2551f,0.0839f,-0.5714f} },{ .v = {0.2789f,0.0839f,-0.5911f} } }
+    .material=15,
+    .vertices={ { .v = {0.2690f,0.0561f,-0.6030f} },{ .v = {0.2453f,0.0561f,-0.5833f} },{ .v = {0.2551f,0.0707f,-0.5714f} },{ .v = {0.2789f,0.0707f,-0.5911f} } }
     },{ 
     .n = { .v = {-0.7692f,0.0000f,0.6390f} },
     .cp = -0.5922f, 
     .flags = 4,
     .edges = 0x00,
-    .material=12,
-    .vertices={ { .v = {0.2887f,0.0383f,-0.5792f} },{ .v = {0.2690f,0.0383f,-0.6030f} },{ .v = {0.2690f,0.0692f,-0.6030f} },{ .v = {0.2887f,0.0692f,-0.5792f} } }
+    .material=13,
+    .vertices={ { .v = {0.2887f,0.0252f,-0.5792f} },{ .v = {0.2690f,0.0252f,-0.6030f} },{ .v = {0.2690f,0.0561f,-0.6030f} },{ .v = {0.2887f,0.0561f,-0.5792f} } }
     },{ 
     .n = { .v = {-0.4402f,-0.7249f,-0.5299f} },
-    .cp = 0.1297f, 
+    .cp = 0.1392f, 
     .flags = 4,
     .edges = 0x00,
-    .material=14,
-    .vertices={ { .v = {0.2650f,0.0692f,-0.5595f} },{ .v = {0.2887f,0.0692f,-0.5792f} },{ .v = {0.2789f,0.0839f,-0.5911f} },{ .v = {0.2551f,0.0839f,-0.5714f} } }
+    .material=4,
+    .vertices={ { .v = {0.2650f,0.0561f,-0.5595f} },{ .v = {0.2887f,0.0561f,-0.5792f} },{ .v = {0.2789f,0.0707f,-0.5911f} },{ .v = {0.2551f,0.0707f,-0.5714f} } }
     },{ 
     .n = { .v = {-0.6390f,0.0000f,-0.7692f} },
     .cp = 0.2611f, 
     .flags = 4,
     .edges = 0x00,
-    .material=14,
-    .vertices={ { .v = {0.2650f,0.0383f,-0.5595f} },{ .v = {0.2887f,0.0383f,-0.5792f} },{ .v = {0.2887f,0.0692f,-0.5792f} },{ .v = {0.2650f,0.0692f,-0.5595f} } }
+    .material=0,
+    .vertices={ { .v = {0.2650f,0.0252f,-0.5595f} },{ .v = {0.2887f,0.0252f,-0.5792f} },{ .v = {0.2887f,0.0561f,-0.5792f} },{ .v = {0.2650f,0.0561f,-0.5595f} } }
     },{ 
     .n = { .v = {-0.7692f,0.0000f,0.6390f} },
     .cp = -0.5922f, 
     .flags = 0,
     .edges = 0x00,
+    .material=13,
+    .vertices={ { .v = {0.2887f,0.0561f,-0.5792f} },{ .v = {0.2690f,0.0561f,-0.6030f} },{ .v = {0.2789f,0.0707f,-0.5911f} } }
+    },{ 
+    .n = { .v = {-0.0474f,0.6663f,-0.7442f} },
+    .cp = 0.4967f, 
+    .flags = 3,
+    .edges = 0x01,
+    .material=1,
+    .vertices={ { .v = {0.1099f,0.5610f,-0.1722f} },{ .v = {0.1094f,0.0825f,-0.6005f} },{ .v = {0.2219f,0.5844f,-0.1584f} } }
+    },{ 
+        .n = { .v = {0.0474f,-0.6663f,0.7442f} },
+        .cp = -0.4967f, 
+        .flags = 3,
+        .edges = 0x02,
+        .material=1,
+        .vertices={ { .v = {0.2219f,0.5844f,-0.1584f} },{ .v = {0.1094f,0.0825f,-0.6005f} },{ .v = {0.1099f,0.5610f,-0.1722f} } }
+        },{ 
+    .n = { .v = {-0.1609f,0.2392f,-0.9575f} },
+    .cp = 0.7633f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=2,
+    .vertices={ { .v = {0.0855f,0.0348f,-0.8027f} },{ .v = {0.0583f,0.1017f,-0.7815f} },{ .v = {0.0270f,0.0301f,-0.7941f} } }
+    },{ 
+    .n = { .v = {0.8983f,0.2497f,0.3616f} },
+    .cp = -0.2048f, 
+    .flags = 0,
+    .edges = 0x00,
     .material=12,
-    .vertices={ { .v = {0.2887f,0.0692f,-0.5792f} },{ .v = {0.2690f,0.0692f,-0.6030f} },{ .v = {0.2789f,0.0839f,-0.5911f} } }
+    .vertices={ { .v = {0.0631f,0.0348f,-0.7473f} },{ .v = {0.0583f,0.1017f,-0.7815f} },{ .v = {0.0855f,0.0348f,-0.8027f} } }
+    },{ 
+    .n = { .v = {-0.8142f,0.2497f,-0.5242f} },
+    .cp = 0.2830f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=0,
+    .vertices={ { .v = {0.1622f,0.0321f,-0.7766f} },{ .v = {0.1606f,0.0990f,-0.7421f} },{ .v = {0.1299f,0.0321f,-0.7263f} } }
+    },{ 
+    .n = { .v = {-0.0222f,0.2392f,0.9707f} },
+    .cp = -0.7002f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=12,
+    .vertices={ { .v = {0.1299f,0.0321f,-0.7263f} },{ .v = {0.1606f,0.0990f,-0.7421f} },{ .v = {0.1890f,0.0274f,-0.7238f} } }
+    },{ 
+    .n = { .v = {0.6263f,0.2392f,0.7420f} },
+    .cp = -0.4593f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=12,
+    .vertices={ { .v = {0.0164f,0.0444f,-0.6472f} },{ .v = {0.0270f,0.1159f,-0.6793f} },{ .v = {0.0608f,0.0491f,-0.6862f} } }
+    },{ 
+    .n = { .v = {-0.7794f,0.2392f,0.5790f} },
+    .cp = -0.4736f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=10,
+    .vertices={ { .v = {0.0270f,0.0301f,-0.7941f} },{ .v = {0.0583f,0.1017f,-0.7815f} },{ .v = {0.0631f,0.0348f,-0.7473f} } }
+    },{ 
+    .n = { .v = {0.3051f,0.2497f,-0.9190f} },
+    .cp = 0.6615f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=6,
+    .vertices={ { .v = {0.0608f,0.0491f,-0.6862f} },{ .v = {0.0270f,0.1159f,-0.6793f} },{ .v = {0.0041f,0.0491f,-0.7051f} } }
+    },{ 
+    .n = { .v = {-0.9457f,0.2392f,0.2200f} },
+    .cp = -0.1473f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=5,
+    .vertices={ { .v = {0.0041f,0.0491f,-0.7051f} },{ .v = {0.0270f,0.1159f,-0.6793f} },{ .v = {0.0164f,0.0444f,-0.6472f} } }
+    },{ 
+    .n = { .v = {0.8745f,0.2392f,-0.4220f} },
+    .cp = 0.4773f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=12,
+    .vertices={ { .v = {0.1890f,0.0274f,-0.7238f} },{ .v = {0.1606f,0.0990f,-0.7421f} },{ .v = {0.1622f,0.0321f,-0.7766f} } }
+    },{ 
+    .n = { .v = {-0.0601f,0.2497f,-0.9665f} },
+    .cp = 0.8030f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=3,
+    .vertices={ { .v = {0.2911f,0.0213f,-0.8434f} },{ .v = {0.2624f,0.0882f,-0.8244f} },{ .v = {0.2315f,0.0213f,-0.8397f} } }
+    },{ 
+    .n = { .v = {-0.7952f,0.2392f,0.5572f} },
+    .cp = -0.6469f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=9,
+    .vertices={ { .v = {0.2315f,0.0213f,-0.8397f} },{ .v = {0.2624f,0.0882f,-0.8244f} },{ .v = {0.2645f,0.0166f,-0.7907f} } }
+    },{ 
+    .n = { .v = {0.8581f,0.2392f,0.4544f} },
+    .cp = -0.1284f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=12,
+    .vertices={ { .v = {0.2645f,0.0166f,-0.7907f} },{ .v = {0.2624f,0.0882f,-0.8244f} },{ .v = {0.2911f,0.0213f,-0.8434f} } }
+    },{ 
+    .n = { .v = {0.4678f,0.2497f,0.8478f} },
+    .cp = 0.0841f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=12,
+    .vertices={ { .v = {0.7464f,0.0137f,-0.3167f} },{ .v = {0.7643f,0.0805f,-0.3463f} },{ .v = {0.7987f,0.0137f,-0.3456f} } }
+    },{ 
+    .n = { .v = {0.4803f,0.2392f,-0.8439f} },
+    .cp = 0.6785f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=8,
+    .vertices={ { .v = {0.7987f,0.0137f,-0.3456f} },{ .v = {0.7643f,0.0805f,-0.3463f} },{ .v = {0.7479f,0.0090f,-0.3758f} } }
+    },{ 
+    .n = { .v = {-0.9700f,0.2392f,-0.0436f} },
+    .cp = -0.7069f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=3,
+    .vertices={ { .v = {0.7479f,0.0090f,-0.3758f} },{ .v = {0.7643f,0.0805f,-0.3463f} },{ .v = {0.7464f,0.0137f,-0.3167f} } }
+    },{ 
+    .n = { .v = {0.8348f,0.2497f,0.4907f} },
+    .cp = 0.4996f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=12,
+    .vertices={ { .v = {0.6855f,0.0137f,-0.1549f} },{ .v = {0.6858f,0.0805f,-0.1894f} },{ .v = {0.7158f,0.0137f,-0.2064f} } }
+    },{ 
+    .n = { .v = {-0.0172f,0.2392f,-0.9708f} },
+    .cp = 0.1913f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=3,
+    .vertices={ { .v = {0.7158f,0.0137f,-0.2064f} },{ .v = {0.6858f,0.0805f,-0.1894f} },{ .v = {0.6566f,0.0090f,-0.2065f} } }
+    },{ 
+    .n = { .v = {-0.8566f,0.2392f,0.4571f} },
+    .cp = -0.6547f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=8,
+    .vertices={ { .v = {0.6566f,0.0090f,-0.2065f} },{ .v = {0.6858f,0.0805f,-0.1894f} },{ .v = {0.6855f,0.0137f,-0.1549f} } }
+    },{ 
+    .n = { .v = {-0.2893f,0.2497f,-0.9241f} },
+    .cp = -0.1280f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=1,
+    .vertices={ { .v = {0.8387f,0.0137f,-0.1204f} },{ .v = {0.8154f,0.0805f,-0.0950f} },{ .v = {0.7817f,0.0137f,-0.1025f} } }
+    },{ 
+    .n = { .v = {-0.6389f,0.2392f,0.7311f} },
+    .cp = -0.5711f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=12,
+    .vertices={ { .v = {0.7817f,0.0137f,-0.1025f} },{ .v = {0.8154f,0.0805f,-0.0950f} },{ .v = {0.8255f,0.0090f,-0.0627f} } }
+    },{ 
+    .n = { .v = {0.9418f,0.2392f,0.2362f} },
+    .cp = 0.7648f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=12,
+    .vertices={ { .v = {0.8255f,0.0090f,-0.0627f} },{ .v = {0.8154f,0.0805f,-0.0950f} },{ .v = {0.8387f,0.0137f,-0.1204f} } }
+    },{ 
+    .n = { .v = {-0.5770f,0.2497f,-0.7776f} },
+    .cp = -0.2636f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=0,
+    .vertices={ { .v = {0.8448f,0.0137f,-0.2835f} },{ .v = {0.8311f,0.0805f,-0.2519f} },{ .v = {0.7969f,0.0137f,-0.2479f} } }
+    },{ 
+    .n = { .v = {-0.3631f,0.2392f,0.9005f} },
+    .cp = -0.5093f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=12,
+    .vertices={ { .v = {0.7969f,0.0137f,-0.2479f} },{ .v = {0.8311f,0.0805f,-0.2519f} },{ .v = {0.8512f,0.0090f,-0.2247f} } }
+    },{ 
+    .n = { .v = {0.9671f,0.2392f,-0.0865f} },
+    .cp = 0.8448f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=12,
+    .vertices={ { .v = {0.8512f,0.0090f,-0.2247f} },{ .v = {0.8311f,0.0805f,-0.2519f} },{ .v = {0.8448f,0.0137f,-0.2835f} } }
+    },{ 
+    .n = { .v = {0.3051f,0.2497f,-0.9190f} },
+    .cp = 0.2182f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=6,
+    .vertices={ { .v = {0.7040f,0.0137f,0.0000f} },{ .v = {0.6702f,0.0805f,0.0070f} },{ .v = {0.6473f,0.0137f,-0.0188f} } }
+    },{ 
+    .n = { .v = {-0.9457f,0.2392f,0.2200f} },
+    .cp = -0.6130f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=5,
+    .vertices={ { .v = {0.6473f,0.0137f,-0.0188f} },{ .v = {0.6702f,0.0805f,0.0070f} },{ .v = {0.6595f,0.0090f,0.0390f} } }
+    },{ 
+    .n = { .v = {0.6263f,0.2392f,0.7420f} },
+    .cp = 0.4442f, 
+    .flags = 0,
+    .edges = 0x00,
+    .material=12,
+    .vertices={ { .v = {0.6595f,0.0090f,0.0390f} },{ .v = {0.6702f,0.0805f,0.0070f} },{ .v = {0.7040f,0.0137f,0.0000f} } }
     } };
-
+    
 
 // models
 static ThreeDModel three_d_models[24]={
@@ -7680,7 +7883,7 @@ static ThreeDModel three_d_models[24]={
     // sled
     { .face_count = 26, .faces = sled_faces },
     // mountain
-    { .face_count = 163, .faces = mountain_faces }  
+    { .face_count = 192, .faces = mountain_faces }  
 };
 
 #endif // _models_h

@@ -1358,3 +1358,33 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
     }
     END_FUNC();
 }
+
+// render "free" props without ground (for title screen say)
+void render_props(Point3d cam_pos, float* m, uint8_t* bitmap) {
+    BEGIN_FUNC();
+
+    // "free" props?
+    _drawables.n = 0;
+    for (int i = 0; i < _render_props.n; ++i) {
+        RenderProp* prop = &_render_props.props[i];
+        push_and_transform_threeD_model(prop->id, cam_pos, m, prop->m);
+    }
+    // reset "free" props
+    _render_props.n = 0;
+
+    // sort & renders back to front
+    if (_drawables.n > 0) {
+        for (int i = 0; i < _drawables.n; ++i) {
+            _sortables[i] = &_drawables.all[i];
+        }
+        BEGIN_BLOCK("qsort");
+        qsort(_sortables, (size_t)_drawables.n, sizeof(Drawable*), cmp_drawable);
+        END_BLOCK();
+
+        // rendering
+        for (int k = _drawables.n - 1; k >= 0; --k) {
+            _sortables[k]->draw(_sortables[k], bitmap);
+        }
+    }
+    END_FUNC();
+}
