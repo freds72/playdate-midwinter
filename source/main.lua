@@ -1013,7 +1013,7 @@ function menu_state()
 				snowflake:draw(10+x,6+y)
 			end		
 
-			print_small("By FReDS72",10,60)
+			print_small("by FReDS72",10,60)
 
 			local sel_panel = panels[sel+1]
 			local v = m_x_v(actors[1].m, sel_panel.loc)
