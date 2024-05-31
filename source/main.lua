@@ -20,6 +20,8 @@ local outlineFont = {
 	[gfx.kColorBlack]=gfx.font.new('font/More-15-Black-Outline'),
 	[gfx.kColorWhite]=gfx.font.new('font/More-15-White-Outline')
 }
+-- 50% dither pattern
+local _50pct_pattern = { 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55 }
 
 local _inputs={
 	-- crank docked
@@ -184,6 +186,7 @@ function v_normz(v)
 	v[1]/=d
 	v[2]/=d
 	v[3]/=d
+	return d
 end
 
 function v_lerp(a,b,t)
@@ -857,16 +860,23 @@ function menu_state()
 	local best_y = -20
 	local panels={
 		{state=play_state,loc=vgroups.MOUNTAIN_GREEN_TRACK,help="Chill mood?\nEnjoy the snow!",params={name="Marmottes",slope=1.5,twist=2.5,num_tracks=3,tight_mode=0,props_rate=0.95,track_type=0,min_cooldown=30*5,max_cooldown=30*35}},
-		{state=play_state,loc=vgroups.MOUNTAIN_RED_TRACK,help="Death Canyon\nHow far can you go?",params={name="Biquettes",dslot=2,slope=2,twist=3,num_tracks=1,tight_mode=1,props_rate=0.97,track_type=3,min_cooldown=8,max_cooldown=12}},
-		{state=play_state,loc=vgroups.MOUNTAIN_BLACK_TRACK,help="Endless Race\nTake over mania!",params={name="Chamois",dslot=3,slope=2.25,twist=6,num_tracks=1,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=8,max_cooldown=8}},
-		{state=shop_state,loc=vgroups.MOUNTAIN_SHOP,help="Shopping Mall.\nSpend you hard earned $",params={name="Shop"},transition=station_state}
+		{state=play_state,loc=vgroups.MOUNTAIN_RED_TRACK,help=function()
+			return "Death Canyon\nHow far can you go?\nBest: ".._save_state.best_2.."m"
+		end
+		,params={name="Biquettes",dslot=2,slope=2,twist=3,num_tracks=1,tight_mode=1,props_rate=0.97,track_type=3,min_cooldown=8,max_cooldown=12}},
+		{state=play_state,loc=vgroups.MOUNTAIN_BLACK_TRACK,help=function()
+			return "Endless Race\nTake over mania!\nBest: ".._save_state.best_3.."m"
+		end,params={name="Chamois",dslot=3,slope=2.25,twist=6,num_tracks=1,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=8,max_cooldown=8}},
+		{state=shop_state,loc=vgroups.MOUNTAIN_SHOP,help=function()
+			return "Buy gear!\n$".._save_state.coins
+		end ,params={name="Shop"},transition=station_state}
 	}
 	local sel,blink=0,false
-	local particles={}
 	-- background actors
 	local actors={}
 
 	-- reset cam	
+	local look_at = {0,0,1}
 	cam=make_cam({0,0.8,-0.5})
 
 	music(0)
@@ -886,8 +896,35 @@ function menu_state()
 	add(actors,{
 		id=models.PROP_MOUNTAIN,
 		pos={0.5,0,1},
+		m={
+			1,0,0,0,
+			0,1,0,0,
+			0,0,1,0,
+			0.5,0,1,1},
+		angle=0,
 		update=function(self)
-			local m=make_m_y_rot(time()/16)
+			local m
+			if starting then
+				local panel = panels[sel+1]
+				-- project location into world space
+				local world_loc = m_x_v(self.m,panel.loc)
+				local dir=make_v(cam.pos,world_loc)
+				dir[2] = 0
+				v_normz(dir)
+				local right=m_right(self.m)
+				right[2] = 0
+				v_normz(right)
+				local d=v_dot(right,dir)
+				self.angle += d/16
+				m=make_m_y_rot(self.angle)
+				m[1]  += 0.8
+				m[6]  += 0.8
+				m[11] += 0.8
+			else
+				self.angle = time()/16
+				m=make_m_y_rot(self.angle)
+			end
+
 			local pos=self.pos
 			m[13]=pos[1]
 			m[14]=pos[2]
@@ -896,11 +933,22 @@ function menu_state()
 		end
 	})
 	
+	-- snowflake
+	local snowflake=gfx.image.new(2,2)
+	snowflake:clear(gfx.kColorWhite)
+
+	-- starting position (outside screen)
+	gfx.setFont(largeFont[gfx.kColorBlack])
+	for _,p in pairs(panels) do
+		p.x = -gfx.getTextSize(p.params.name) - 8
+		p.x_start = p.x
+	end
+
 	return
 		-- update
 		function()
-			if playdate.buttonJustReleased(playdate.kButtonLeft) then sel-=1 end
-			if playdate.buttonJustReleased(playdate.kButtonRight) then sel+=1 end
+			if playdate.buttonJustReleased(playdate.kButtonUp) then sel-=1 end
+			if playdate.buttonJustReleased(playdate.kButtonDown) then sel+=1 end
 			sel=mid(sel,0,#panels-1)
 			
 			if not starting and playdate.buttonJustReleased(playdate.kButtonA) then
@@ -908,12 +956,16 @@ function menu_state()
 				-- sub-state
         starting=true
 				do_async(function()
-					for i=1,15 do
-						blink=i%2==0 and true
+					local panel = panels[sel+1]
+					-- project location into world space
+					local world_loc = m_x_v(actors[1].m,panel.loc)		
+					for i=1,30 do
+						cam.pos=v_lerp(cam.pos, {0.5,0.5,-0.75},0.1)
+						look_at=v_lerp(look_at,world_loc,0.1)
 						coroutine.yield()
 					end
 					-- restore random seed
-					math.randomseed(playdate.getSecondsSinceEpoch())
+					srand(playdate.getSecondsSinceEpoch())
 					local p=panels[sel+1]
 					next_state(p.transition or zoomin_state,p.state,p.params)
 				end)
@@ -923,70 +975,98 @@ function menu_state()
 				a:update()
 			end
 
+			-- slide menu in
 			local sel_y = (sel//1)*28 + 80
-			for i=1,24+rnd(24) do
-				if rnd()>0.5 then
-					add(particles,{
-						x = rnd(130),
-						y = sel_y + 32 - rnd(16),
-						radius = 16 + rnd(8),
-						update=function(self)
-							self.radius = lerp(self.radius,0,0.1)
-							if self.radius<1 then return end
-							return true
-						end
-					})
-				end
-			end
+			local sel_panel = panels[sel+1]
 
-			for i=#particles,1,-1 do
-				local p=particles[i]
-				if not p:update() then
-					table.remove(particles,i)
+			for _,p in pairs(panels) do
+				-- target
+				local x = p == sel_panel and 14 or 10
+				if starting then
+					x = p.x_start
 				end
+				p.x = lerp(p.x,x,0.25)
 			end
+		
 			--
-			cam:look({0,0,1})
+			cam:look(look_at)
 		end,
 		-- draw
 		function()
 			cls(gfx.kColorWhite)
 			
-			_game_title:draw(10,6)
-			print_small("By FReDS72",10,60)
-
 			for _,a in pairs(actors) do
 				lib3d.add_render_prop(a.id,table.unpack(a.m))
 			end
 			lib3d.render_props(cam.pos[1],cam.pos[2],cam.pos[3],table.unpack(cam.m))
 
-			local sel_panel = panels[sel+1]
-			-- get size
-			local help_w,help_h = gfx.getTextSize(sel_panel.help)
-			local help_y = 240 - help_h - 32
-			gfx.setColor(gfx.kColorBlack)
-			gfx.fillRect(280 - (help_w+16)/2,help_y,help_w+16,help_h+16)
-			print_small(sel_panel.help,280-help_w/2,help_y+8,gfx.kColorWhite)			
+			_game_title:draw(10,6)
+			-- snow on title
+			srand(13)
+			local t=time()
+			local w,h=_game_title:getSize()
+			gfx.setColor(gfx.kColorWhite)
+			for i=0,128 do
+				local a,s=rnd(),2+rnd()
+				local u,v,x0=s*cos(a),s*abs(4*sin(a)),rnd(w)
+				local x,y=flr(x0+t*u)%w,flr(t*v)%h
+				snowflake:draw(10+x,6+y)
+			end		
 
-			-- draw "level" position on 3d model
+			print_small("By FReDS72",10,60)
+
+			local sel_panel = panels[sel+1]
 			local v = m_x_v(actors[1].m, sel_panel.loc)
 			v = m_x_v(cam.m, v)
 			local x,y = cam:project2d(v)
-			gfx.setColor(gfx.kColorBlack)
-			gfx.drawLine(280,help_y,x,y)
+			-- help popup
+			if not starting then
+				-- get size
+				local help = sel_panel.help
+				if type(help)=="function" then
+					help=help()
+				end
+				local help_w,help_h = gfx.getTextSize(help)
+				local help_y = 240 - help_h - 32
+				local help_x = 280 - help_w/2
+				gfx.setPattern(_50pct_pattern)
+				gfx.fillRect(help_x - 8,help_y + help_h + 16,help_w+16,2)
+				gfx.setColor(gfx.kColorBlack)
+				gfx.fillRect(help_x - 8,help_y,help_w+16,help_h+16)
+				print_small(help,help_x,help_y+8,gfx.kColorWhite)			
 
-			-- selection effect
-			gfx.setColor(gfx.kColorBlack)
-			for _,p in pairs(particles) do
-				gfx.fillCircleAtPoint(p.x,p.y,p.radius)
+				-- draw "level" position on 3d model
+				gfx.setColor(gfx.kColorBlack)
+				local tri_lx = help_x + 2
+				local tri_rx = help_x + 16
+				if x>280 then
+					tri_lx = help_x + help_w - 16
+					tri_rx = help_x + help_w - 2
+				end
+				gfx.setColor(gfx.kColorBlack)
+				gfx.fillTriangle(x,y,tri_lx,help_y,tri_rx,help_y)
 			end
 
 			local y=90
 			for i=1,#panels do
 				local panel = panels[i]
-				print_regular(panel.params.name, 10, y, panel==sel_panel and gfx.kColorWhite or gfx.kColorBlack)
+				local name = panel.params.name
+				if panel==sel_panel then
+					-- text length
+					gfx.setFont(largeFont[gfx.kColorBlack])
+					local sel_w = gfx.getTextSize(name)
+					gfx.setPattern(_50pct_pattern)
+					gfx.fillRect(0,y+32,sel_w + panel.x + 16,2)
+					gfx.setColor(gfx.kColorBlack)
+					gfx.fillRect(0,y,sel_w + panel.x + 16,32)
+	
+					print_regular(name, panel.x, y,gfx.kColorWhite)
+				else
+					print_regular(name, panel.x, y, gfx.kColorBlack)
+				end
 				y += 28
 			end			
+			
 		end		
 end
 
@@ -1112,7 +1192,7 @@ function shop_state()
 			draw_button(right_button,379)
 
 			local y_offset = action_ttl>0 and 2 or 0
-    	gfx.setPattern({ 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55 })
+    	gfx.setPattern(_50pct_pattern)
 			gfx.fillRect(232,208,72,23)
 			gfx.setColor(gfx.kColorWhite)
 			gfx.fillRect(232,206+y_offset,72,23)

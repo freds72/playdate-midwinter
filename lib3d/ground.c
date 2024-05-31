@@ -1054,7 +1054,7 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float* 
             int n = f->flags & FACE_FLAG_QUAD?4:3;
             // transform
             int outcode = 0xfffffff, is_clipped_near = 0;
-            float min_key = FLT_MAX;
+            float min_key = FLT_MIN;
             for (int i = 0; i < n; ++i) {
                 Point3du* res = &tmp[i];
                 // project using active matrix
@@ -1064,7 +1064,7 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float* 
                 if (-res->x > res->z) code |= OUTCODE_LEFT;
                 outcode &= code;
                 is_clipped_near |= code;
-                if (res->z < min_key) min_key = res->z;
+                if (res->z > min_key) min_key = res->z;
                 // use u to mark sharp edges
                 res->u = f->edges & (1 << i);
             }
