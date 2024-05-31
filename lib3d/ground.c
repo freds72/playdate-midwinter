@@ -1054,7 +1054,7 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float* 
             int n = f->flags & FACE_FLAG_QUAD?4:3;
             // transform
             int outcode = 0xfffffff, is_clipped_near = 0;
-            float min_key = FLT_MAX;
+            float min_key = FLT_MIN;
             for (int i = 0; i < n; ++i) {
                 Point3du* res = &tmp[i];
                 // project using active matrix
@@ -1064,7 +1064,7 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float* 
                 if (-res->x > res->z) code |= OUTCODE_LEFT;
                 outcode &= code;
                 is_clipped_near |= code;
-                if (res->z < min_key) min_key = res->z;
+                if (res->z > min_key) min_key = res->z;
                 // use u to mark sharp edges
                 res->u = f->edges & (1 << i);
             }
@@ -1335,6 +1335,36 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
     }
 
     // any "free" props?
+    for (int i = 0; i < _render_props.n; ++i) {
+        RenderProp* prop = &_render_props.props[i];
+        push_and_transform_threeD_model(prop->id, cam_pos, m, prop->m);
+    }
+    // reset "free" props
+    _render_props.n = 0;
+
+    // sort & renders back to front
+    if (_drawables.n > 0) {
+        for (int i = 0; i < _drawables.n; ++i) {
+            _sortables[i] = &_drawables.all[i];
+        }
+        BEGIN_BLOCK("qsort");
+        qsort(_sortables, (size_t)_drawables.n, sizeof(Drawable*), cmp_drawable);
+        END_BLOCK();
+
+        // rendering
+        for (int k = _drawables.n - 1; k >= 0; --k) {
+            _sortables[k]->draw(_sortables[k], bitmap);
+        }
+    }
+    END_FUNC();
+}
+
+// render "free" props without ground (for title screen say)
+void render_props(Point3d cam_pos, float* m, uint8_t* bitmap) {
+    BEGIN_FUNC();
+
+    // "free" props?
+    _drawables.n = 0;
     for (int i = 0; i < _render_props.n; ++i) {
         RenderProp* prop = &_render_props.props[i];
         push_and_transform_threeD_model(prop->id, cam_pos, m, prop->m);

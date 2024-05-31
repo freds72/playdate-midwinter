@@ -140,6 +140,33 @@ static int lib3d_render_ground(lua_State* L)
 	return 0;
 }
 
+static int lib3d_render_props(lua_State* L)
+{
+	int argc = 1;
+	// cam pos
+	Point3d pos;
+	for (int i = 0; i < 3; ++i) {
+		// Get it's value.        
+		pos.v[i] = pd->lua->getArgFloat(argc++);
+	}
+
+	// camera matrix
+	float m[16];
+
+	for (int i = 0; i < 16; ++i) {
+		// Get it's value.        
+		m[i] = pd->lua->getArgFloat(argc++);
+	}
+
+	uint8_t* bitmap = pd->graphics->getFrame();
+
+	render_props(pos, m, bitmap);
+
+	pd->graphics->markUpdatedRows(0, LCD_ROWS - 1);
+
+	return 0;
+}
+
 static int lib3d_get_start_pos(lua_State* L) {
     Point3d out;
     get_start_pos(&out);
@@ -360,6 +387,9 @@ void lib3d_register(PlaydateAPI* playdate)
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
 	if (!pd->lua->addFunction(lib3d_render_ground, "lib3d.render_ground", &err))
+		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
+
+	if (!pd->lua->addFunction(lib3d_render_props, "lib3d.render_props", &err))
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
 
 	if (!pd->lua->addFunction(lib3d_get_start_pos, "lib3d.get_start_pos", &err))

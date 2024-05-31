@@ -53,8 +53,11 @@ void collide(Point3d pos, float radius, int* hit_type);
 // render ground
 void render_ground(Point3d pos, const float tau_angle, float*m, uint8_t* bitmap);
 
-// register a new prop to be rendered using the given transformation matrix
+// register a new "free" prop to be rendered using the given transformation matrix
 void add_render_prop(int id, const float* m);
+
+// render "free" props
+void render_props(Point3d pos, float* m, uint8_t* bitmap);
 
 // load stuff (to be called until returns 0)
 int ground_load_assets_async();
