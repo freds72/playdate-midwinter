@@ -855,7 +855,7 @@ function station_state(state,...)
 		end
 end
 
-function menu_state()
+function menu_state(angle)
   local starting
 	local best_y = -20
 	local panels={
@@ -893,6 +893,8 @@ function menu_state()
 		_flip_crank = value and -1 or 1
 	end)	
 
+	local scale = 1
+	local angle = angle or 0
 	add(actors,{
 		id=models.PROP_MOUNTAIN,
 		pos={0.5,0,1},
@@ -901,7 +903,6 @@ function menu_state()
 			0,1,0,0,
 			0,0,1,0,
 			0.5,0,1,1},
-		angle=0,
 		update=function(self)
 			local m
 			if starting then
@@ -915,14 +916,14 @@ function menu_state()
 				right[2] = 0
 				v_normz(right)
 				local d=v_dot(right,dir)
-				self.angle += d/16
-				m=make_m_y_rot(self.angle)
-				m[1]  += 0.8
-				m[6]  += 0.8
-				m[11] += 0.8
+				angle += d/16
+				m=make_m_y_rot(angle)
+				m[1]  = scale
+				m[6]  = scale
+				m[11] = scale
 			else
-				self.angle = time()/16
-				m=make_m_y_rot(self.angle)
+				angle += 0.001
+				m = make_m_y_rot(angle)
 			end
 
 			local pos=self.pos
@@ -960,6 +961,7 @@ function menu_state()
 					-- project location into world space
 					local world_loc = m_x_v(actors[1].m,panel.loc)		
 					for i=1,30 do
+						scale = lerp(scale,1.8,0.1)
 						cam.pos=v_lerp(cam.pos, {0.5,0.5,-0.75},0.1)
 						look_at=v_lerp(look_at,world_loc,0.1)
 						coroutine.yield()
@@ -968,7 +970,7 @@ function menu_state()
 					srand(playdate.getSecondsSinceEpoch())
 					local p=panels[sel+1]
 					if p.transition==false then
-						next_state(p.state,p.params)
+						next_state(p.state,v_clone(cam.pos),v_clone(look_at),scale,angle)
 					else
 						next_state(p.transition or zoomin_state,p.state,p.params)
 					end
@@ -1020,7 +1022,7 @@ function menu_state()
 
 				print_small("by FReDS72",10,60)
 			end
-			
+
 			local sel_panel = panels[sel+1]
 			local v = m_x_v(actors[1].m, sel_panel.loc)
 			v = m_x_v(cam.m, v)
@@ -1076,6 +1078,61 @@ function menu_state()
 		end		
 end
 
+function menu_zoomout_state(cam_pos, look_at, scale, angle)
+	-- menu cam	
+	local cam=make_cam(cam_pos)
+
+	local mountain_actor={
+		id=models.PROP_MOUNTAIN,
+		pos={0.5,0,1},
+		m={
+			1,0,0,0,
+			0,1,0,0,
+			0,0,1,0,
+			0.5,0,1,1},
+		update=function(self)
+			local m=make_m_y_rot(angle)
+			m[1]  = scale
+			m[6]  = scale
+			m[11] = scale
+
+			local pos=self.pos
+			m[13]=pos[1]
+			m[14]=pos[2]
+			m[15]=pos[3]
+			self.m=m
+		end
+	}
+	
+	do_async(function()
+		local s=scale
+		for i=1,30 do
+			local t=(i-1)/30
+			scale=lerp(s,1,t)
+			cam.pos=v_lerp(cam.pos,{0,0.8,-0.5},0.2)
+			look_at=v_lerp(look_at,{0,0,1},0.2)
+			coroutine.yield()
+		end
+		next_state(menu_state, angle)
+	end)
+
+	return
+		-- update
+		function()
+			mountain_actor:update()
+			--
+			cam:look(look_at)
+		end,
+		-- draw
+		function()
+			cls(gfx.kColorWhite)
+			
+			lib3d.add_render_prop(mountain_actor.id,table.unpack(mountain_actor.m))
+			lib3d.render_props(cam.pos[1],cam.pos[2],cam.pos[3],table.unpack(cam.m))
+
+		end		
+end
+
 function zoomin_state(go_state,...)
 	local ttl,dttl=30,0.01
   local starting
@@ -1107,8 +1164,9 @@ function zoomin_state(go_state,...)
 		end
 end
 
+
 -- buy collectibles
-function shop_state()
+function shop_state(...)
 	-- capture current backbuffer
 	local background=gfx.getDisplayImage()
 
@@ -1148,7 +1206,7 @@ function shop_state()
 	local action_ttl=0
 	local y_offset = 0
 	local button_x = -80
-
+	local menu_params={...}
 	return
 		-- update
 		function()
@@ -1174,7 +1232,7 @@ function shop_state()
 				action_ttl=max(0,action_ttl-1)
 			end
 			if playdate.buttonJustReleased(playdate.kButtonB) then
-				next_state(menu_state)
+				next_state(menu_zoomout_state,table.unpack(menu_params))
 			end
 
 			y_offset = lerp(y_offset,(selection-1) * 74,0.5)
