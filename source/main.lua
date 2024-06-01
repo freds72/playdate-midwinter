@@ -869,15 +869,15 @@ function menu_state()
 		end,params={name="Chamois",dslot=3,slope=2.25,twist=6,num_tracks=1,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=8,max_cooldown=8}},
 		{state=shop_state,loc=vgroups.MOUNTAIN_SHOP,help=function()
 			return "Buy gear!\n$".._save_state.coins
-		end ,params={name="Shop"},transition=station_state}
+		end ,params={name="Shop"},transition=false}
 	}
 	local sel,blink=0,false
 	-- background actors
 	local actors={}
 
-	-- reset cam	
+	-- menu cam	
 	local look_at = {0,0,1}
-	cam=make_cam({0,0.8,-0.5})
+	local cam=make_cam({0,0.8,-0.5})
 
 	music(0)
 	_ski_sfx:stop()
@@ -967,7 +967,11 @@ function menu_state()
 					-- restore random seed
 					srand(playdate.getSecondsSinceEpoch())
 					local p=panels[sel+1]
-					next_state(p.transition or zoomin_state,p.state,p.params)
+					if p.transition==false then
+						next_state(p.state,p.params)
+					else
+						next_state(p.transition or zoomin_state,p.state,p.params)
+					end
 				end)
 			end
 
@@ -1000,21 +1004,23 @@ function menu_state()
 			end
 			lib3d.render_props(cam.pos[1],cam.pos[2],cam.pos[3],table.unpack(cam.m))
 
-			_game_title:draw(10,6)
-			-- snow on title
-			srand(13)
-			local t=time()
-			local w,h=_game_title:getSize()
-			gfx.setColor(gfx.kColorWhite)
-			for i=0,128 do
-				local a,s=rnd(),2+rnd()
-				local u,v,x0=s*cos(a),s*abs(4*sin(a)),rnd(w)
-				local x,y=flr(x0+t*u)%w,flr(t*v)%h
-				snowflake:draw(10+x,6+y)
-			end		
+			if not starting then
+				_game_title:draw(10,6)
+				-- snow on title
+				srand(13)
+				local t=time()
+				local w,h=_game_title:getSize()
+				gfx.setColor(gfx.kColorWhite)
+				for i=0,128 do
+					local a,s=rnd(),2+rnd()
+					local u,v,x0=s*cos(a),s*abs(4*sin(a)),rnd(w)
+					local x,y=flr(x0+t*u)%w,flr(t*v)%h
+					snowflake:draw(10+x,6+y)
+				end		
 
-			print_small("by FReDS72",10,60)
-
+				print_small("by FReDS72",10,60)
+			end
+			
 			local sel_panel = panels[sel+1]
 			local v = m_x_v(actors[1].m, sel_panel.loc)
 			v = m_x_v(cam.m, v)
@@ -1103,7 +1109,9 @@ end
 
 -- buy collectibles
 function shop_state()
-	local background = gfx.image.new("images/ski_shop")
+	-- capture current backbuffer
+	local background=gfx.getDisplayImage()
+
 	local left_button={
 		up=gfx.image.new("images/shop_lbutton_up"),
 		down=gfx.image.new("images/shop_lbutton"),
@@ -1138,6 +1146,8 @@ function shop_state()
 
 	local selection = 1
 	local action_ttl=0
+	local y_offset = 0
+	local button_x = -80
 
 	return
 		-- update
@@ -1145,8 +1155,8 @@ function shop_state()
 			left_button.ttl=max(0,left_button.ttl-1)
 			right_button.ttl=max(0,right_button.ttl-1)
 			if action_ttl==0 then
-				if playdate.buttonJustReleased(playdate.kButtonLeft) then left_button.ttl=15 selection-=1 end
-				if playdate.buttonJustReleased(playdate.kButtonRight) then right_button.ttl=15 selection+=1 end
+				if playdate.buttonJustReleased(playdate.kButtonUp) then left_button.ttl=15 selection-=1 button_x = -80 end
+				if playdate.buttonJustReleased(playdate.kButtonDown) then right_button.ttl=15 selection+=1 button_x = -80 end
 				if selection<1 then selection=#items-1 end
 				if selection>#items then selection=1 end
 			end
@@ -1158,52 +1168,92 @@ function shop_state()
 				if action_ttl==0 then
 					action_ttl = 30
 				elseif action_ttl==1 then
+					-- todo:
 					print("buy or equip: "..items[selection].title)
 				end
 				action_ttl=max(0,action_ttl-1)
 			end
 			if playdate.buttonJustReleased(playdate.kButtonB) then
-				next_state(station_state,menu_state)
+				next_state(menu_state)
 			end
+
+			y_offset = lerp(y_offset,(selection-1) * 74,0.5)
+			button_x = lerp(button_x,0,0.8)
+
 		end,
 		-- draw
 		function()
 			background:draw(0,0)
-			gfx.setColor(gfx.kColorBlack)
-			gfx.fillRect(228,10,167,225)
-			local item=items[selection]
 
-			gfx.setFont(memoFont[gfx.kColorWhite])
-			-- title
-			gfx.drawTextAligned(item.title,312,17,kTextAlignment.center)
-			-- back menu
-			gfx.drawTextAligned("Ⓑ Back",387,215,kTextAlignment.right)
-			
-			local w,h=item.preview:getSize()
-			item.preview:draw(312-w/2,32)
-			print_bold(item.text,232,108,gfx.kColorWhite)
+			local y=48 - y_offset
 
-			if item.price>0 then
-				print_regular("Price: "..item.price.."$",232,156,gfx.kColorWhite)
+			for i=1,#items do
+				local item = items[i]
+				gfx.setColor(gfx.kColorBlack)
+				gfx.fillRect(0,y,400,65)
+    		gfx.setPattern(_50pct_pattern)
+				gfx.fillRect(0,y+65,400,2)
+
+				item.preview:draw(2,y+2)
+				-- title + desc
+				print_regular(item.title,104,y+2,gfx.kColorWhite)
+				print_regular(item.text,104,y+24,gfx.kColorWhite)
+				
+				if item.price>0 then
+					local s="$"..item.price
+					local w = gfx.getTextSize(s)
+					print_regular(s,399 - w,y+2,gfx.kColorWhite)
+				end
+				y += 65
+				if i==selection then
+					local buy_text
+					if item.price>0 then
+						buy_text = "Buy".._input.action.glyph
+					else
+						buy_text = "Equip".._input.action.glyph
+					end
+		
+					local w=gfx.getTextSize(buy_text)
+					gfx.setColor(gfx.kColorBlack)
+					gfx.fillRect(button_x,y,w+24,36)
+					gfx.setPattern(_50pct_pattern)
+					gfx.fillRect(button_x,y+36,w+24,2)
+		
+					print_regular(buy_text,10+button_x,y+2,gfx.kColorWhite)
+
+					-- back
+					local back_text = "Back".._input.back.glyph
+					local w=gfx.getTextSize(back_text)
+					print_regular(back_text,399 - w,y+2,gfx.kColorBlack)
+					y += 40
+				end
+				
+				y+=4
 			end
-
+						
+			--[[
+			-- back menu
+			gfx.setFont(smallFont[gfx.kColorWhite])
+			gfx.drawTextAligned("Ⓑ BACK",387,215,kTextAlignment.right)
+			
 			-- buttons (pressed?)
-			draw_button(left_button,232)
+			draw_button(left_button,132)
 			draw_button(right_button,379)
 
 			local y_offset = action_ttl>0 and 2 or 0
     	gfx.setPattern(_50pct_pattern)
-			gfx.fillRect(232,208,72,23)
+			gfx.fillRect(132,208,72,23)
 			gfx.setColor(gfx.kColorWhite)
-			gfx.fillRect(232,206+y_offset,72,23)
+			gfx.fillRect(132,206+y_offset,72,23)
 			local buy_text
 			if item.price>0 then
 				buy_text = "Ⓐ BUY"
 			else
 				buy_text = "Ⓐ EQUIP"
 			end
-			print_regular(buy_text,240,210+y_offset,gfx.kColorBlack)
-		end		
+			print_small(buy_text,140,210+y_offset,gfx.kColorBlack)
+		]]
+	end		
 end
 
 function play_state(params)
