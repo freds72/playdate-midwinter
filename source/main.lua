@@ -5,6 +5,7 @@
 import 'CoreLibs/graphics'
 import 'CoreLibs/nineslice'
 import 'models.lua'
+import 'store.lua'
 
 local gfx = playdate.graphics
 local font = gfx.font.new('font/whiteglove-stroked')
@@ -37,10 +38,6 @@ local _inputs={
 }
 local _input=_inputs[true]
 local _flip_crank=1
-
-local panelFont = gfx.font.new('font/Roobert-10-Bold')
-local panelFontFigures = gfx.font.new('font/Roobert-24-Medium-Numerals-White')
-local _angle=0
 
 -- some "pico-like" helpers
 function cls(c)
@@ -129,6 +126,7 @@ function next_state(state,...)
 			u()
 	end
 end
+
 
 -- vector & tools
 function lerp(a,b,t)
@@ -1169,42 +1167,8 @@ end
 function shop_state(...)
 	-- capture current backbuffer
 	local background=gfx.getDisplayImage()
-
-	local left_button={
-		up=gfx.image.new("images/shop_lbutton_up"),
-		down=gfx.image.new("images/shop_lbutton"),
-		ttl=0
-	}
-	local right_button={
-		up=gfx.image.new("images/shop_rbutton_up"),
-		down=gfx.image.new("images/shop_rbutton"),
-		ttl=0
-	}
-	local function draw_button(btn,x)
-		-- pressed?
-		if btn.ttl>0 then
-			btn.down:draw(x,19)
-		else
-			btn.up:draw(x,17)
-		end
-	end
-
-	-- shop items
-	local items={
-		{image="images/mask",title="Classic",text="Mint condition",price=0},
-		{image="images/mask_style",title="Modern",text="Want an aviator look? Search no more!",price=100},
-		{image="images/mask_love",title="Love Love!",text="For smooth rides...",price=200},
-		{image="images/mask_shades",title="Star System",text="To go incognito...or not!",price=400},
-	}
-	-- load preview
-	for i=1,#items do
-		local item=items[i]
-		item.preview = gfx.image.new(item.image.."_preview")
-		-- text width
-		item.text_w = gfx.getTextSize(item.text)
-	end
-	-- todo: remove price for items already bought
-
+	
+	local coins = _save_state.coins
 	local selection = 1
 	local action_ttl=0
 	local y_offset = -240
@@ -1213,26 +1177,32 @@ function shop_state(...)
 	return
 		-- update
 		function()
-			left_button.ttl=max(0,left_button.ttl-1)
-			right_button.ttl=max(0,right_button.ttl-1)
 			if action_ttl==0 then
-				if playdate.buttonJustReleased(playdate.kButtonUp) then left_button.ttl=15 selection-=1 button_x = -80 end
-				if playdate.buttonJustReleased(playdate.kButtonDown) then right_button.ttl=15 selection+=1 button_x = -80 end
-				if selection<1 then selection=#items-1 end
-				if selection>#items then selection=1 end
+				if playdate.buttonJustReleased(playdate.kButtonUp) then selection-=1 button_x = -80 end
+				if playdate.buttonJustReleased(playdate.kButtonDown) then selection+=1 button_x = -80 end
+				if selection<1 then selection=#_store_items-1 end
+				if selection>#_store_items then selection=1 end
 			end
 
+			local item=_store_items[selection]
 			if not playdate.buttonIsPressed(playdate.kButtonA) then 
 				action_ttl=0
 			end
-			if playdate.buttonIsPressed(playdate.kButtonA) then
-				if action_ttl==0 then
-					action_ttl = 30
-				elseif action_ttl==1 then
-					-- todo:
-					print("buy or equip: "..items[selection].title)
+			local is_valid = _save_state[item.uuid] or _save_state.coins>=item.price
+			if is_valid and playdate.buttonIsPressed(playdate.kButtonA) then
+				action_ttl=min(60,action_ttl+1)
+				if action_ttl==60 then
+					action_ttl = 0
+					do_async(function()
+						-- commit basket instantly
+						_save_state[item.uuid] = 1
+						_save_state.coins -= item.price
+						for i=1,30 do
+							coins -= 1
+							coroutine.yield()
+						end
+					end)
 				end
-				action_ttl=max(0,action_ttl-1)
 			end
 			if playdate.buttonJustReleased(playdate.kButtonB) then
 				next_state(menu_zoomout_state,table.unpack(menu_params))
@@ -1248,19 +1218,24 @@ function shop_state(...)
 
 			local y=48 - y_offset
 
-			for i=1,#items do
-				local item = items[i]
+			for i=1,#_store_items do
+				-- out of screen?
+				if y>240 then
+					break
+				end
+				local item = _store_items[i]
 				gfx.setColor(gfx.kColorBlack)
 				gfx.fillRect(0,y,400,65)
     		gfx.setPattern(_50pct_pattern)
 				gfx.fillRect(0,y+65,400,2)
 
 				item.preview:draw(2,y+2)
-				-- title + desc
+				-- title
 				gfx.setStencilPattern(_50pct_pattern)
-				print_bold(item.title,104,y+2,gfx.kColorWhite)
+				print_regular(item.title,104,y+2,gfx.kColorWhite)
 				gfx.clearStencil()
-				print_bold(item.title,104,y,gfx.kColorWhite)
+				print_regular(item.title,104,y,gfx.kColorWhite)
+
 				-- scrolling if description line is too large
 				local w=item.text_w
 				if w>300 then
@@ -1275,27 +1250,36 @@ function shop_state(...)
 					print_regular(item.text,104,y+24,gfx.kColorWhite)
 				end
 				
-				if item.price>0 then
+				local is_sold=_save_state[item.uuid]
+				if is_sold then
+					local s="SOLD"
+					local w = gfx.getTextSize(s)
+					gfx.setColor(gfx.kColorWhite)
+					gfx.fillRect(399 - w - 8,y+2,w+6,24)
+					print_regular(s,399 - w - 4,y - 2,gfx.kColorBlack)
+				else
 					local s="$"..item.price
 					local w = gfx.getTextSize(s)
 					print_regular(s,399 - w,y+2,gfx.kColorWhite)
 				end
 				y += 65
-				if i==selection then
+				-- already bought?
+				if i==selection and not is_sold then
 					local buy_text
-					if item.price>0 then
-						buy_text = "Buy".._input.action.glyph
+					if action_ttl>0 then
+						buy_text = "Buying..."
 					else
-						buy_text = "Equip".._input.action.glyph
+						buy_text = "Buy".._input.action.glyph
 					end
 		
+					local action_y=action_ttl>0 and 2 or 0
 					local w=gfx.getTextSize(buy_text)
-					gfx.setColor(gfx.kColorBlack)
-					gfx.fillRect(button_x,y,w+24,36)
 					gfx.setPattern(_50pct_pattern)
 					gfx.fillRect(button_x,y+36,w+24,2)
+					gfx.setColor(gfx.kColorBlack)
+					gfx.fillRect(button_x,y+action_y,w+24,36)
 		
-					print_regular(buy_text,10+button_x,y+2,gfx.kColorWhite)
+					print_regular(buy_text,10+button_x,y+2+action_y,gfx.kColorWhite)
 
 					-- back
 					local back_text = "Back".._input.back.glyph
@@ -1304,13 +1288,22 @@ function shop_state(...)
 					y += 40
 				end
 				
-				y+=4
+				y+=8
 			end
+			-- current coins
+			local s="$"..coins
+			local w=gfx.getTextSize(s)+16
+			gfx.setColor(gfx.kColorWhite)
+			gfx.fillRect(200-w/2,0,w,24)
+			gfx.setPattern(_50pct_pattern)
+			gfx.fillRect(200-w/2,24,w,2)
+
+			print_regular(s,nil,-4,gfx.kColorBlack)
 	end		
 end
 
-function play_state(params)
-	local help_ttl=0
+function play_state(params,help_ttl)
+	help_ttl=help_ttl or 0
 	-- read data slot
 	local best_distance = params.dslot and _save_state["best_"..params.dslot]	
 	local prev_slice_id
@@ -1339,14 +1332,42 @@ function play_state(params)
 	actors,ground={},make_ground(params)
 
 	-- create player in correct direction
-	plyr=make_plyr(ground:get_pos(),register_trick)
+	local plyr=make_plyr(ground:get_pos(),register_trick)
 	_tracked = plyr
-
-	-- reset cam	
+		
 	cam=make_cam()
-
 	-- 
 	_ski_sfx:play(0)
+
+	-- init goggle selection menu
+	local menu = playdate.getSystemMenu()
+	local menu_options = menu:getMenuItems()[3]
+	if menu_options then
+		-- clear previous entries
+		menu:removeMenuItem(menu_options)
+	end
+
+	local masks={"none"}
+	for i=1,#_store_items do
+		local item=_store_items[i]
+		-- unlocked?
+		if _save_state[item.uuid] then
+			add(masks,item.title)
+		end
+	end
+	-- active mask (if any)
+	local selected_mask = _store_by_uuid[_save_state.mask_uuid or -1]
+	local mask=selected_mask and selected_mask.image
+	local menuItem, error = menu:addOptionsMenuItem("mask", masks, selected_mask and selected_mask.title or "none", function(value)
+		mask = nil
+		_save_state.mask_uuid = nil
+		-- 
+		local item=_store_by_name[value]
+		if item then
+			_save_state.mask_uuid = item.uuid
+			mask = item.image
+		end
+	end)	
 
 	-- command handlers
 	local command_handlers={
@@ -1612,18 +1633,29 @@ function play_state(params)
 				_ski:draw(152+xoffset,210+dy-steering*14,gfx.kImageFlippedX)
 				_ski:draw(228-xoffset,210+dy+steering*14)
 			
-				-- coins
-				print_small("$"..coins,0,0,gfx.kColorBlack)
+				-- any warning messages?
+				for i,img in pairs(warnings) do
+					local w=img:getSize()
+					img:draw(200-w/2,42)
+				end
+
+				if mask then
+					mask:draw(0,0)
+				end
+
+				local text_color = mask and gfx.kColorWhite or gfx.kColorBlack
+				-- coins				
+				print_small("$"..coins,0,0,text_color)
 
 				-- current track
 				local x = 399 - gfx.getTextSize(params.name)
-				print_small(params.name,x,0,gfx.kColorBlack)
-				_mountain_icon:draw(x - 14,3)
+				print_small(params.name,x,0,text_color)
+				_mountain_icon:draw(x - _mountain_icon:getSize(),3)
 
 				-- chill mode?
 				if best_distance then
 					-- total distance
-					print_regular(flr(plyr.distance).."m",nil,0,bk)
+					print_regular(flr(plyr.distance).."m",nil,0,text_color)
 				end
 
 				local y_bonus = 28
@@ -1631,7 +1663,7 @@ function play_state(params)
 				for i=1,#bonus do
 					local b=bonus[i]										
 					if b.t>15 or t%4<2 then
-						print_small(b.msg,b.x,y_bonus,gfx.kColorBlack)
+						print_small(b.msg,b.x,y_bonus,text_color)
 						y_bonus += 12
 					end
 				end
@@ -1639,29 +1671,12 @@ function play_state(params)
 					print_bold("="..bonus_coins.."x",4,y_bonus,gfx.kColorWhite)
 				end
 
-				if plyr.gps and not plyr.on_track then
-					local idx=abs(plyr.gps)//0.0625
-					if plyr.gps<0 then
-						for i=0,min(idx-1,2) do
-							_dir_icon:draw(220 + 8*i,24)
-						end
-					else
-						for i=0,min(idx-1,2) do
-							_dir_icon:draw(180 - 8*i,24,gfx.kImageFlippedX)
-						end
-					end
-				end				
-					
 				if help_ttl<90 then
 					-- help msg?
-					print_regular(_input.back.glyph.."Restart/Jump".._input.action.glyph,nil,162)
+					if help_ttl<80 or help_ttl%2==0 then
+						print_regular(_input.back.glyph.."Restart/Jump".._input.action.glyph,nil,mask and 132 or 162,gfx.kColorBlack)
+					end
 				end					
-
-				-- any warning messages?
-				for i,img in pairs(warnings) do
-					local w=img:getSize()
-					img:draw(200-w/2,42)
-				end
 			end
 		end		
 end
@@ -1719,7 +1734,7 @@ function plyr_death_state(pos,total_distance,total_tricks,params)
 				next_state(zoomin_state,menu_state)
 			end
 			if playdate.buttonJustReleased(_input.action.id) then
-				next_state(zoomin_state,play_state,params)
+				next_state(zoomin_state,play_state,params,90)
 			end
 		end,
 		-- draw
@@ -1751,7 +1766,7 @@ function restart_state(params)
 		function()
 			if ttl>max_ttl then
 				-- reset game (without the zoom effect)
-				next_state(play_state,params)
+				next_state(play_state,params,90)
 			elseif not playdate.buttonIsPressed(_input.back.id) then
 				-- back to game ("unpause")
 				_update_state,_draw_state=prev_update,prev_draw
@@ -1769,92 +1784,8 @@ function restart_state(params)
 			gfx.unlockFocus()
 			screen:draw(0,0)
 
-			print_bold("Reset?".._input.back.glyph,nil,110,gfx.kColorBlack)
+			print_bold("Reset?".._input.back.glyph,nil,162,gfx.kColorBlack)
 		end
-end
-
-------------------------------------------------
--- helper to create a direction panel
-function make_direction(text)
-	gfx.setFont(panelFont)
-	local w,h = gfx.getTextSize(text)
-	w = min(128,w)
-
-	local panel = gfx.image.new(w+32,40,gfx.kColorClear)
-	gfx.lockFocus(panel)
-	_panel_slices:drawInRect(0,0,w+32,40)
-
-	gfx.drawText(text,12,20-h/2)
-	gfx.unlockFocus()
-	return panel
-end
-
--- helper to create a slope panel
-function make_panel(text_up,text_low,figure)
-	local glyphs={}
-	local draw_glyphs=function(text,flipped)
-		local angleSign,angleBase,radiusScale=1,0,0.80
-		-- draw bottom of panel
-		if flipped then
-			angleSign,angleBase=-1,180
-			radiusScale=0.72
-		end
-		local angle1,angle0=0
-		-- find angle extents
-		for i=1,#text do
-			local s = string.sub(text,i,i)
-			local w = gfx.getTextSize(s)
-			angle1 += angleSign*math.max(4,w)*2
-			if not angle0 then angle0 = angle1 end
-		end				
-		local angle=angleBase+90-(angle1-angle0)/2
-		--angle = 90
-
-		gfx.setFont(panelFont)
-		for i=1,#text do
-			local s=string.sub(text,i,i)
-			local w = gfx.getTextSize(s)
-			w = math.max(4,w)
-			local tmp = gfx.image.new(24,24,gfx.kColorClear)
-			local dst = gfx.image.new(24,24,gfx.kColorClear)
-			gfx.lockFocus(tmp)
-			gfx.drawTextAligned(s,11.5-w/2,6)	
-			gfx.unlockFocus()
-			gfx.lockFocus(dst)
-			gfx.setColor(gfx.kColorWhite)
-			tmp:drawRotated(12,12,angleBase+angle-90)
-			gfx.unlockFocus()
-			add(glyphs,{
-				img=dst,
-				radiusScale=radiusScale,
-				angle=angle})
-			angle += math.floor(angleSign*w*2)
-		end
-	end
-	if text_up then draw_glyphs(text_up) end
-	if text_low then draw_glyphs(text_low,true)	end
-
-	local w=96
-	local panel = gfx.image.new(w,w,gfx.kColorClear)
-	gfx.lockFocus(panel)
-	gfx.setColor(gfx.kColorWhite)
-	gfx.fillCircleInRect(0, 0, w, w)
-	gfx.setLineWidth(2)
-	gfx.setColor(gfx.kColorBlack)
-	gfx.drawCircleInRect(1, 1, w-2, w-2)
-	gfx.setLineWidth(1)
-	gfx.fillCircleInRect(4, 4, w-8, w-8)
-	for _,glyph in pairs(glyphs) do
-		local angle = (math.pi*glyph.angle)/180
-		local r = w*glyph.radiusScale/2
-		glyph.img:draw(47.5-math.cos(angle)*r-12,47.5-math.sin(angle)*r-12)
-	end
-	if figure then
-		gfx.setFont(panelFontFigures)
-		gfx.drawTextAligned(figure,47.5,47.5-18,kTextAlignment.center)
-	end
-	gfx.unlockFocus()
-	return panel
 end
 
 -------------------------------------
@@ -1885,19 +1816,11 @@ function _init()
 	-- todo: remove (only for benchmarks)
 	-- srand(12)
 
-	-- https://opengameart.org/content/pine-tree-pack
-	_tree=gfx.image.new("images/pine_snow_0")
-	assert(_tree)
-
-	_mask = gfx.image.new("images/mask")
-	_sun = gfx.image.new("images/sun")
 	_ski = gfx.image.new("images/ski")
 	_ski_sfx = playdate.sound.sampleplayer.new("sounds/skiing_loop")
 	_coin_sfx = playdate.sound.sampleplayer.new("sounds/coin")
 	_checkpoint_sfx = playdate.sound.sampleplayer.new("sounds/checkpoint")
 	_treehit_sfx = playdate.sound.sampleplayer.new("sounds/tree-impact-1")
-	_panel_pole = gfx.image.new("images/panel_pole")
-	_panel_slices = gfx.nineSlice.new("images/panel",6,5,10,30)
 
 	_game_over = gfx.image.new("images/game_over")
 	_game_title = gfx.image.new("images/game_title")
@@ -1907,20 +1830,35 @@ function _init()
 	_warning_avalanche = gfx.image.new("images/warning_avalanche")
 	_warning_skiier = gfx.image.new("images/warning_skiier")
 
-
+	-- inverse lookup tables
+	_store_by_name = {}
+	_store_by_uuid = {}
+	gfx.setFont(largeFont[gfx.kColorBlack])
+	-- load preview & mask pictures
+	for _,item in pairs(_store_items) do
+		item.preview = gfx.image.new(item.image.."_preview")
+		item.image = gfx.image.new(item.image)
+		-- text width
+		item.text_w = gfx.getTextSize(item.text)
+		_store_by_name[item.title] = item
+		_store_by_uuid[item.uuid] = item
+	end
+	
 	-- load game state
 	-- Call near the start of your game to load saved data
 	_save_state = playdate.datastore.read()
 	if not _save_state then
 		-- default values
-		_save_state = {}
+		_save_state = {}		
 		_save_state.version = 1
 		_save_state.coins = 0
 		_save_state.best_1 = 1000
 		_save_state.best_2 = 500
 		_save_state.best_3 = 250
 	end
-
+	-- default "midwinter" mask is "free"
+	_save_state["e4efa4d1-330b-434e-b4d4-b7f2eab7d92b"] = 1
+	
 	-- init state machine
 	next_state(loading_state)
 end
@@ -1944,92 +1882,7 @@ function _update()
 	
 end
 
--->8
--- map tools
--- generate ski tracks
-function make_tracks(xmin,xmax,max_tracks)
-	local seeds={}
-	local function add_seed(x,u,branch)
-		-- trick types:
-		-- 0: slope
-		-- 1: hole
-		local ttl,trick_ttl,trick_type
-
-		local function reset_seed_timers()
-			ttl,trick_ttl,trick_type=12+rnd(20),4+rnd(4),flr(rnd(2))		
-		end
-
-		reset_seed_timers()
-
-		local angle=0.05+rnd(0.45)
-	 	return add(seeds,{
-			age=0,
-			h=0,
-	 		x=x or xmin+rnd(xmax-xmin),
-			u=u or cos(angle),
-			angle=angle,
-		 	update=function(self)
-			 	if self.dead then del(seeds,self) return end
-				self.age+=1
-				trick_ttl-=1
-				ttl-=1
-				if branch and trick_ttl<0 then
-					if trick_type==0 then
-						self.h+=1.5
-					elseif trick_type==1 then
-						self.h=-4
-					end
-					-- not too high + ensure straight line
-					if trick_ttl<-5 then self.h=0 ttl=4+rnd(2) end
-				end
-				if ttl<0 then
-					-- reset
-					reset_seed_timers()
-					self.u=cos(0.05+rnd(0.45))
-					-- offshoot?
-					if rnd()<0.5 and #seeds<max_tracks then
-						add_seed(self.x,-self.u,true)
-					end
-				end
-				self.x+=self.u
-				if self.x<xmin then
-					self.u=-self.u
-					self.x=xmin
-				elseif self.x>xmax then
-					self.u=-self.u
-					self.x=xmax
-				end
-		 	end
-	 	})
-	end
- 	-- init
- 	add_seed().main=true
-
- 	-- update function
- 	return function()
-		for _,s in ipairs(seeds) do
-			s:update()
-		end
-		-- kill intersections
-		for i=1,#seeds do
-			local s0=seeds[i]
-			for j=i+1,#seeds do
-				local s1=seeds[j]
-				-- don't kill new seeds
-				-- don't kill main track
-				if s1.age>0 and flr(s0.x-s1.x)==0 then
-					-- don'kill main track
-					s1=s1.main and s0 or s1
-					s1.dead=true
-				end
-			end
-		end
-	
-		-- active seeds
-		return seeds
-	end
-end
-
+-- interface to ground (C) functions
 function make_ground(params)
 	-- ground params
 	local gp = lib3d.GroundParams.new()

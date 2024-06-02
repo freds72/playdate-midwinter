@@ -911,13 +911,14 @@ static void draw_tile(struct Drawable_s* drawable, uint8_t* bitmap) {
     // 
     texfill(pts, n, _dither_ramps, bitmap);
 
+    /*
     float x0 = pts[n - 1].x, y0 = pts[n - 1].y;
     for (int i = 0; i < n; ++i) {
         float x1 = pts[i].x, y1 = pts[i].y;
         pd->graphics->drawLine(x0,y0,x1,y1, 1, kColorBlack);
         x0 = x1, y0 = y1;
     }
-
+    */
     // END_FUNC();
 }
 
