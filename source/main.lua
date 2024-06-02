@@ -1192,19 +1192,22 @@ function shop_state(...)
 	-- shop items
 	local items={
 		{image="images/mask",title="Classic",text="Mint condition",price=0},
-		{image="images/mask_style",title="Modern",text="Want an aviator look?\nSearch no more",price=100},
+		{image="images/mask_style",title="Modern",text="Want an aviator look? Search no more!",price=100},
 		{image="images/mask_love",title="Love Love!",text="For smooth rides...",price=200},
-		{image="images/mask_shades",title="Star System",text="To go incognito...\nor not!",price=400},
+		{image="images/mask_shades",title="Star System",text="To go incognito...or not!",price=400},
 	}
 	-- load preview
 	for i=1,#items do
-		items[i].preview = gfx.image.new(items[i].image.."_preview")
+		local item=items[i]
+		item.preview = gfx.image.new(item.image.."_preview")
+		-- text width
+		item.text_w = gfx.getTextSize(item.text)
 	end
 	-- todo: remove price for items already bought
 
 	local selection = 1
 	local action_ttl=0
-	local y_offset = 0
+	local y_offset = -240
 	local button_x = -80
 	local menu_params={...}
 	return
@@ -1254,8 +1257,23 @@ function shop_state(...)
 
 				item.preview:draw(2,y+2)
 				-- title + desc
-				print_regular(item.title,104,y+2,gfx.kColorWhite)
-				print_regular(item.text,104,y+24,gfx.kColorWhite)
+				gfx.setStencilPattern(_50pct_pattern)
+				print_bold(item.title,104,y+2,gfx.kColorWhite)
+				gfx.clearStencil()
+				print_bold(item.title,104,y,gfx.kColorWhite)
+				-- scrolling if description line is too large
+				local w=item.text_w
+				if w>300 then
+					local s=item.text.." / "			
+					w=gfx.getTextSize(s)
+					local offset=(16*time() + i*24)%w
+					gfx.setClipRect(104, y+24, 300, 32)
+					print_regular(s,104-offset,y+24,gfx.kColorWhite)
+					print_regular(s,104-offset+w,y+24,gfx.kColorWhite)
+					gfx.clearClipRect()
+				else
+					print_regular(item.text,104,y+24,gfx.kColorWhite)
+				end
 				
 				if item.price>0 then
 					local s="$"..item.price
@@ -1288,29 +1306,6 @@ function shop_state(...)
 				
 				y+=4
 			end
-						
-			--[[
-			-- back menu
-			gfx.setFont(smallFont[gfx.kColorWhite])
-			gfx.drawTextAligned("Ⓑ BACK",387,215,kTextAlignment.right)
-			
-			-- buttons (pressed?)
-			draw_button(left_button,132)
-			draw_button(right_button,379)
-
-			local y_offset = action_ttl>0 and 2 or 0
-    	gfx.setPattern(_50pct_pattern)
-			gfx.fillRect(132,208,72,23)
-			gfx.setColor(gfx.kColorWhite)
-			gfx.fillRect(132,206+y_offset,72,23)
-			local buy_text
-			if item.price>0 then
-				buy_text = "Ⓐ BUY"
-			else
-				buy_text = "Ⓐ EQUIP"
-			end
-			print_small(buy_text,140,210+y_offset,gfx.kColorBlack)
-		]]
 	end		
 end
 
