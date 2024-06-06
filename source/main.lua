@@ -395,7 +395,7 @@ function make_body(p)
 	local up,oldf={0,1,0}
 
 	local velocity,angularv,forces,torque={0,0,0},0,{0,0,0},0
-	local boost=0
+	local boost,perm_boost=0,0
 	local angle,steering_angle,on_air_ttl,was_on_air=0,0,0
 
 	local g={0,-4,0}
@@ -426,6 +426,9 @@ function make_body(p)
 		boost=function(self,b)
 			boost=b
 		end,
+		perma_boost=function(self,b)
+			perm_boost = b
+		end,
 		integrate=function(self)
 			-- gravity and ground
 			self:apply_force_and_torque(g,0)
@@ -439,25 +442,24 @@ function make_body(p)
 
 			-- update velocities
 			v_add(velocity,forces,0.5/30)
-			angularv=angularv+torque*0.5/30
+			angularv+=torque*0.5/30
 
 			-- apply some damping
 			angularv*=0.86
 			-- kill boost while on ground
 			if self.on_ground then boost*=0.9 end
-			local f=self.on_ground and 0.08 or 0.01
 			-- some friction
-			--v_scale(velocity,1-f)
+			local f=self.on_ground and 0.08 or 0.01
 			v_add(velocity,velocity,-f*v_dot(velocity,velocity))
 			
 			-- update pos & orientation
 			--local x,z=self.pos[1],self.pos[3]
-			v_add(self.pos,velocity,1+boost)
+			v_add(self.pos,velocity,1 + boost + perm_boost)
 			--self.pos[1],self.pos[3]=x,z
 
 			-- limit rotating velocity
 			angularv=mid(angularv,-1,1)
-			angle=angle+angularv
+			angle+=angularv
 
 			-- reset
 			forces,torque={0,0,0},0
@@ -620,11 +622,9 @@ function make_plyr(p,on_trick)
 		elseif hit_type==3 then
 			-- todo: remove coins
 		elseif hit_type==4 then
-			--
+			-- accel pad
 			if self.on_ground then
-				self:apply_force_and_torque({0,32,0},0)
-				self:boost(2)
-				jump_ttl=0
+				self:boost(1.5)
 			end
 		elseif hit_ttl<0 and hit_type==1 then
 			-- props: 
@@ -675,6 +675,7 @@ function make_npc(p)
 	local body=make_body(p)
 	local up={0,1,0}
 	local dir=0
+	local boost=0
 	local body_update=body.update
 	body.id = models.PROP_SKIER
 	
@@ -685,9 +686,15 @@ function make_npc(p)
 		-- crude ai control!
 		local _,angle=self:get_pos()
 		local slice=ground:get_track(self.pos)
+		if slice.z>29*4 or slice.z<4 then
+			-- kill npc
+			self.dead=true
+			return
+		end
+
 		local da=slice.angle+angle
 		-- transition to "up" when going left/right
-		dir=lerp(dir,da,0.6)
+		dir=lerp(dir,da+angle,0.6)
 		if dir<-0.02 then
 			self.id = models.PROP_SKIER_RIGHT
 		elseif dir>0.02 then
@@ -695,12 +702,14 @@ function make_npc(p)
 		else
 			self.id = models.PROP_SKIER
 		end
-		self:steer(da/4)
+		self:steer(da/2)
 
 		self:integrate()
 
-		-- call parent
-		self.boost=0.1
+		-- difficulty up
+		boost = min(boost + 0.001, 0.1)
+		self:perma_boost(boost)
+		-- call parent	
 		body_update(self)
 
 		-- create orientation matrix
@@ -862,9 +871,9 @@ function menu_state(angle)
 			return "Death Canyon\nHow far can you go?\nBest: ".._save_state.best_2.."m"
 		end
 		,params={name="Biquettes",dslot=2,slope=2,twist=3,num_tracks=1,tight_mode=1,props_rate=0.97,track_type=3,min_cooldown=8,max_cooldown=12}},
-		{state=play_state,loc=vgroups.MOUNTAIN_BLACK_TRACK,help=function()
+		{state=race_state,loc=vgroups.MOUNTAIN_BLACK_TRACK,help=function()
 			return "Endless Race\nTake over mania!\nBest: ".._save_state.best_3.."m"
-		end,params={name="Chamois",dslot=3,slope=2.25,twist=6,num_tracks=1,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=8,max_cooldown=8}},
+		end,params={name="Chamois",dslot=3,slope=2.25,twist=5,num_tracks=1,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=8,max_cooldown=12}},
 		{state=shop_state,loc=vgroups.MOUNTAIN_SHOP,help=function()
 			return "Buy gear!\n$".._save_state.coins
 		end ,params={name="Shop"},transition=false}
@@ -1302,6 +1311,159 @@ function shop_state(...)
 	end		
 end
 
+-- -----------------------------	
+-- command handlers
+local command_handlers={
+	-- snowball!!
+	B=function(lane)
+		local y_velocity,z_velocity = 0,1+rnd(0.25)
+		local y_force,on_ground = 0
+		local base_angle = rnd()
+		local pos=v_clone(plyr.pos)
+		pos[1]+=(lane-1)*4
+		local prev_pos=v_clone(pos)
+		v_add(pos,{0,0,-4*8})
+		-- helper
+		local function v2_sqrlen(x,z,b)
+			local dx,dz=b[1]-x,b[3]-z
+			return dx*dx+dz*dz
+		end
+		return {
+			id=models.PROP_SNOWBALL,
+			pos=pos,
+			update=function(self,offset)
+				-- shift
+				v_add(pos,offset)
+				v_add(prev_pos,offset)
+
+				-- integrate
+				y_force = -1
+				if on_ground then
+					-- todo: shake?
+					-- force += 4
+				end
+				y_velocity+=y_force*0.5/30
+				prev_pos=v_clone(prev_pos)
+				pos[2]+=y_velocity
+				pos[3]+=z_velocity
+				y_force=0
+
+				-- collision with player
+				if plyr then
+					local plyr_x,plyr_z=plyr.pos[1],plyr.pos[3]
+					if v2_sqrlen(plyr_x,plyr_z,pos)<2.25 or 
+						v2_sqrlen(plyr_x,plyr_z,prev_pos)<2.25 or 
+						(plyr_x<pos[1]+1.5 and plyr_x>pos[1]-1.5 
+						and plyr_z<pos[3] and plyr_z>prev_pos[3]) then
+						plyr.dead = true
+					end
+				end
+				
+				-- update
+				local newy,newn=ground:find_face(pos)
+				-- out of bound: kill actor
+				if not newy then return end
+
+				on_ground = nil
+				if pos[2]<=newy then
+					pos[2]=newy
+					on_ground = true
+				end
+				-- shadow plane projection matrix
+				local m = make_m_from_v(newn)
+				m[13]=pos[1]
+				-- avoid z-fighting
+				m[14]=newy+0.1
+				m[15]=pos[3]
+				self.m_shadow = m
+
+				-- roll!!!
+				local m = make_m_x_rot(base_angle-4*time())
+				m[13]=pos[1]
+				-- offset ball radius
+				m[14]=pos[2]+1.25
+				m[15]=pos[3]
+				self.m = m
+				return true
+			end
+		}
+	end,
+	-- warning sign
+	w=function(lane)
+		do_async(function()
+			warnings[lane]=_warning_avalanche
+			wait_async(40)
+			warnings[lane]=nil
+			wait_async(5)
+			warnings[lane]=_warning_avalanche
+			wait_async(5)
+			warnings[lane]=nil
+		end)
+	end,
+	-- (tele)cabin
+	t=function()
+		return {
+			id=models.PROP_CABINS,
+			pos={15.5*4,-16,30.5*4},
+			m={
+				1,0,0,0,
+				0,1,0,0,
+				0,0,1,0,
+				0,0,0,1},
+			update=function(self,offset)
+				local pos=self.pos
+
+				-- shift
+				v_add(pos,offset)
+				-- todo: find a last costly solution
+				local newy=ground:find_face(pos)
+				if newy then pos[2]=newy end
+
+				-- out of landscape?
+				if pos[3]<0 then return end
+
+				local m=self.m
+				m[13]=pos[1]
+				m[14]=pos[2]
+				m[15]=pos[3]					
+				return true
+			end
+		}
+	end,
+	-- hot air balloon
+	h=function(lane)
+		return {
+			id=models.PROP_BALLOON,
+			pos={(15.5-lane/2)*4,-16,30.5*4},
+			m={
+				1,0,0,0,
+				0,1,0,0,
+				0,0,1,0,
+				0,0,0,1},
+			update=function(self,offset)
+				local pos=self.pos
+
+				-- shift
+				v_add(pos,offset)
+				-- todo: find a last costly solution
+				local newy=ground:find_face(pos)
+				if newy then pos[2]=newy end
+
+				-- out of landscape?
+				if pos[3]<0 then return end
+
+				local m=self.m
+				m[13]=pos[1]
+				m[14]=pos[2]
+				m[15]=pos[3]
+				return true
+			end
+		}
+	end		
+}
+
+-- -------------------------
+-- endless run mode
 function play_state(params,help_ttl)
 	help_ttl=help_ttl or 0
 	-- read data slot
@@ -1332,7 +1494,7 @@ function play_state(params,help_ttl)
 	actors,ground={},make_ground(params)
 
 	-- create player in correct direction
-	local plyr=make_plyr(ground:get_pos(),register_trick)
+	plyr=make_plyr(ground:get_pos(),register_trick)
 	_tracked = plyr
 		
 	cam=make_cam()
@@ -1368,156 +1530,6 @@ function play_state(params,help_ttl)
 			mask = item.image
 		end
 	end)	
-
-	-- command handlers
-	local command_handlers={
-		-- snowball!!
-		B=function(lane)
-			local y_velocity,z_velocity = 0,1+rnd(0.25)
-			local y_force,on_ground = 0
-			local base_angle = rnd()
-			local pos=v_clone(plyr.pos)
-			pos[1]+=(lane-1)*4
-			local prev_pos=v_clone(pos)
-			v_add(pos,{0,0,-4*8})
-			-- helper
-			local function v2_sqrlen(x,z,b)
-				local dx,dz=b[1]-x,b[3]-z
-				return dx*dx+dz*dz
-			end
-			add(actors,{
-				id=models.PROP_SNOWBALL,
-				pos=pos,
-				update=function(self,offset)
-					-- shift
-					v_add(pos,offset)
-					v_add(prev_pos,offset)
-
-					-- integrate
-					y_force = -1
-					if on_ground then
-						-- todo: shake?
-						-- force += 4
-					end
-					y_velocity+=y_force*0.5/30
-					prev_pos=v_clone(prev_pos)
-					pos[2]+=y_velocity
-					pos[3]+=z_velocity
-					y_force=0
-
-					-- collision with player
-					if plyr then
-						local plyr_x,plyr_z=plyr.pos[1],plyr.pos[3]
-						if v2_sqrlen(plyr_x,plyr_z,pos)<2.25 or 
-							v2_sqrlen(plyr_x,plyr_z,prev_pos)<2.25 or 
-							(plyr_x<pos[1]+1.5 and plyr_x>pos[1]-1.5 
-							and plyr_z<pos[3] and plyr_z>prev_pos[3]) then
-							plyr.dead = true
-						end
-					end
-					
-					-- update
-					local newy,newn=ground:find_face(pos)
-					-- out of bound: kill actor
-					if not newy then return end
-
-					on_ground = nil
-					if pos[2]<=newy then
-						pos[2]=newy
-						on_ground = true
-					end
-					-- shadow plane projection matrix
-					local m = make_m_from_v(newn)
-					m[13]=pos[1]
-					-- avoid z-fighting
-					m[14]=newy+0.1
-					m[15]=pos[3]
-					self.m_shadow = m
-
-					-- roll!!!
-					local m = make_m_x_rot(base_angle-4*time())
-					m[13]=pos[1]
-					-- offset ball radius
-					m[14]=pos[2]+1.25
-					m[15]=pos[3]
-					self.m = m
-					return true
-				end
-			})
-		end,
-		-- warning sign
-		w=function(lane)
-			do_async(function()
-				warnings[lane]=_warning_avalanche
-				wait_async(40)
-				warnings[lane]=nil
-				wait_async(5)
-				warnings[lane]=_warning_avalanche
-				wait_async(5)
-				warnings[lane]=nil
-			end)
-		end,
-		-- (tele)cabin
-		t=function()
-			add(actors,{
-				id=models.PROP_CABINS,
-				pos={15.5*4,-16,30.5*4},
-				m={
-					1,0,0,0,
-					0,1,0,0,
-					0,0,1,0,
-					0,0,0,1},
-				update=function(self,offset)
-					local pos=self.pos
-
-					-- shift
-					v_add(pos,offset)
-					-- todo: find a last costly solution
-					local newy=ground:find_face(pos)
-					if newy then pos[2]=newy end
-
-					-- out of landscape?
-					if pos[3]<0 then return end
-
-					local m=self.m
-					m[13]=pos[1]
-					m[14]=pos[2]
-					m[15]=pos[3]					
-					return true
-				end
-			})
-		end,
-		-- hot air balloon
-		h=function(lane)
-			add(actors,{
-				id=models.PROP_BALLOON,
-				pos={(15.5-lane/2)*4,-16,30.5*4},
-				m={
-					1,0,0,0,
-					0,1,0,0,
-					0,0,1,0,
-					0,0,0,1},
-				update=function(self,offset)
-					local pos=self.pos
-
-					-- shift
-					v_add(pos,offset)
-					-- todo: find a last costly solution
-					local newy=ground:find_face(pos)
-					if newy then pos[2]=newy end
-
-					-- out of landscape?
-					if pos[3]<0 then return end
-
-					local m=self.m
-					m[13]=pos[1]
-					m[14]=pos[2]
-					m[15]=pos[3]
-					return true
-				end
-			})
-		end		
-	}
 
 	return
 		-- update
@@ -1566,11 +1578,13 @@ function play_state(params,help_ttl)
 
 				-- handle commands (only if new)
 				if prev_slice_id~=slice_id then
-					print("command: "..commands)
 					for i=1,#commands do
 						local c=string.sub(commands,i,i)
 						if command_handlers[c] then
-							command_handlers[c](i)
+							local actor=command_handlers[c](i)
+							if actor then
+								add(actors,actor)
+							end
 						end
 					end
 					prev_slice_id = slice_id
@@ -1681,6 +1695,59 @@ function play_state(params,help_ttl)
 		end		
 end
 
+function race_state(params)
+	-- custom handling of 
+	local npc,dist
+	local boost_ttl = 0
+	command_handlers.n = function()
+		if npc then return end
+		npc=make_npc(plyr.pos)
+		return npc
+	end
+	local play_update,play_draw=play_state(params)
+
+	return
+		-- update
+		function()
+			play_update()
+			if npc then
+				if npc.dead then
+					plyr.dead = true
+					npc = nil
+					return					
+				end
+				-- distance to player?			
+				dist=2*(npc.pos[3]-plyr.pos[3])
+				boost_ttl-=1
+				if dist<-4 and boost_ttl<0 then
+					npc:boost(1.8)
+					boost_ttl = 8
+				end
+			end
+		end,
+		-- draw
+		function()
+			play_draw()
+			if npc and dist>30 then	
+				local s=flr(dist).."m"
+				gfx.setFont(smallFont[gfx.kColorWhite])
+				local sw,sh=gfx.getTextSize(s)
+				sw += 4
+				sh += 4
+				-- project npc pos
+				local x,y,w=cam:project2d(m_x_v(cam.m,npc.pos))
+				x=mid(0,x - sw/2,399 - sw)
+				y=mid(48,y-7*w,240-sh)
+				gfx.setColor(gfx.kColorBlack)
+				gfx.fillRect(x,y,sw,sh)
+				print_small(s,x+2,y,gfx.kColorWhite)
+				if dist>70 and (time()//0.0625)%2==0 then
+					_warning_small:draw(x + sw/2 - 12,y - 28)
+				end
+			end
+		end
+end
+
 function plyr_death_state(pos,total_distance,total_tricks,params)
 	-- convert to string
 	local active_msg,msgs=0,{
@@ -1695,6 +1762,7 @@ function plyr_death_state(pos,total_distance,total_tricks,params)
 	-- hugh :/
 	snowball:update()
 	_tracked = snowball
+
 	local turn_side,tricks_rating=pick({-1,1}),{"meh","rookie","junior","master"}
 	local text_ttl,active_text,text=10,"yikes!",{"ouch!","aie!","pok!","weee!"}
 
@@ -1827,6 +1895,7 @@ function _init()
 	_dir_icon = gfx.image.new("images/checkpoint_lock")
 	_mountain_icon = gfx.image.new("images/mountain_icon")
 
+	_warning_small = gfx.image.new("images/warning_small")
 	_warning_avalanche = gfx.image.new("images/warning_avalanche")
 	_warning_skiier = gfx.image.new("images/warning_skiier")
 

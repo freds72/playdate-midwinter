@@ -131,6 +131,7 @@ static float _raycast_angles[RAYCAST_PRECISION];
 static GroundSlice _slices_buffer[GROUND_SIZE];
 // active ground
 static Ground _ground;
+static int _warming_up;
 
 static GroundParams active_params;
 
@@ -187,7 +188,7 @@ static void mesh_slice(int j) {
     // END_FUNC();
 }
 
-static void make_slice(GroundSlice* slice, float y) {
+static void make_slice(GroundSlice* slice, float y, int warmup) {
     // BEGIN_FUNC();
     static int trees[] = { PROP_TREE0,PROP_TREE1,PROP_TREE_SNOW };
 
@@ -198,7 +199,7 @@ static void make_slice(GroundSlice* slice, float y) {
     slice->y = y;
     slice->tracks_mask = 0;
 
-    update_tracks();
+    update_tracks(warmup);
 
     // generate height
     uint32_t shadow_mask = 0;
@@ -231,6 +232,7 @@ static void make_slice(GroundSlice* slice, float y) {
                 case 'R': prop_id = PROP_ROCK; break;
                 case 'M': prop_id = PROP_COW; prop_t = randf(); break;
                 case 'J': prop_id = PROP_JUMPPAD; break;
+                case 'S': prop_id = PROP_START; break;
                 case 'T': 
                     prop_id = trees[(int)(3.f * randf())]; 
                     prop_t = randf(); 
@@ -326,12 +328,11 @@ void make_ground(GroundParams params) {
 
     // init track generator
     make_tracks(4 * GROUND_CELL_SIZE, (GROUND_SIZE - 5)*GROUND_CELL_SIZE, params, &_ground.tracks);
-    update_tracks();
 
     for (int i = 0; i < GROUND_SIZE; ++i) {
         // reset slices
         _ground.slices[i] = &_slices_buffer[i];
-        make_slice(_ground.slices[i], -i * params.slope);
+        make_slice(_ground.slices[i], -i * params.slope, 1);
     }
     for (int i = 0; i < GROUND_SIZE - 1; ++i) {
         mesh_slice(i);
@@ -364,7 +365,7 @@ void update_ground(Point3d* p, int* slice_id, char** pattern, Point3d* offset) {
         _ground.slices[GROUND_SIZE - 1] = old_slice;
 
         // use previous baseline
-        make_slice(old_slice, _ground.slices[GROUND_SIZE - 2]->y - active_params.slope * (randf() + 0.5f));
+        make_slice(old_slice, _ground.slices[GROUND_SIZE - 2]->y - active_params.slope * (randf() + 0.5f), 0);
         mesh_slice(GROUND_SIZE - 2);
     }
     // update y offset
@@ -744,7 +745,7 @@ void ground_init(PlaydateAPI* playdate) {
     _props_properties[PROP_SNOWBALL - 1] = (PropProperties){ .flags = PROP_FLAG_KILL, .radius = 2.f };
     _props_properties[PROP_SPLASH - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
     // 
-    _props_properties[PROP_JUMPPAD - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_JUMP, .radius = 1.5f };
+    _props_properties[PROP_JUMPPAD - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_JUMP, .radius = 2.0f };
     // coin
     _props_properties[PROP_COIN - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_COLLECT, .radius = 2.0f };
 

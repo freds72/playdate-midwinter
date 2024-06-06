@@ -1,4 +1,5 @@
 #include <pd_api.h>
+#include <limits.h>
 #include "tracks.h"
 #include "3dmath.h"
 
@@ -16,26 +17,18 @@ typedef struct {
 typedef struct {
     // random placement?
     int random;
+    // time in sequence unit
+    IntRange seq;
     // section width (computed)
     int width;
     Timeline timelines[MAX_TIMELINES];
 } Section;
 
 Section _chill_sections[] = {
-    // nothing
-    {
-        .random = 0,
-        .timelines = {
-            {.timeline = "." },
-            {.timeline = "." },
-            {.timeline = "." },
-            {.timeline = "." },
-            {.timeline = NULL }
-        }
-    },
     // cabins
     {
         .random = 0,
+        .seq = {.min = 30, .max = INT_MAX },
         .timelines = {
             {.timeline = "." },
             {.timeline = "." },
@@ -47,6 +40,7 @@ Section _chill_sections[] = {
     // hot air balloon
     {
         .random = 1,
+        .seq = {.min = 30, .max = INT_MAX },
         .timelines = {
             {.timeline = "h" },
             {.timeline = "." },
@@ -59,6 +53,7 @@ Section _chill_sections[] = {
     // eagle(s)
     {
         .random = 1,
+        .seq = {.min = 30, .max = INT_MAX },
         .timelines = {
             {.timeline = "." },
             {.timeline = "." },
@@ -74,6 +69,7 @@ Section _endless_sections[] = {
     // nothing
     {
         .random = 0,
+        .seq = {.min = 0, .max = 25 },
         .timelines = {
             {.timeline = "." },
             {.timeline = NULL }
@@ -83,7 +79,8 @@ Section _endless_sections[] = {
     // 1 rock
     {
         .random = 1,
-        .timelines = {            
+        .seq = {.min = 5, .max = 30 },
+        .timelines = {
             { .timeline = "W...R" },
             { .timeline = NULL }
         }
@@ -91,6 +88,7 @@ Section _endless_sections[] = {
     // 1 tree
     {
         .random = 1,
+        .seq = {.min = 5, .max = INT_MAX },
         .timelines = {
             {.timeline = "T.." },
             {.timeline = NULL }
@@ -99,6 +97,7 @@ Section _endless_sections[] = {
     // tree pattern
     {
         .random = 0,
+        .seq = {.min = 10, .max = 35 },
         .timelines = {
             {.timeline = "T....T.T.." },
             {.timeline = "T..CC....T.T..." },
@@ -111,6 +110,7 @@ Section _endless_sections[] = {
     // 3 rocks
     {
         .random = 0,
+        .seq = {.min = 12, .max = 45 },
         .timelines = {
             {.timeline = "."},
             {.timeline = "w....W....R"},
@@ -119,25 +119,20 @@ Section _endless_sections[] = {
             {.timeline = NULL }
         }
     },
-    // jumppad
-    {
-        .random = 1,
-        .timelines = {
-            {.timeline = "J...CC...J...CC..J....CC"},
-            {.timeline = NULL }
-        }
-    },
     // 1x snowball
     {
         .random = 1,
+        .seq = {.min = 18, .max = 55 },
         .timelines = {
-            {.timeline = ".....B....w......"},
+            {.timeline = "........"},
+            {.timeline = "...B....w......"},
             {.timeline = NULL }
         }
     },
     // 4x snowball
     {
         .random = 0,
+        .seq = {.min = 20, .max = 80 },
         .timelines = {
             {.timeline = ".....B................."},
             {.timeline = ".....B.............w..."},
@@ -152,6 +147,7 @@ Section _endless_sections[] = {
 Section _test_sections[] = {
     {
         .random = 0,
+        .seq = {.min = 0, .max = INT_MAX },
         .timelines = {
             {.timeline = "T.T..T..T"},
             {.timeline = "......................"},
@@ -163,6 +159,7 @@ Section _test_sections[] = {
     },
     {
         .random = 0,
+        .seq = {.min = 0, .max = INT_MAX },
         .timelines = {
             {.timeline = "T.T..TTT"},
             {.timeline = "......................"},
@@ -173,6 +170,7 @@ Section _test_sections[] = {
     },
     {
         .random = 0,
+        .seq = {.min = 0, .max = INT_MAX },
         .timelines = {
             {.timeline = "T.T..T..T"},
             {.timeline = "......................"},
@@ -182,6 +180,7 @@ Section _test_sections[] = {
     },
     {
         .random = 0,
+        .seq = {.min = 0, .max = INT_MAX },
         .timelines = {
             {.timeline = "TT.TT.."},
             {.timeline = "..T.T.........."},
@@ -195,6 +194,7 @@ Section _test_sections[] = {
     },
     {
         .random = 0,
+        .seq = {.min = 0, .max = INT_MAX },
         .timelines = {
             {.timeline = "..................."},
             {.timeline = NULL }
@@ -202,16 +202,52 @@ Section _test_sections[] = {
     }
 };
 
-
 // black track (race)
 Section _race_sections[] = {
-    // nothing
+    // accel pad
     {
         .random = 0,
+        .seq = {.min = 1, .max = INT_MAX },
         .timelines = {
+            {.timeline = "." },
+            {.timeline = "." },
+            {.timeline = ".................J......." },
+            {.timeline = "........................." },
+            {.timeline = ".....J..................." },
+            {.timeline = "." },
             {.timeline = "." },
             {.timeline = NULL }
         }
+    },
+    // accel pad
+    {
+        .random = 1,
+        .seq = {.min = 1, .max = INT_MAX },
+        .timelines = {
+            {.timeline = "." },  
+            {.timeline = "." },
+            {.timeline = "." },
+            {.timeline = "." },
+            {.timeline = "." },
+            {.timeline = "." },
+            {.timeline = ".....J....." },
+            {.timeline = NULL }
+        }
+    }
+};
+
+Section _race_section_start = {
+    .random = 0,
+    .seq = {.min = 0, .max = 0 },
+    .timelines = {
+        {.timeline = "S..................." },
+        {.timeline = "...................." },
+        {.timeline = "...................." },
+        {.timeline = "..................n." },
+        {.timeline = "...................." },
+        {.timeline = "...................." },
+        {.timeline = "S..................." },
+        {.timeline = NULL }
     }
 };
 
@@ -220,16 +256,18 @@ typedef struct {
     int n;
     // track sections
     Section* sections;
+    // start
+    Section* start;
 } SectionCatalog;
 
 // all track types
-#define CATALOG_ENTRY(s) { .n = sizeof(s) / sizeof(Section), .sections = s}
+#define CATALOG_ENTRY(s0,s) { .start = s0, .n = sizeof(s) / sizeof(Section), .sections = s }
 
 static SectionCatalog _catalog[] = {
-    CATALOG_ENTRY(_chill_sections),
-    CATALOG_ENTRY(_endless_sections),
-    CATALOG_ENTRY(_race_sections),
-    CATALOG_ENTRY(_test_sections)
+    CATALOG_ENTRY(NULL,_chill_sections),
+    CATALOG_ENTRY(NULL,_endless_sections),
+    CATALOG_ENTRY(&_race_section_start,_race_sections),
+    CATALOG_ENTRY(NULL,_test_sections)
 };
 
 struct {
@@ -241,7 +279,11 @@ struct {
     int next_cooldown;
     // cooldown value (to compute ratio)
     int total_cooldown;
+    // current timeline cursor
     int t;
+    // seq count
+    int seq;
+    // current timeline length
     size_t max_len;
     Timeline* lanes[MAX_TIMELINES];
     SectionCatalog catalog;
@@ -276,70 +318,95 @@ static Track *add_track(const float x, const float u, int is_main)
 }
 
 static Section* pick_next_section() {
-    return &_section_director.catalog.sections[randi(_section_director.catalog.n)];
+    // any "forced" start section?
+    if (_section_director.seq == 0 && _section_director.catalog.start) {
+        _section_director.seq++;
+        return _section_director.catalog.start;
+    }
+
+    Section* sections[16] = {NULL};
+    int n = 0;
+    // pick section
+    int seq = _section_director.seq;
+    for (int i = 0; i < _section_director.catalog.n; i++) {
+        Section* s = &_section_director.catalog.sections[i];
+        if (seq >= s->seq.min && seq <= s->seq.max ) {
+            sections[n++] = s;
+        }
+    }
+    _section_director.seq++;
+
+    if (!n) return NULL;
+
+    return sections[randi(n)];
 }
 
-static int update_track(Track *track)
+static int update_track(Track *track,int warmup)
 {
   if (track->is_dead)
     return 0;
 
-  // next section?
-  if (!_section_director.active_section) {
-      // lerp width
-      int w0 = _section_director.active_section ? _section_director.active_section->width : 4;
-      int w1 = _section_director.next_section ? _section_director.next_section->width : 4;
-      track->width = lerpi(w0, w1, (float)(_section_director.total_cooldown - _section_director.cooldown) / _section_director.total_cooldown);
-      pd->system->logToConsole("track width: %i", track->width);
+  if (!warmup) {
+      // next section?
+      if (!_section_director.active_section) {
+          // lerp width
+          int w0 = _section_director.active_section ? _section_director.active_section->width : 4;
+          int w1 = _section_director.next_section ? _section_director.next_section->width : 4;
+          track->width = lerpi(w0, w1, (float)(_section_director.total_cooldown - _section_director.cooldown) / _section_director.total_cooldown);
 
-      _section_director.cooldown--;
-      if (_section_director.cooldown < 0) {
-          // pick a random section (handle init case) 
-          _section_director.active_section = _section_director.next_section ? _section_director.next_section : pick_next_section();
-          _section_director.next_section = pick_next_section();
-          _section_director.t = 0;
-          Section* s = _section_director.active_section;
-          // pick random lanes
-          int lanes[] = { 0,1,2,3,4,5,6,7 };
-          if (s->random)
-              shuffle(lanes, MAX_TIMELINES);
-          memset(_section_director.lanes, 0, sizeof(Timeline*) * MAX_TIMELINES);
-          int j = 0;
-          size_t max_len = 0;
-          while (s->timelines[j].timeline) {
-              Timeline* timeline = &s->timelines[j];
-              _section_director.lanes[lanes[j]] = timeline;
-              if (timeline->len > max_len) max_len = timeline->len;
-              j++;
-          }
-          _section_director.max_len = max_len;
-      }
-  }
+          _section_director.cooldown--;
+          if (_section_director.cooldown < 0) {
+              // pick a random section (handle init case) 
+              _section_director.active_section = _section_director.next_section ? _section_director.next_section : pick_next_section();
+              _section_director.next_section = pick_next_section();
 
-  if (_section_director.active_section) {
-      track->width = _section_director.active_section->width;
-
-      strcpy(_tracks.pattern, "        ");
-      if (_section_director.t < _section_director.max_len) {
-          int t = _section_director.t;
-          for (int i = 0; i < MAX_TIMELINES; ++i) {
-              Timeline* timeline = _section_director.lanes[i];
-              // active?
-              if (timeline) {
-                  _tracks.pattern[i] = timeline->timeline[t % timeline->len];
+              // no available section?
+              if (_section_director.active_section) {
+                  _section_director.t = 0;
+                  Section* s = _section_director.active_section;
+                  // pick random lanes
+                  int lanes[] = { 0,1,2,3,4,5,6,7 };
+                  if (s->random)
+                      shuffle(lanes, MAX_TIMELINES);
+                  memset(_section_director.lanes, 0, sizeof(Timeline*) * MAX_TIMELINES);
+                  int j = 0;
+                  size_t max_len = 0;
+                  while (s->timelines[j].timeline) {
+                      Timeline* timeline = &s->timelines[j];
+                      _section_director.lanes[lanes[j]] = timeline;
+                      if (timeline->len > max_len) max_len = timeline->len;
+                      j++;
+                  }
+                  _section_director.max_len = max_len;
               }
           }
-          _section_director.t++;
-          // don't twist sections!
-          return 1;
       }
-      else {
-          _section_director.active_section = NULL;
-          _section_director.cooldown = _section_director.next_cooldown;
-              
-          // select next section
-          _section_director.total_cooldown = lerpi(_section_director.min_cooldown, _section_director.max_cooldown, randf());
-          _section_director.next_cooldown = _section_director.total_cooldown;
+
+      if (_section_director.active_section) {
+          track->width = _section_director.active_section->width;
+
+          strcpy(_tracks.pattern, "        ");
+          if (_section_director.t < _section_director.max_len) {
+              int t = _section_director.t;
+              for (int i = 0; i < MAX_TIMELINES; ++i) {
+                  Timeline* timeline = _section_director.lanes[i];
+                  // active?
+                  if (timeline) {
+                      _tracks.pattern[i] = timeline->timeline[t % timeline->len];
+                  }
+              }
+              _section_director.t++;
+              // don't twist sections!
+              return 1;
+          }
+          else {
+              _section_director.active_section = NULL;
+              _section_director.cooldown = _section_director.next_cooldown;
+
+              // select next section
+              _section_director.total_cooldown = lerpi(_section_director.min_cooldown, _section_director.max_cooldown, randf());
+              _section_director.next_cooldown = _section_director.total_cooldown;
+          }
       }
   }
 
@@ -411,6 +478,7 @@ void make_tracks(const int xmin, const int xmax, GroundParams params, Tracks **o
   strcpy(_tracks.pattern, "        ");
 
   // section director
+  _section_director.seq = 0;
   _section_director.active_section = NULL;
   _section_director.next_section = NULL;
   _section_director.min_cooldown = params.min_cooldown;
@@ -424,12 +492,12 @@ void make_tracks(const int xmin, const int xmax, GroundParams params, Tracks **o
   *out = &_tracks;
 }
 
-void update_tracks()
+void update_tracks(int warmup)
 {
   int i = 0;
   while (i < _tracks.n)
   {
-    if (!update_track(&_tracks.tracks[i]))
+    if (!update_track(&_tracks.tracks[i], warmup))
     {
       // shift other tracks down
       for (int j = i + 1; j < _tracks.n; j++)
@@ -477,31 +545,33 @@ void update_tracks()
   */  
 }
 
+static void init_section(Section* s, int i) {
+    int j = 0;
+    // cache length of string
+    while (s->timelines[j].timeline) {
+        s->timelines[j].len = strlen(s->timelines[j].timeline);
+        j++;
+    }
+    s->width = j;
+    if (j >= MAX_TIMELINES)
+        pd->system->error("Too many timelines on section: %i - %i/%i", i, j, MAX_TIMELINES);
+}
+
 // init module
 void tracks_init(PlaydateAPI* playdate) {
     pd = playdate;
 
     _section_director.active_section = NULL;
     _section_director.next_section = NULL;
-    _section_director.total_cooldown = 24;
+    _section_director.total_cooldown = 24;    
     _section_director.cooldown = _section_director.total_cooldown;
 
-    // 
-    
     // initialize timeline string lenghts
     for (int k = 0; k < sizeof(_catalog) / sizeof(SectionCatalog); ++k) {
         SectionCatalog* catalog = &_catalog[k];
+        if (catalog->start) init_section(catalog->start, -1);
         for (int i = 0; i < catalog->n; ++i) {
-            Section* s = &catalog->sections[i];
-            int j = 0;
-            // cache length of string
-            while (s->timelines[j].timeline) {
-                s->timelines[j].len = strlen(s->timelines[j].timeline);
-                j++;
-            }
-            s->width = j;
-            if (j >= MAX_TIMELINES)
-                pd->system->error("Too many timelines on section: %i - %i/%i", i, j, MAX_TIMELINES);
+            init_section(&catalog->sections[i], i);
         }
     }
 }

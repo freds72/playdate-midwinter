@@ -46,6 +46,17 @@ typedef struct {
     float light;
 } Point3du;
 
+// range helpers
+typedef struct {
+    int min;
+    int max;
+} IntRange;
+
+typedef struct {
+    float min;
+    float max;
+} FloatRange;
+
 // convert a tau angle [0;1] into a radian angle
 inline float detauify(const float tau) {
     return tau * 2 * PI;

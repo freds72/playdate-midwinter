@@ -11,7 +11,7 @@ float randf() {
 }
 
 int randi(int max) {
-    return (int)(max * randf());
+    return rand()%max;
 }
 
 /* Arrange the N elements of ARRAY in random order.

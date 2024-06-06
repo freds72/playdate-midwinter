@@ -43,7 +43,7 @@ typedef struct {
 } Tracks;
 
 void make_tracks(const int xmin, const int xmax, GroundParams params, Tracks** out);
-void update_tracks();
+void update_tracks(int warmup);
 void tracks_init(PlaydateAPI* playdate);
 
 #endif
