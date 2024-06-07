@@ -707,7 +707,7 @@ function make_npc(p)
 		self:integrate()
 
 		-- difficulty up
-		boost = min(boost + 0.001, 0.1)
+		boost = min(boost + 0.0001, 0.25)
 		self:perma_boost(boost)
 		-- call parent	
 		body_update(self)

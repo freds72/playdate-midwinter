@@ -13,6 +13,8 @@
 #include "ground.h"
 #include "tracks.h"
 #include "gfx.h"
+#include "particles.h"
+#include "drawables.h"
 #include "spall.h"
 
 #ifdef SPALL_COLLECT
@@ -382,6 +384,8 @@ void lib3d_register(PlaydateAPI* playdate)
 	gfx_init(playdate);
 	ground_init(playdate);
 	tracks_init(playdate);
+	particles_init(playdate);
+	drawables_init(playdate);
 
 	if (!pd->lua->addFunction(lib3d_make_ground, "lib3d.make_ground", &err))
 		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);

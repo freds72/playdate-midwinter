@@ -11,10 +11,10 @@
 #include "scales.h"
 #include "tracks.h"
 #include "models.h"
+#include "particles.h"
+#include "drawables.h"
+#include "ground_limits.h"
 #include "spall.h"
-
-#define Z_NEAR 0.5f
-#define Z_FAR 64.f
 
 static PlaydateAPI* pd;
 
@@ -131,12 +131,11 @@ static float _raycast_angles[RAYCAST_PRECISION];
 static GroundSlice _slices_buffer[GROUND_SIZE];
 // active ground
 static Ground _ground;
-static int _warming_up;
 
 static GroundParams active_params;
 
 // 16 32 * 4 bytes bitmaps
-static uint32_t _dithers[32 * 16];
+uint32_t _dithers[32 * 16];
 
 // 16 32 * 8 bytes bitmaps (duplicated on x)
 static uint8_t _dither_ramps[8 * 32 * 16];
@@ -374,6 +373,10 @@ void update_ground(Point3d* p, int* slice_id, char** pattern, Point3d* offset) {
         offset->y = _ground.y_offset;
         _ground.max_pz = (int)p->z;
     }
+
+    // update particles
+    update_particles(*offset);
+
     *slice_id = _ground.slice_id;
     *pattern = _ground.tracks->pattern;
 
@@ -778,65 +781,12 @@ int ground_load_assets_async() {
 // todo: move to settings?
 #define SHADING_CONTRAST 1.5f
 
-#define MAX_TILE_DIST 18
-
-typedef struct {
-    float x;
-    float y;
-    float z;
-    int outcode;
-} CameraPoint3d;
-
 // visible tiles encoded as 1 bit per cell
 static uint32_t _visible_tiles[GROUND_SIZE];
 
-typedef struct {
-    // texture type
-    int material;
-    // original flags
-    int flags;
-    // number of points
-    int n;
-    // clipped points in camera space
-    Point3du pts[5];
-} DrawableFace;
-
-typedef struct {
-    int material;
-    int angle;
-    Point3d pos;
-} DrawableProp;
-
-typedef struct {
-    int frame;
-    Point3d pos;
-} DrawableCoin;
-
-struct Drawable_s;
-typedef void(*draw_drawable)(struct Drawable_s* drawable, uint8_t* bitmap);
-
-// generic drawable thingy
-// cache-friendlyness???
-typedef struct Drawable_s {
-    float key;
-    draw_drawable draw;
-    union {
-        DrawableFace face;
-        DrawableProp prop;
-        DrawableCoin coin;
-    };
-} Drawable;
-
-static struct {
-    int n;
-    // arbitrary limit
-    Drawable all[GROUND_SIZE * GROUND_SIZE * 4];
-} _drawables;
-
+// stores all things that are going to be drawn
+static Drawables _drawables;
 static Drawable* _sortables[GROUND_SIZE * GROUND_SIZE * 4];
-
-// visible tiles encoded as 1 bit per cell
-static uint32_t _visible_tiles[GROUND_SIZE];
 
 // cache entry (transformed point in camera space)
 typedef struct {
@@ -972,7 +922,7 @@ static void draw_coin(Drawable* drawable, uint8_t* bitmap) {
 }
 
 // push a face to the drawing list
-static void push_tile(GroundFace* f, const float* m, GroundSliceCoord* coords, int n, const float light) {
+static void push_tile(const GroundFace* f, const float* m, GroundSliceCoord* coords, int n, const float light) {
     BEGIN_FUNC();
 
     Point3du tmp[4];
@@ -1344,8 +1294,11 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
     // reset "free" props
     _render_props.n = 0;
 
+    // particles?
+    push_particles(&_drawables, cam_pos, m);
+
     // sort & renders back to front
-    if (_drawables.n > 0) {
+    if (_drawables.n > 0) {        
         for (int i = 0; i < _drawables.n; ++i) {
             _sortables[i] = &_drawables.all[i];
         }
