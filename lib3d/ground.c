@@ -355,13 +355,14 @@ void update_ground(Point3d* p, int* slice_id, char** pattern, Point3d* offset) {
         _ground.max_pz -= GROUND_CELL_SIZE;
         GroundSlice* old_slice = _ground.slices[0];
         float old_y = old_slice->y;
+        offset->y -= _ground.slices[1]->y - old_y;
         // drop slice 0
         for (int i = 1; i < GROUND_SIZE; ++i) {
             _ground.slices[i - 1] = _ground.slices[i];
             _ground.slices[i - 1]->y -= old_y;
         }
         // move shifted slices back to top
-        _ground.slices[GROUND_SIZE - 1] = old_slice;
+        _ground.slices[GROUND_SIZE - 1] = old_slice;        
 
         // use previous baseline
         make_slice(old_slice, _ground.slices[GROUND_SIZE - 2]->y - active_params.slope * (randf() + 0.5f), 0);
@@ -369,8 +370,7 @@ void update_ground(Point3d* p, int* slice_id, char** pattern, Point3d* offset) {
     }
     // update y offset
     if (p->z > _ground.max_pz) {
-        _ground.y_offset = lerpf(_ground.slices[0]->y, _ground.slices[1]->y, pz - (int)pz);
-        offset->y = _ground.y_offset;
+        _ground.y_offset = lerpf(_ground.slices[0]->y, _ground.slices[1]->y, pz - (int)pz);        
         _ground.max_pz = (int)p->z;
     }
 
@@ -838,7 +838,7 @@ static int z_poly_clip(const float znear, Point3du* in, int n, Point3du* out) {
     return nout;
 }
 
-static void draw_tile(struct Drawable_s* drawable, uint8_t* bitmap) {
+static void draw_tile(Drawable* drawable, uint8_t* bitmap) {
     // BEGIN_FUNC();
 
     DrawableFace* face = &drawable->face;
@@ -1295,7 +1295,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
     _render_props.n = 0;
 
     // particles?
-    push_particles(&_drawables, cam_pos, m);
+    push_particles(&_drawables, cam_pos, m, _ground.y_offset - _ground.slices[0]->y);
 
     // sort & renders back to front
     if (_drawables.n > 0) {        

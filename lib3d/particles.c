@@ -13,6 +13,9 @@ extern uint32_t _dithers[32 * 16];
 #define PARTICLE_RING_SIZE 128
 #define PARTICLE_RING_MOD_SIZE (PARTICLE_RING_SIZE-1)
 
+// check against ground?
+#define PARTICLE_SOLID 1
+
 // ring buffer for particles
 typedef struct {
     int head;
@@ -21,9 +24,12 @@ typedef struct {
 } ParticlesPool;
 
 typedef struct {
+    int flags;
     IntRange ttl;
     FloatRange angularv;
+    FloatRange decay;
     FloatRange radius;
+    FloatRange y_velocity;
     float gravity;
     ParticlesPool pool;
 } Emitter;
@@ -31,33 +37,38 @@ typedef struct {
 Emitter _emitters[] = {
     // snow trail
     {
-        .ttl = {.min = 5, .max = 8 },
-        .angularv = {.min = -0.1f, .max=0.1f},
+        .flags = 0,
+        .ttl = {.min = 24, .max = 45 },
+        .angularv = {.min = -0.01f, .max=0.01f},
+        .decay = {.min = 0.95f, .max = 0.97f },
         .radius = {.min = 0.5f, .max = 1.f},
-        .gravity = -1.0f,
+        .y_velocity = {.min = 0.25f, .max = 0.5f},
+        .gravity = -0.1f,
         .pool = {0}
     }
 };
 
 // activate a new particle from emitter id
-static Particle* make_particle(int id, Point3d pos) {
+void spawn_particle(int id, Point3d pos) {
     Emitter* emitter = &_emitters[id];
     ParticlesPool* pool = &emitter->pool;
     Particle* p = &pool->particles[pool->tail++];
     // init particle
     p->age = emitter->ttl.max;
     p->ttl = lerpi(emitter->ttl.min, emitter->ttl.max, randf());
+    p->radius_decay = lerpf(emitter->decay.min, emitter->decay.max, randf());
     p->radius = lerpf(emitter->radius.min, emitter->radius.max, randf());
     p->angle = randf();
     p->angularv = lerpf(emitter->angularv.min, emitter->angularv.max, randf());
     p->pos = pos;
+    p->y_velocity = lerpf(emitter->y_velocity.min, emitter->y_velocity.max, randf());
+
     // loop
     pool->tail &= PARTICLE_RING_MOD_SIZE;
     if (pool->tail == pool->head) {
         pool->head++;
         pool->head &= PARTICLE_RING_MOD_SIZE;
     }
-    pd->system->logToConsole("head: %i - tail: %i", pool->head, pool->tail);
 }
 
 // update all particles
@@ -67,19 +78,22 @@ void update_particles(Point3d offset) {
         Emitter* emitter = &_emitters[i];
         ParticlesPool* pool = &emitter->pool;
         int it = pool->head;
-        while (it < pool->tail) {
+        while (it != pool->tail) {
             Particle* p = &pool->particles[it++];
             it &= PARTICLE_RING_MOD_SIZE;
-            // dead particle move to next
-            if (p->age-- < 0) {
-                pool->head = it;
-            }
-            else {
+            if (p->age--) {
                 p->ttl--;
                 p->radius *= p->radius_decay;
                 p->angle += p->angularv;
-                p->pos.y += emitter->gravity;
-                for(int j=0;j<3;j++) p->pos.v[j] += offset.v[j];
+                p->y_velocity += emitter->gravity;
+                p->pos.y += p->y_velocity;
+
+                // accumulate world offsets
+                for (int j = 0; j < 3; j++) p->pos.v[j] += offset.v[j];
+            }
+            else {
+                // dead particle move to next
+                pool->head = it;
             }
         }
     }
@@ -95,7 +109,8 @@ static void draw_particle(Drawable* drawable, uint8_t* bitmap) {
     const float w = 1.f / particle->pos.z;
     const float x = 199.5f + 199.5f * w * particle->pos.x;
     const float y = 119.5f - 199.5f * w * particle->pos.y;
-    const float radius = particle->radius * w;
+    const float radius = 199.5f * particle->radius * w;
+
     // quad
     Point2d u = { .x = cosf(particle->angle), .y = sinf(particle->angle) };
     Point3du pts[4];
@@ -103,8 +118,8 @@ static void draw_particle(Drawable* drawable, uint8_t* bitmap) {
         pts[i].x = x + radius * u.x;
         pts[i].y = y + radius * u.y;
         // orthogonal next
-        const float ux = u.x;
-        u.x = -u.y;
+        const float ux = -u.x;
+        u.x = u.y;
         u.y = ux;
     }
 
@@ -112,18 +127,20 @@ static void draw_particle(Drawable* drawable, uint8_t* bitmap) {
     END_FUNC();
 }
 
-void push_particles(Drawables* drawables, Point3d cam_pos, float* m) {
+void push_particles(Drawables* drawables, Point3d cam_pos, float* m, const float y_offset) {
     for(int i=0;i<sizeof(_emitters)/sizeof(Emitter);i++) {
         Emitter* emitter = &_emitters[i];
         ParticlesPool* pool = &emitter->pool;
         int it = pool->head;
         Point3d res;
-        while (it < pool->tail) {
+        while (it != pool->tail) {
             Particle* p = &pool->particles[it++];
             it &= PARTICLE_RING_MOD_SIZE;
             // dead particle move to next
             if (p->ttl > 0) {
-                m_x_v(m, p->pos.v, res.v);
+                Point3d tmp = p->pos;
+                tmp.y -= y_offset;
+                m_x_v(m, tmp.v, res.v);
                 // visible?
                 if (res.z > Z_NEAR && res.z < (float)(GROUND_CELL_SIZE * MAX_TILE_DIST)) {
                     Drawable* drawable = &drawables->all[drawables->n++];
@@ -140,6 +157,14 @@ void push_particles(Drawables* drawables, Point3d cam_pos, float* m) {
     }
 }
 
+// reset all particle pools
+void clear_particles() {
+    for (int i = 0; i < sizeof(_emitters) / sizeof(Emitter); i++) {
+        Emitter* emitter = &_emitters[i];
+        ParticlesPool* pool = &emitter->pool;
+        pool->head = pool->tail = 0;
+    }
+}
 
 void particles_init(PlaydateAPI* playdate) {
     pd = playdate;

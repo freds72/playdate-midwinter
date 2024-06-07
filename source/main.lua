@@ -674,8 +674,7 @@ end
 function make_npc(p)
 	local body=make_body(p)
 	local up={0,1,0}
-	local dir=0
-	local boost=0
+	local dir,boost=0,0
 	local body_update=body.update
 	body.id = models.PROP_SKIER
 	
@@ -724,6 +723,14 @@ function make_npc(p)
 
 		self.m = m
 
+		-- spawn particles
+		if abs(dir)>0.02 and rnd()>0.25 then
+			local p=v_lerp(vgroups.SKIER_LEFT_SKI,vgroups.SKIER_RIGHT_SKI,rnd())
+			p[2]+=0.25
+			local v=m_x_v(m,p)
+			
+			lib3d.spawn_particle(0, table.unpack(v))
+		end
 		return true
 	end
 
@@ -886,8 +893,10 @@ function menu_state(angle)
 	local look_at = {0,0,1}
 	local cam=make_cam({0,0.8,-0.5})
 
+	-- clean up
 	music(0)
 	_ski_sfx:stop()
+	lib3d.clear_particles()
 
 	-- menu to get back to selection menu
 	local menu = playdate.getSystemMenu()
@@ -1488,7 +1497,8 @@ function play_state(params,help_ttl)
 	-- stop music
 	music(-1,250)
 
-	-- srand(15)
+	-- reset particles
+	lib3d.clear_particles()
 
 	-- start over
 	actors,ground={},make_ground(params)
