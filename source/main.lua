@@ -404,7 +404,7 @@ function make_body(p)
 		on_ground=nil,
 		height=0,
 		get_pos=function(self)
-	 		return self.pos,angle,steering_angle/0.625,velocity
+	 		return self.pos,angle,steering_angle/0.625,velocity,boost
 		end,
 		get_up=function()
 			-- compensate slope when not facing slope
@@ -1657,7 +1657,7 @@ function play_state(params,help_ttl)
 			ground:draw(cam)			 
 
 			if plyr then
-				local pos,a,steering=plyr:get_pos()
+				local pos,a,steering,_,boost=plyr:get_pos()
 				local dy=plyr.height*24
 				-- ski
 				local xoffset=6*cos(time()/4)
@@ -1668,6 +1668,21 @@ function play_state(params,help_ttl)
 				for i,img in pairs(warnings) do
 					local w=img:getSize()
 					img:draw(200-w/2,42)
+				end
+
+				-- boost?
+				if boost>0.25 then
+					gfx.setColor(gfx.kColorBlack)
+					local r0 = 100 + 32*(1 - boost / 1.5)
+					for i=1,10 do
+						local angle=rnd()
+						local c,s=cos(angle),sin(angle)
+						local radius=r0 + 32*rnd() 
+						local x0,y0=200 + c*radius,120 + s*radius
+						local x1,y1=x0+c*100-s*4,y0+s*100+c*4
+						local x2,y2=x0+c*100+s*4,y0+s*100-c*4
+						gfx.fillTriangle(x0,y0,x1,y1,x2,y2)
+					end
 				end
 
 				if mask then

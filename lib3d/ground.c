@@ -1365,17 +1365,5 @@ void render_props(Point3d cam_pos, float* m, uint8_t* bitmap) {
         }
     }
 
-    Point2d u = { .x = 64.f * cosf(pd->system->getElapsedTime()), .y = 64.f * sinf(pd->system->getElapsedTime()) };
-    Point3du pts[4];
-    for (int i = 0; i < 4; i++) {
-        pts[i].x = 199.5f + u.x;
-        pts[i].y = 119.5f + u.y;
-        // orthogonal next
-        const float ux = -u.x;
-        u.x = u.y;
-        u.y = ux;
-    }
-    alphafill(pts, 4, 0xffffffff, _dithers + 32 * 8, (uint32_t*)bitmap);
-
     END_FUNC();
 }
