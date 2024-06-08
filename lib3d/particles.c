@@ -42,8 +42,8 @@ Emitter _emitters[] = {
         .angularv = {.min = -0.01f, .max=0.01f},
         .decay = {.min = 0.95f, .max = 0.97f },
         .radius = {.min = 0.5f, .max = 1.f},
-        .y_velocity = {.min = 0.25f, .max = 0.5f},
-        .gravity = -0.1f,
+        .y_velocity = {.min = 0.1f, .max = 0.25f},
+        .gravity = -0.05f,
         .pool = {0}
     }
 };
@@ -123,7 +123,7 @@ static void draw_particle(Drawable* drawable, uint8_t* bitmap) {
         u.y = ux;
     }
 
-    polyfill(pts, 4, _dithers + 32 * 8, (uint32_t*)bitmap);
+    polyfill(pts, 4, _dithers + 32 * (15 - particle->material), (uint32_t*)bitmap);
     END_FUNC();
 }
 
@@ -136,7 +136,7 @@ void push_particles(Drawables* drawables, Point3d cam_pos, float* m, const float
         while (it != pool->tail) {
             Particle* p = &pool->particles[it++];
             it &= PARTICLE_RING_MOD_SIZE;
-            // dead particle move to next
+            // active?
             if (p->ttl > 0) {
                 Point3d tmp = p->pos;
                 tmp.y -= y_offset;
@@ -149,8 +149,8 @@ void push_particles(Drawables* drawables, Point3d cam_pos, float* m, const float
                     drawable->particle.pos = res;
                     drawable->particle.angle = p->angle;
                     drawable->particle.radius = p->radius;
-                    // TODO: particle color
-                    drawable->particle.material = 0;
+                    drawable->particle.material = (16 * p->age) / emitter->ttl.max;
+                    if (drawable->particle.material > 15) drawable->particle.material = 15;
                 }
             }
         }

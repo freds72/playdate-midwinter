@@ -55,7 +55,7 @@ typedef struct Drawable_s {
 typedef struct {
     int n;
     // arbitrary limit
-    Drawable all[4096];
+    Drawable all[1024];
 } Drawables;
 
 void drawables_init(PlaydateAPI* playdate);

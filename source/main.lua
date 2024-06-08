@@ -724,7 +724,7 @@ function make_npc(p)
 		self.m = m
 
 		-- spawn particles
-		if abs(dir)>0.02 and rnd()>0.25 then
+		if abs(dir)>0.04 and rnd()>0.1 then
 			local p=v_lerp(vgroups.SKIER_LEFT_SKI,vgroups.SKIER_RIGHT_SKI,rnd())
 			p[2]+=0.25
 			local v=m_x_v(m,p)
@@ -938,7 +938,14 @@ function menu_state(angle)
 				m[6]  = scale
 				m[11] = scale
 			else
-				angle += 0.001
+				-- if crank out, use crank rotation!
+				if playdate.isCrankDocked() then
+					angle += 0.001
+				else
+					local change, acceleratedChange = playdate.getCrankChange()
+					angle += _flip_crank * acceleratedChange/360
+				end
+				
 				m = make_m_y_rot(angle)
 			end
 
