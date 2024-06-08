@@ -39,7 +39,7 @@ Emitter _emitters[] = {
     {
         .flags = 0,
         .ttl = {.min = 24, .max = 45 },
-        .angularv = {.min = -0.01f, .max=0.01f},
+        .angularv = {.min = -1.f, .max=1.f},
         .decay = {.min = 0.95f, .max = 0.97f },
         .radius = {.min = 0.5f, .max = 1.f},
         .y_velocity = {.min = 0.1f, .max = 0.25f},
@@ -112,18 +112,18 @@ static void draw_particle(Drawable* drawable, uint8_t* bitmap) {
     const float radius = 199.5f * particle->radius * w;
 
     // quad
-    Point2d u = { .x = cosf(particle->angle), .y = sinf(particle->angle) };
+    Point2d u = { .x = radius * cosf(particle->angle), .y = radius * sinf(particle->angle) };
     Point3du pts[4];
     for (int i = 0; i < 4; i++) {
-        pts[i].x = x + radius * u.x;
-        pts[i].y = y + radius * u.y;
+        pts[i].x = x + u.x;
+        pts[i].y = y + u.y;
         // orthogonal next
         const float ux = -u.x;
         u.x = u.y;
         u.y = ux;
     }
 
-    polyfill(pts, 4, _dithers + 32 * (15 - particle->material), (uint32_t*)bitmap);
+    alphafill(pts, 4, 0xffffffff, _dithers + 32 * particle->material, (uint32_t*)bitmap);
     END_FUNC();
 }
 
@@ -149,8 +149,8 @@ void push_particles(Drawables* drawables, Point3d cam_pos, float* m, const float
                     drawable->particle.pos = res;
                     drawable->particle.angle = p->angle;
                     drawable->particle.radius = p->radius;
-                    drawable->particle.material = (16 * p->age) / emitter->ttl.max;
-                    if (drawable->particle.material > 15) drawable->particle.material = 15;
+                    drawable->particle.material = (8 * p->age) / emitter->ttl.max;
+                    if (drawable->particle.material > 8) drawable->particle.material = 8;
                 }
             }
         }

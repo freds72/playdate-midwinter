@@ -178,7 +178,7 @@ void polyfill(const Point3du* verts, const int n, uint32_t* dither, uint32_t* bi
     int ly = (int)miny, ry = (int)miny;
     int lx = 0, ldx = 0, rx = 0, rdx = 0;
     bitmap = bitmap + (int)miny * LCD_ROWSIZE32;
-    for (int y =(int)miny; y < maxy; ++y, bitmap+=LCD_ROWSIZE32) {
+    for (int y = (int)miny; y < maxy; ++y, bitmap+=LCD_ROWSIZE32) {
         // maybe update to next vert
         while (ly < y) {
             const Point3du* p0 = &verts[lj];
@@ -290,5 +290,129 @@ void texfill(const Point3du* verts, const int n, uint8_t* dither_ramp, uint8_t* 
         lu += ldu;
         ru += rdu;
     }
+    END_FUNC();
+}
+
+// alpha polyfill
+static void drawAlphaFragment(uint32_t* row, int x1, int x2, uint32_t color, uint32_t alpha)
+{
+    if (x2 < 0 || x1 >= LCD_COLUMNS)
+        return;
+
+    if (x1 < 0)
+        x1 = 0;
+
+    if (x2 > LCD_COLUMNS)
+        x2 = LCD_COLUMNS;
+
+    if (x1 > x2)
+        return;
+
+    // Operate on 32 bits at a time
+
+    int startbit = x1 & 31;
+    uint32_t startmask = swap((1 << (32 - startbit)) - 1);
+    int endbit = x2 & 31;
+    uint32_t endmask = swap(((1 << endbit) - 1) << (32 - endbit));
+
+    int col = x1 / 32;
+    uint32_t* p = row + col;
+
+    if (col == x2 / 32)
+    {
+        uint32_t mask = 0;
+
+        if (startbit > 0 && endbit > 0)
+            mask = startmask & endmask;
+        else if (startbit > 0)
+            mask = startmask;
+        else if (endbit > 0)
+            mask = endmask;
+
+        _drawMaskPattern(p, alpha & mask, color);
+    }
+    else
+    {
+        int x = x1;
+
+        if (startbit > 0)
+        {
+            _drawMaskPattern(p++, alpha & startmask, color);
+            x += (32 - startbit);
+        }
+
+        while (x + 32 <= x2)
+        {
+            _drawMaskPattern(p++, alpha, color);
+            x += 32;
+        }
+
+        if (endbit > 0)
+            _drawMaskPattern(p, alpha & endmask, color);
+    }
+}
+
+void alphafill(const Point3du* verts, const int n, uint32_t color, uint32_t* alpha, uint32_t* bitmap) {
+    BEGIN_FUNC();
+
+    float miny = FLT_MAX, maxy = FLT_MIN;
+    int mini = -1;
+    // find extent
+    for (int i = 0; i < n; ++i) {
+        float y = verts[i].y;
+        if (y < miny) miny = y, mini = i;
+        if (y > maxy) maxy = y;
+    }
+    // out of screen?
+    if (miny > LCD_ROWS || maxy < 0) {
+        END_FUNC();
+        return;
+    }
+
+    if (maxy > LCD_ROWS) maxy = LCD_ROWS;
+    if (miny < 0) miny = 0;
+
+    // data for left& right edges :
+    int lj = mini, rj = mini;
+    int ly = (int)miny, ry = (int)miny;
+    int lx = 0, ldx = 0, rx = 0, rdx = 0;
+    bitmap = bitmap + (int)miny * LCD_ROWSIZE32;
+    for (int y = (int)miny; y < maxy; ++y, bitmap += LCD_ROWSIZE32) {
+        // maybe update to next vert
+        while (ly < y) {
+            const Point3du* p0 = &verts[lj];
+            lj++;
+            if (lj >= n) lj = 0;
+            const Point3du* p1 = &verts[lj];
+            const float y0 = p0->y, y1 = p1->y;
+            const float dy = y1 - y0;
+            ly = (int)y1;
+            lx = __TOFIXED16(p0->x);
+            ldx = __TOFIXED16((p1->x - p0->x) / dy);
+            //sub - pixel correction
+            const float cy = y - y0;
+            lx += (int)(cy * ldx);
+        }
+        while (ry < y) {
+            const Point3du* p0 = &verts[rj];
+            rj--;
+            if (rj < 0) rj = n - 1;
+            const Point3du* p1 = &verts[rj];
+            const float y0 = p0->y, y1 = p1->y;
+            const float dy = y1 - y0;
+            ry = (int)y1;
+            rx = __TOFIXED16(p0->x);
+            rdx = __TOFIXED16((p1->x - p0->x) / dy);
+            //sub - pixel correction
+            const float cy = y - y0;
+            rx += (int)(cy * rdx);
+        }
+
+        drawAlphaFragment(bitmap, lx >> 16, rx >> 16, color, alpha[y & 31]);
+
+        lx += ldx;
+        rx += rdx;
+    }
+
     END_FUNC();
 }

@@ -89,6 +89,8 @@ struct {
 #define PROP_FLAG_KILL      4
 #define PROP_FLAG_3D        8
 #define PROP_FLAG_JUMP      16
+#define PROP_FLAG_Y_ROTATE  32
+#define PROP_FLAG_COIN      64
 
 typedef struct {
     int flags;
@@ -528,15 +530,11 @@ void collide(Point3d pos, float radius, int* hit_type)
                             v_lerp(&v0, &v2, t0->prop_t, &res);
                             make_v(pos, res, &res);
                             if (res.x * res.x + res.z * res.z < radius + props->radius * props->radius) {
-                                if (props->flags & PROP_FLAG_COLLECT) {
-                                    // "collect" prop
-                                    t0->prop_id = 0;
+                                if (props->flags & PROP_FLAG_COIN) {
                                     *hit_type = 3;
-                                    END_FUNC();
-                                    return;
                                 }
-                                // insta-kill?
-                                if (props->flags & PROP_FLAG_KILL) {
+                                else if (props->flags & PROP_FLAG_KILL) {
+                                    // insta-kill?
                                     *hit_type = 2;
                                 }
                                 else if (props->flags & PROP_FLAG_JUMP) {
@@ -545,6 +543,12 @@ void collide(Point3d pos, float radius, int* hit_type)
                                 else {
                                     *hit_type = 1;
                                 }
+
+                                if (props->flags & PROP_FLAG_COLLECT) {
+                                    // "collect" prop
+                                    t0->prop_id = 0;
+                                }
+
                                 END_FUNC();
                                 return;
                             }
@@ -748,9 +752,9 @@ void ground_init(PlaydateAPI* playdate) {
     _props_properties[PROP_SNOWBALL - 1] = (PropProperties){ .flags = PROP_FLAG_KILL, .radius = 2.f };
     _props_properties[PROP_SPLASH - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
     // 
-    _props_properties[PROP_JUMPPAD - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_JUMP, .radius = 2.0f };
+    _props_properties[PROP_JUMPPAD - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_JUMP | PROP_FLAG_Y_ROTATE | PROP_FLAG_COLLECT, .radius = 2.0f };
     // coin
-    _props_properties[PROP_COIN - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_COLLECT, .radius = 2.0f };
+    _props_properties[PROP_COIN - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_COLLECT | PROP_FLAG_COIN, .radius = 2.0f };
 
     // bind all props to the corresponding 3d model
     for (int i = 0; i < NEXT_PROP_ID; ++i) {
@@ -993,7 +997,7 @@ void add_render_prop(int id, const float* m) {
     memcpy(p->m, m, MAT4x4 * sizeof(float));
 }
 
-static void push_threeD_model(const int prop_id, const Point3d cv, const float* m) {
+static void push_threeD_model(const int prop_id, const Point3d cv, const float m[MAT4x4]) {
     BEGIN_FUNC();
 
     Point3du tmp[4];
@@ -1056,6 +1060,7 @@ static void push_coin(const Point3d* p, int time) {
 static void push_and_transform_threeD_model(const int prop_id, const Point3d cam_pos, const float* cam_m, const float* m) {
     BEGIN_FUNC();
 
+    // TODO: support for rotate flags?
     float mvv[MAT4x4];
     m_x_m(cam_m, m, mvv);
 
@@ -1267,11 +1272,26 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                             push_coin(&res, time_offset + j + _z_offset);
                         }
                         else {    
-                            const Point3d cv = { .x = cam_pos.x - pos.x,.y = cam_pos.y - pos.y,.z = cam_pos.z - pos.z};
+                            Point3d cv;
                             // adjust matrix to project into position
                             float mmvm[MAT4x4];
-                            m_x_translate(m, pos.v, mmvm);
-                            push_threeD_model(prop_id, cv, mmvm);
+                            if (_props_properties[prop_id - 1].flags & PROP_FLAG_Y_ROTATE) {
+                                float tmp[MAT4x4] = {
+                                    1.f,0.f,0.f,0.f,
+                                    0.f,1.f,0.f,0.f,
+                                    0.f,0.f,1.f,0.f,
+                                    pos.x,pos.y,pos.z,1.f };
+                                m_x_y_rot(tmp, pd->system->getElapsedTime(), mmvm);
+                                m_inv_x_v(mmvm, cam_pos.v, cv.v);
+                                m_x_m(m, mmvm, tmp);
+                                push_threeD_model(prop_id, cv, tmp);
+                            }
+                            else {
+                                cv = (Point3d){.x = cam_pos.x - pos.x,.y = cam_pos.y - pos.y,.z = cam_pos.z - pos.z};
+                                m_x_translate(m, pos.v, mmvm);
+                                push_threeD_model(prop_id, cv, mmvm);
+                            }
+                            
                         }
                     }
                 }
@@ -1327,6 +1347,9 @@ void render_props(Point3d cam_pos, float* m, uint8_t* bitmap) {
     // reset "free" props
     _render_props.n = 0;
 
+    // particles?
+    push_particles(&_drawables, cam_pos, m, 0);
+
     // sort & renders back to front
     if (_drawables.n > 0) {
         for (int i = 0; i < _drawables.n; ++i) {
@@ -1341,5 +1364,18 @@ void render_props(Point3d cam_pos, float* m, uint8_t* bitmap) {
             _sortables[k]->draw(_sortables[k], bitmap);
         }
     }
+
+    Point2d u = { .x = 64.f * cosf(pd->system->getElapsedTime()), .y = 64.f * sinf(pd->system->getElapsedTime()) };
+    Point3du pts[4];
+    for (int i = 0; i < 4; i++) {
+        pts[i].x = 199.5f + u.x;
+        pts[i].y = 119.5f + u.y;
+        // orthogonal next
+        const float ux = -u.x;
+        u.x = u.y;
+        u.y = ux;
+    }
+    alphafill(pts, 4, 0xffffffff, _dithers + 32 * 8, (uint32_t*)bitmap);
+
     END_FUNC();
 }

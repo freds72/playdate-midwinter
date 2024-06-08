@@ -96,7 +96,7 @@ void m_x_m(const float* restrict a, const float* restrict b, float* restrict out
     out[8] = a11 * b13 + a12 * b23 + a13 * b33;
     out[9] = a21 * b13 + a22 * b23 + a23 * b33;
     out[10] = a31 * b13 + a32 * b23 + a33 * b33;
-    out[11] = 0;
+    out[11] = 0.f;
 
     out[12] = a11 * b14 + a12 * b24 + a13 * b34 + a[12];
     out[13] = a21 * b14 + a22 * b24 + a23 * b34 + a[13];
@@ -136,4 +136,30 @@ void v_lerp(const Point3d* a, const Point3d* b, const float t, Point3d* out) {
     out->x = lerpf(a->x, b->x, t);
     out->y = lerpf(a->y, b->y, t);
     out->z = lerpf(a->z, b->z, t);
+}
+
+void m_x_y_rot(const float* restrict a, const float angle, float* restrict out) {
+    const float c = cosf(angle), s = sinf(angle);
+    const float a11 = a[0], a13 = a[8], a21 = a[1], a23 = a[9], a31 = a[2], a33 = a[10];
+
+    out[0] = a11 * c - a13 * s;
+    out[1] = a21 * c - a23 * s;
+    out[2] = a31 * c - a33 * s;
+    out[3] = 0.f;
+
+    out[8]  = a11 * s + a13 * c;
+    out[9]  = a21 * s + a23 * c;
+    out[10] = a31 * s + a33 * c;
+    out[11] = 0.f;
+
+    out[4] = a[4];
+    out[5] = a[5];
+    out[6] = a[6];
+    out[7] = 0.f;
+
+
+    out[12] = a[12];
+    out[13] = a[13];
+    out[14] = a[14];
+    out[15] = 1.f;
 }

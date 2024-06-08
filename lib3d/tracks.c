@@ -240,13 +240,13 @@ Section _race_section_start = {
     .random = 0,
     .seq = {.min = 0, .max = 0 },
     .timelines = {
-        {.timeline = "S..................." },
         {.timeline = "...................." },
+        {.timeline = "S..................." },
         {.timeline = "...................." },
         {.timeline = "..................n." },
         {.timeline = "...................." },
-        {.timeline = "...................." },
         {.timeline = "S..................." },
+        {.timeline = "...................." },
         {.timeline = NULL }
     }
 };
