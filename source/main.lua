@@ -395,7 +395,7 @@ function make_body(p)
 	local up,oldf={0,1,0}
 
 	local velocity,angularv,forces,torque={0,0,0},0,{0,0,0},0
-	local boost,perm_boost=0,0
+	local boost,perm_boost,drag=0,0,0
 	local angle,steering_angle,on_air_ttl,was_on_air=0,0,0
 
 	local g={0,-4,0}
@@ -429,6 +429,9 @@ function make_body(p)
 		perma_boost=function(self,b)
 			perm_boost = b
 		end,
+		drag=function(self,d)
+			drag=d
+		end,
 		integrate=function(self)
 			-- gravity and ground
 			self:apply_force_and_torque(g,0)
@@ -446,16 +449,16 @@ function make_body(p)
 
 			-- apply some damping
 			angularv*=0.86
+			drag*=0.9
+			if drag>0 then print("drag:"..drag) end
 			-- kill boost while on ground
 			if self.on_ground then boost*=0.9 end
 			-- some friction
 			local f=self.on_ground and 0.08 or 0.01
-			v_add(velocity,velocity,-f*v_dot(velocity,velocity))
+			v_add(velocity,velocity,-(f+drag)*v_dot(velocity,velocity))
 			
 			-- update pos & orientation
-			--local x,z=self.pos[1],self.pos[3]
 			v_add(self.pos,velocity,1 + boost + perm_boost)
-			--self.pos[1],self.pos[3]=x,z
 
 			-- limit rotating velocity
 			angularv=mid(angularv,-1,1)
@@ -465,7 +468,7 @@ function make_body(p)
 			forces,torque={0,0,0},0
 		end,
 		steer=function(self,steering_dt)
-			steering_angle=steering_angle+mid(steering_dt,-0.15,0.15)
+			steering_angle+=mid(steering_dt,-0.15,0.15)
 			-- on ground?
 			if self.on_ground and v_len(velocity)>0.001 then
 
@@ -637,12 +640,9 @@ function make_plyr(p,on_trick)
 			reverse_t,spin_prev=0
 		end
 
-		self.on_track=true
 		local slice=ground:get_track(pos)
 		self.gps=slice.angle+angle
-		if pos[1]<slice.xmin and pos[1]>slice.xmax then			
-			self.on_track=nil
-		end
+		self.on_track=pos[1]>=slice.xmin and pos[1]<=slice.xmax
 
 		-- need to have some speed
 		if v_dot(velocity,{-sin(angle),0,cos(angle)})<-0.2 then
@@ -705,9 +705,6 @@ function make_npc(p)
 
 		self:integrate()
 
-		-- difficulty up
-		boost = min(boost + 0.0001, 0.25)
-		self:perma_boost(boost)
 		-- call parent	
 		body_update(self)
 
@@ -724,7 +721,7 @@ function make_npc(p)
 		self.m = m
 
 		-- spawn particles
-		if abs(dir)>0.04 and rnd()>0.1 then
+		if self.on_ground and abs(dir)>0.04 and rnd()>0.1 then
 			local p=v_lerp(vgroups.SKIER_LEFT_SKI,vgroups.SKIER_RIGHT_SKI,rnd())
 			p[2]+=0.25
 			local v=m_x_v(m,p)
@@ -873,11 +870,11 @@ function menu_state(angle)
   local starting
 	local best_y = -20
 	local panels={
-		{state=play_state,loc=vgroups.MOUNTAIN_GREEN_TRACK,help="Chill mood?\nEnjoy the snow!",params={name="Marmottes",slope=1.5,twist=2.5,num_tracks=3,tight_mode=0,props_rate=0.95,track_type=0,min_cooldown=30*5,max_cooldown=30*35}},
+		{state=play_state,loc=vgroups.MOUNTAIN_GREEN_TRACK,help="Chill mood?\nEnjoy the snow!",params={name="Marmottes",slope=1.5,twist=2.5,num_tracks=3,tight_mode=0,props_rate=0.90,track_type=0,min_cooldown=30*5,max_cooldown=30*15}},
 		{state=play_state,loc=vgroups.MOUNTAIN_RED_TRACK,help=function()
 			return "Death Canyon\nHow far can you go?\nBest: ".._save_state.best_2.."m"
 		end
-		,params={name="Biquettes",dslot=2,slope=2,twist=3,num_tracks=1,tight_mode=1,props_rate=0.97,track_type=3,min_cooldown=8,max_cooldown=12}},
+		,params={name="Biquettes",dslot=2,slope=2,twist=3,num_tracks=1,tight_mode=1,props_rate=0.97,track_type=1,min_cooldown=8,max_cooldown=12}},
 		{state=race_state,loc=vgroups.MOUNTAIN_BLACK_TRACK,help=function()
 			return "Endless Race\nTake over mania!\nBest: ".._save_state.best_3.."m"
 		end,params={name="Chamois",dslot=3,slope=2.25,twist=5,num_tracks=1,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=8,max_cooldown=12}},
@@ -1329,6 +1326,61 @@ end
 
 -- -----------------------------	
 -- command handlers
+-- generic static prop
+local make_static_actor=function(id,x,sfx_name,update)
+	return function(lane)
+		local pos={x or (15.5-lane/2)*4,-16,30.5*4}
+		local y=ground:find_face(pos)
+		pos[2]=y
+		local y_acc=0
+		-- sfx?
+		local sfx=_ENV[sfx_name]
+		if sfx then
+			sfx:play(0)
+			sfx:setVolume(0)
+		end	
+		return {
+			id=id,
+			pos=pos,
+			m={
+				1,0,0,0,
+				0,1,0,0,
+				0,0,1,0,
+				0,0,0,1},
+			update=function(self,offset)
+				local pos=self.pos
+
+				-- shift
+				v_add(pos,offset)
+				y_acc += offset[2]
+				-- out of landscape?
+				if pos[3]<0 then
+					if sfx then
+						sfx:stop()
+					end
+					return 
+				end
+
+				-- update pos?
+				local m=self.m
+				if update then					
+					update(pos)		
+					pos[2]+=y_acc			
+				end
+				-- if sound
+				if sfx then
+					local d=v_len(make_v(pos,plyr.pos))
+					if d<16 then d=16 end
+					sfx:setVolume(16/d)
+				end
+				m[13]=pos[1]
+				m[14]=pos[2]
+				m[15]=pos[3]
+				return true
+			end
+		}
+	end	
+end
 local command_handlers={
 	-- snowball!!
 	B=function(lane)
@@ -1417,65 +1469,20 @@ local command_handlers={
 		end)
 	end,
 	-- (tele)cabin
-	t=function()
-		return {
-			id=models.PROP_CABINS,
-			pos={15.5*4,-16,30.5*4},
-			m={
-				1,0,0,0,
-				0,1,0,0,
-				0,0,1,0,
-				0,0,0,1},
-			update=function(self,offset)
-				local pos=self.pos
-
-				-- shift
-				v_add(pos,offset)
-				-- todo: find a last costly solution
-				local newy=ground:find_face(pos)
-				if newy then pos[2]=newy end
-
-				-- out of landscape?
-				if pos[3]<0 then return end
-
-				local m=self.m
-				m[13]=pos[1]
-				m[14]=pos[2]
-				m[15]=pos[3]					
-				return true
-			end
-		}
-	end,
+	t=make_static_actor(models.PROP_CABINS,15.5*4),
 	-- hot air balloon
-	h=function(lane)
-		return {
-			id=models.PROP_BALLOON,
-			pos={(15.5-lane/2)*4,-16,30.5*4},
-			m={
-				1,0,0,0,
-				0,1,0,0,
-				0,0,1,0,
-				0,0,0,1},
-			update=function(self,offset)
-				local pos=self.pos
-
-				-- shift
-				v_add(pos,offset)
-				-- todo: find a last costly solution
-				local newy=ground:find_face(pos)
-				if newy then pos[2]=newy end
-
-				-- out of landscape?
-				if pos[3]<0 then return end
-
-				local m=self.m
-				m[13]=pos[1]
-				m[14]=pos[2]
-				m[15]=pos[3]
-				return true
-			end
-		}
-	end		
+	h=make_static_actor(models.PROP_BALLOON),
+	-- eagles
+	a=make_static_actor(models.PROP_EAGLES,nil,"_eagle_sfx"),
+	-- heli
+	e=make_static_actor(models.PROP_HELO,nil,"_helo_sfx",function(pos)
+		-- move toward player
+		pos[3]-=1
+		-- get current height
+		local ny=ground:find_face(pos)
+		-- wooble over ground
+		pos[2] = ny + 16 + 2*cos(time())
+	end)
 }
 
 -- -------------------------
@@ -1608,7 +1615,7 @@ function play_state(params,help_ttl)
 				end
 			end
 
-			local offset={0,0,wz}
+			local offset={0,wy,wz}
 			for i=#actors,1,-1 do
 				local a=actors[i]
 				if not a:update(offset) then
@@ -1670,7 +1677,7 @@ function play_state(params,help_ttl)
 					img:draw(200-w/2,42)
 				end
 
-				-- boost?
+				-- boost "speed lines" effect 
 				if boost>0.25 then
 					gfx.setColor(gfx.kColorBlack)
 					local r0 = 100 + 32*(1 - boost / 1.5)
@@ -1742,6 +1749,13 @@ function race_state(params)
 		-- update
 		function()
 			play_update()
+			if plyr then
+				if plyr.on_track then
+					plyr:drag(0)
+				else
+					plyr:drag(rnd(0.1))
+				end
+			end
 			if npc then
 				if npc.dead then
 					plyr.dead = true
@@ -1918,6 +1932,8 @@ function _init()
 
 	_ski = gfx.image.new("images/ski")
 	_ski_sfx = playdate.sound.sampleplayer.new("sounds/skiing_loop")
+	_eagle_sfx = playdate.sound.sampleplayer.new("sounds/eagle_loop")
+	_helo_sfx = playdate.sound.sampleplayer.new("sounds/helo_loop")
 	_coin_sfx = playdate.sound.sampleplayer.new("sounds/coin")
 	_checkpoint_sfx = playdate.sound.sampleplayer.new("sounds/checkpoint")
 	_treehit_sfx = playdate.sound.sampleplayer.new("sounds/tree-impact-1")

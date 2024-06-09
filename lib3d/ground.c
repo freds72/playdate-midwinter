@@ -218,61 +218,64 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
     Tracks* tracks = _ground.tracks;    
     for (int k = 0; k < tracks->n; ++k) {
         Track* t = &tracks->tracks[k];
-        // center on track
-        const int i0 = t->imin, i1 = t->imax + 1;
-        if (t->is_main) {
-            main_track_x = t->x;
-            imin = i0;
-            imax = i1;
-            for (int i = i0; i < i1; ++i) {
-                // remove props from track
-                int prop_id = 0;
-                float prop_t = 0.5f;
-                switch (_ground.tracks->pattern[i - i0]) {
-                case 'W': prop_id = PROP_WARNING; break;
-                case 'R': prop_id = PROP_ROCK; break;
-                case 'M': prop_id = PROP_COW; prop_t = randf(); break;
-                case 'J': prop_id = PROP_JUMPPAD; break;
-                case 'S': prop_id = PROP_START; break;
-                case 'T': 
-                    prop_id = trees[(int)(3.f * randf())]; 
-                    prop_t = randf(); 
-                    // tree shading
-                    shadow_mask |= 0x3 << i;
-                    break;
-                default:
-                    ;
+        if (!t->is_dead) {
+            // center on track
+            const int i0 = t->imin, i1 = t->imax + 1;
+            if (t->is_main) {
+                // random filling
+                for (int i = 3; i < i0 - 1; i++) {
+                    GroundTile* tile = &slice->tiles[i];
+                    if (randf() > active_params.props_rate) {
+                        tile->prop_id = trees[(int)(3.f * randf())];
+                        tile->prop_t = randf();
+                        // slight shading under trees
+                        shadow_mask |= 0x3 << i;
+                    }
                 }
 
-                slice->tiles[i].prop_id = prop_id;
-                slice->tiles[i].prop_t = prop_t;
-                slice->tracks_mask |= 1 << i;
-            }
-        }
-        else {
-            // side tracks are less obvious
-            for (int i = i0; i < i1; ++i) {
-                slice->tracks_mask |= 1 << i;
-            }
-        }
+                for (int i = i1 + 1; i < GROUND_SIZE - 2; i++) {
+                    GroundTile* tile = &slice->tiles[i];
+                    if (randf() > active_params.props_rate) {
+                        tile->prop_id = trees[(int)(3.f * randf())];
+                        tile->prop_t = randf();
+                        // slight shading under trees
+                        shadow_mask |= 0x3 << i;
+                    }
+                }
 
-        // random filling
-        for (int i = 3; i < i0 - 1; i++) {
-            GroundTile* tile = &slice->tiles[i];
-            if (randf() > active_params.props_rate) {
-                tile->prop_id = trees[(int)(3.f * randf())];
-                tile->prop_t = randf();
-                // slight shading under trees
-                shadow_mask |= 0x3 << i;
+                main_track_x = t->x;
+                imin = i0;
+                imax = i1;
+                for (int i = i0; i < i1; ++i) {
+                    // remove props from track
+                    int prop_id = 0;
+                    float prop_t = 0.5f;
+                    switch (_ground.tracks->pattern[i - i0]) {
+                    case 'W': prop_id = PROP_WARNING; break;
+                    case 'R': prop_id = PROP_ROCK; break;
+                    case 'M': prop_id = PROP_COW; prop_t = randf(); break;
+                    case 'J': prop_id = PROP_JUMPPAD; break;
+                    case 'S': prop_id = PROP_START; break;
+                    case 'T':
+                        prop_id = trees[(int)(3.f * randf())];
+                        prop_t = randf();
+                        // tree shading
+                        shadow_mask |= 0x3 << i;
+                        break;
+                    default:
+                        ;
+                    }
+
+                    slice->tiles[i].prop_id = prop_id;
+                    slice->tiles[i].prop_t = prop_t;
+                    slice->tracks_mask |= 1 << i;
+                }
             }
-        }
-        for (int i = i1 + 1; i < GROUND_SIZE - 2; i++) {
-            GroundTile* tile = &slice->tiles[i];
-            if (randf() > active_params.props_rate) {
-                tile->prop_id = trees[(int)(3.f * randf())];
-                tile->prop_t = randf();
-                // slight shading under trees
-                shadow_mask |= 0x3 << i;
+            else {
+                // side tracks are less obvious
+                for (int i = i0; i < i1; ++i) {
+                    slice->tracks_mask |= 1 << i;
+                }
             }
         }
     }
@@ -790,7 +793,7 @@ static uint32_t _visible_tiles[GROUND_SIZE];
 
 // stores all things that are going to be drawn
 static Drawables _drawables;
-static Drawable* _sortables[GROUND_SIZE * GROUND_SIZE * 4];
+static Drawable* _sortables[MAX_DRAWABLES];
 
 // cache entry (transformed point in camera space)
 typedef struct {
@@ -1010,7 +1013,8 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float m
             int n = f->flags & FACE_FLAG_QUAD?4:3;
             // transform
             int outcode = 0xfffffff, is_clipped_near = 0;
-            float min_key = FLT_MIN;
+            float min_key = FLT_MAX;
+            float max_key = FLT_MIN;
             for (int i = 0; i < n; ++i) {
                 Point3du* res = &tmp[i];
                 // project using active matrix
@@ -1018,9 +1022,10 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float m
                 int code = res->z > Z_NEAR ? OUTCODE_IN : OUTCODE_NEAR;
                 if (res->x > res->z) code |= OUTCODE_RIGHT;
                 if (-res->x > res->z) code |= OUTCODE_LEFT;
+                if (res->z < min_key) min_key = res->z;
+                if (res->z > max_key) max_key = res->z;
                 outcode &= code;
                 is_clipped_near |= code;
-                if (res->z > min_key) min_key = res->z;
                 // use u to mark sharp edges
                 res->u = f->edges & (1 << i);
             }
@@ -1029,7 +1034,7 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float m
             if (outcode == 0) {
                 Drawable* drawable = &_drawables.all[_drawables.n++];
                 drawable->draw = draw_face;
-                drawable->key = min_key;
+                drawable->key = f->flags & FACE_FLAG_LARGE ?max_key:min_key;
                 DrawableFace* face = &drawable->face;
                 face->flags = f->flags;
                 face->material = f->material;
@@ -1306,6 +1311,10 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
         }
     }
 
+    // shifting world offset
+    float world_y_offset = _ground.y_offset - _ground.slices[0]->y;
+    m[13] -= world_y_offset;
+
     // any "free" props?
     for (int i = 0; i < _render_props.n; ++i) {
         RenderProp* prop = &_render_props.props[i];
@@ -1315,7 +1324,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
     _render_props.n = 0;
 
     // particles?
-    push_particles(&_drawables, cam_pos, m, _ground.y_offset - _ground.slices[0]->y);
+    push_particles(&_drawables, cam_pos, m);
 
     // sort & renders back to front
     if (_drawables.n > 0) {        
@@ -1348,7 +1357,7 @@ void render_props(Point3d cam_pos, float* m, uint8_t* bitmap) {
     _render_props.n = 0;
 
     // particles?
-    push_particles(&_drawables, cam_pos, m, 0);
+    push_particles(&_drawables, cam_pos, m);
 
     // sort & renders back to front
     if (_drawables.n > 0) {

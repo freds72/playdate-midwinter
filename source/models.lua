@@ -25,6 +25,7 @@ PROP_TREE1 = 1
 ,PROP_BALLOON = 22
 ,PROP_SLED = 23
 ,PROP_MOUNTAIN = 24
+,PROP_EAGLES = 25
 
 }
 -- named vertices

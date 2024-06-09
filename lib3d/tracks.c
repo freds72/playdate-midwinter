@@ -28,19 +28,20 @@ Section _chill_sections[] = {
     // cabins
     {
         .random = 0,
-        .seq = {.min = 30, .max = INT_MAX },
+        .seq = {.min = 0, .max = INT_MAX },
         .timelines = {
             {.timeline = "." },
             {.timeline = "." },
-            {.timeline = "." },
             {.timeline = "t" },
+            {.timeline = "." },
+            {.timeline = "." },
             {.timeline = NULL }
         }
     },
     // hot air balloon
     {
         .random = 1,
-        .seq = {.min = 30, .max = INT_MAX },
+        .seq = {.min = 0, .max = INT_MAX },
         .timelines = {
             {.timeline = "h" },
             {.timeline = "." },
@@ -53,12 +54,24 @@ Section _chill_sections[] = {
     // eagle(s)
     {
         .random = 1,
-        .seq = {.min = 30, .max = INT_MAX },
+        .seq = {.min = 0, .max = INT_MAX },
         .timelines = {
             {.timeline = "." },
             {.timeline = "." },
+            {.timeline = "." },
+            {.timeline = "a" },
+            {.timeline = NULL }
+        }
+    },
+    // helo
+    {
+        .random = 1,
+        .seq = {.min = 0, .max = INT_MAX },
+        .timelines = {
+            {.timeline = "." },
+            {.timeline = "." },
+            {.timeline = "." },
             {.timeline = "e" },
-            {.timeline = "....e.." },
             {.timeline = NULL }
         }
     },
@@ -149,54 +162,10 @@ Section _test_sections[] = {
         .random = 0,
         .seq = {.min = 0, .max = INT_MAX },
         .timelines = {
-            {.timeline = "T.T..T..T"},
-            {.timeline = "......................"},
-            {.timeline = "......................"},
-            {.timeline = "......................"},
-            {.timeline = ".T..TTT"},
-            {.timeline = NULL }
-        }
-    },
-    {
-        .random = 0,
-        .seq = {.min = 0, .max = INT_MAX },
-        .timelines = {
-            {.timeline = "T.T..TTT"},
-            {.timeline = "......................"},
-            {.timeline = "......................"},
-            {.timeline = ".T..T.T"},
-            {.timeline = NULL }
-        }
-    },
-    {
-        .random = 0,
-        .seq = {.min = 0, .max = INT_MAX },
-        .timelines = {
-            {.timeline = "T.T..T..T"},
-            {.timeline = "......................"},
-            {.timeline = ".T..T..T"},
-            {.timeline = NULL }
-        }
-    },
-    {
-        .random = 0,
-        .seq = {.min = 0, .max = INT_MAX },
-        .timelines = {
-            {.timeline = "TT.TT.."},
-            {.timeline = "..T.T.........."},
-            {.timeline = "....T.T........"},
-            {.timeline = "......T.T......"},
-            {.timeline = "........T.T.T.."},
-            {.timeline = ".."},
-            {.timeline = "..........T..TT"},
-            {.timeline = NULL }
-        }
-    },
-    {
-        .random = 0,
-        .seq = {.min = 0, .max = INT_MAX },
-        .timelines = {
-            {.timeline = "..................."},
+            {.timeline = "..............." },
+            {.timeline = "t.....h......e.......a.............."},
+            {.timeline = "..............." },
+            {.timeline = "..............." },
             {.timeline = NULL }
         }
     }
@@ -204,25 +173,25 @@ Section _test_sections[] = {
 
 // black track (race)
 Section _race_sections[] = {
-    // accel pad
+    // 2x accel pad
     {
         .random = 0,
-        .seq = {.min = 1, .max = INT_MAX },
+        .seq = {.min = 1, .max = 24 },
         .timelines = {
             {.timeline = "." },
             {.timeline = "." },
-            {.timeline = ".................J......." },
-            {.timeline = "........................." },
-            {.timeline = ".....J..................." },
+            {.timeline = ".............J." },
+            {.timeline = "..............." },
+            {.timeline = ".J............." },
             {.timeline = "." },
             {.timeline = "." },
             {.timeline = NULL }
         }
     },
-    // accel pad
+    // 1x accel pad
     {
         .random = 1,
-        .seq = {.min = 1, .max = INT_MAX },
+        .seq = {.min = 1, .max = 12 },
         .timelines = {
             {.timeline = "." },  
             {.timeline = "." },
@@ -230,7 +199,65 @@ Section _race_sections[] = {
             {.timeline = "." },
             {.timeline = "." },
             {.timeline = "." },
-            {.timeline = ".....J....." },
+            {.timeline = "..J.." },
+            {.timeline = NULL }
+        }
+    },
+    // accel pad + trees
+    {
+        .random = 1,
+        .seq = {.min = 4, .max = 24 },
+        .timelines = {
+            {.timeline = ".T...T.T." },
+            {.timeline = "." },
+            {.timeline = "...T.." },
+            {.timeline = "." },
+            {.timeline = "T...J" },
+            {.timeline = "." },
+            {.timeline = "..T.." },
+            {.timeline = NULL }
+        }
+    },
+    // accel pad + trees
+    {
+        .random = 1,
+        .seq = {.min = 10, .max = INT_MAX },
+        .timelines = {
+            {.timeline = ".T" },
+            {.timeline = "." },
+            {.timeline = ".T." },
+            {.timeline = "." },
+            {.timeline = "...J." },
+            {.timeline = "." },
+            {.timeline = "..T.." },
+            {.timeline = NULL }
+        }
+    },
+    // 1x accel pad + hazard
+    {
+        .random = 1,
+        .seq = {.min = 4, .max = INT_MAX },
+        .timelines = {
+            {.timeline = "." },
+            {.timeline = "." },
+            {.timeline = "...W..R..J....." },
+            {.timeline = "." },
+            {.timeline = ".......W..R..J." },
+            {.timeline = "." },
+            {.timeline = NULL }
+        }
+    },
+    // 1x accel pad + cows
+    {
+        .random = 1,
+        .seq = {.min = 12, .max = INT_MAX },
+        .timelines = {
+            {.timeline = "." },
+            {.timeline = ".....M.." },
+            {.timeline = "...M..J....." },
+            {.timeline = "." },
+            {.timeline = ".......M..J." },
+            {.timeline = "." },
             {.timeline = NULL }
         }
     }
@@ -346,7 +373,7 @@ static int update_track(Track *track,int warmup)
   if (track->is_dead)
     return 0;
 
-  if (!warmup) {
+  if (!warmup && track->is_main) {
       // next section?
       if (!_section_director.active_section) {
           // lerp width
@@ -397,6 +424,10 @@ static int update_track(Track *track,int warmup)
               }
               _section_director.t++;
               // don't twist sections!
+              const int ii = (int)(track->x / GROUND_CELL_SIZE);
+              track->imin = ii - track->width / 2;
+              track->imax = ii + track->width / 2;
+
               return 1;
           }
           else {
@@ -482,7 +513,13 @@ void make_tracks(const int xmin, const int xmax, GroundParams params, Tracks **o
   _section_director.active_section = NULL;
   _section_director.next_section = NULL;
   _section_director.min_cooldown = params.min_cooldown;
-  _section_director.max_cooldown = params.max_cooldown;
+  _section_director.max_cooldown = params.max_cooldown;  
+  // debug safeguards
+#ifdef _DEBUG
+  if (params.min_cooldown <= 0 || params.min_cooldown > params.max_cooldown) {
+      pd->system->error("Invalid cooldown values: %i/%i", params.min_cooldown, params.max_cooldown);
+  }
+#endif 
   _section_director.cooldown = lerpi(params.min_cooldown, params.max_cooldown, randf());
   _section_director.next_cooldown = lerpi(params.min_cooldown, params.max_cooldown, randf());
   _section_director.catalog = _catalog[params.track_type];

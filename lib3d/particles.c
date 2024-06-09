@@ -127,7 +127,7 @@ static void draw_particle(Drawable* drawable, uint8_t* bitmap) {
     END_FUNC();
 }
 
-void push_particles(Drawables* drawables, Point3d cam_pos, float* m, const float y_offset) {
+void push_particles(Drawables* drawables, Point3d cam_pos, float* m) {
     for(int i=0;i<sizeof(_emitters)/sizeof(Emitter);i++) {
         Emitter* emitter = &_emitters[i];
         ParticlesPool* pool = &emitter->pool;
@@ -138,9 +138,7 @@ void push_particles(Drawables* drawables, Point3d cam_pos, float* m, const float
             it &= PARTICLE_RING_MOD_SIZE;
             // active?
             if (p->ttl > 0) {
-                Point3d tmp = p->pos;
-                tmp.y -= y_offset;
-                m_x_v(m, tmp.v, res.v);
+                m_x_v(m, p->pos.v, res.v);
                 // visible?
                 if (res.z > Z_NEAR && res.z < (float)(GROUND_CELL_SIZE * MAX_TILE_DIST)) {
                     Drawable* drawable = &drawables->all[drawables->n++];

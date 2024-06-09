@@ -52,10 +52,11 @@ typedef struct Drawable_s {
     };
 } Drawable;
 
+#define MAX_DRAWABLES 2048
 typedef struct {
     int n;
     // arbitrary limit
-    Drawable all[1024];
+    Drawable all[MAX_DRAWABLES];
 } Drawables;
 
 void drawables_init(PlaydateAPI* playdate);
