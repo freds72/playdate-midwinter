@@ -68,15 +68,6 @@ local atan2 = function(x,y)
   return math.atan2(y,x)/math.pi
 end
 -- 
-local function nop() end
-local pal=nop
-local palt=nop
-local music=nop
-local sfx=nop
-local spr=nop
-local sspr=nop
-local fillp=nop
-local rectfill=nop
 local camera=function(x,y)
   playdate.display.setOffset(x or 0,y or 0)
 end
@@ -395,7 +386,7 @@ function make_body(p)
 	local up,oldf={0,1,0}
 
 	local velocity,angularv,forces,torque={0,0,0},0,{0,0,0},0
-	local boost,perm_boost,drag=0,0,0
+	local boost,perm_boost=0,0
 	local angle,steering_angle,on_air_ttl,was_on_air=0,0,0
 
 	local g={0,-4,0}
@@ -403,6 +394,7 @@ function make_body(p)
 		pos=v_clone(p),
 		on_ground=nil,
 		height=0,
+		drag=0,
 		get_pos=function(self)
 	 		return self.pos,angle,steering_angle/0.625,velocity,boost
 		end,
@@ -429,9 +421,6 @@ function make_body(p)
 		perma_boost=function(self,b)
 			perm_boost = b
 		end,
-		drag=function(self,d)
-			drag=d
-		end,
 		integrate=function(self)
 			-- gravity and ground
 			self:apply_force_and_torque(g,0)
@@ -449,12 +438,12 @@ function make_body(p)
 
 			-- apply some damping
 			angularv*=0.86
-			drag*=0.9
+			self.drag*=0.9
 			-- kill boost while on ground
 			if self.on_ground then boost*=0.9 end
 			-- some friction
 			local f=self.on_ground and 0.08 or 0.01
-			v_add(velocity,velocity,-(f+drag)*v_dot(velocity,velocity))
+			v_add(velocity,velocity,-(f+self.drag)*v_dot(velocity,velocity))
 			
 			-- update pos & orientation
 			v_add(self.pos,velocity,1 + boost + perm_boost)
@@ -529,7 +518,11 @@ function make_body(p)
 				pos[2]=newy			
 				self.on_ground=true
 				-- was on air? big enough jump?
-				if on_air_ttl>23 then cam:shake(16) sfx(12) on_air_ttl=0 sfx(11) end
+				if on_air_ttl>23 then 
+					cam:shake(16) 					
+					on_air_ttl=0 
+					-- todo: sfx
+				end
 			end
 
 			self.height=lerp(self.height,tgt_height,0.4)
@@ -676,6 +669,8 @@ function make_npc(p)
 	local dir,boost=0,0
 	local body_update=body.update
 	body.id = models.PROP_SKIER
+	local sfx=_ski_sfx:copy()
+	sfx:play(0)
 
 	body.update=function(self)
 		local pos=self.pos
@@ -684,6 +679,7 @@ function make_npc(p)
 		local _,angle=self:get_pos()
 		local slice=ground:get_track(pos)
 		if slice.z>29*4 or slice.z<4 then
+			sfx:stop()
 			-- kill npc
 			self.dead=true
 			return
@@ -723,6 +719,15 @@ function make_npc(p)
 			
 			lib3d.spawn_particle(0, table.unpack(v))
 		end
+
+		-- update sfx
+		local volume=self.on_ground and 1 or 0
+		-- distance to player
+		local dist=v_len(make_v(self.pos,plyr.pos))
+		if dist<4 then dist=4 end
+		sfx:setVolume(volume*4/dist)
+		sfx:setRate(1-abs(da/2))
+
 		return true
 	end
 
@@ -886,7 +891,9 @@ function menu_state(angle)
 	local cam=make_cam({0,0.8,-0.5})
 
 	-- clean up
-	music(0)
+	local music = playdate.sound.fileplayer.new("sounds/alps_polka")
+	music:play(0)
+
 	_ski_sfx:stop()
 	lib3d.clear_particles()
 
@@ -964,15 +971,16 @@ function menu_state(angle)
 	return
 		-- update
 		function()
-			if playdate.buttonJustReleased(playdate.kButtonUp) then sel-=1 end
-			if playdate.buttonJustReleased(playdate.kButtonDown) then sel+=1 end
+			if playdate.buttonJustReleased(playdate.kButtonUp) then sel-=1 _button_click:play(1) end
+			if playdate.buttonJustReleased(playdate.kButtonDown) then sel+=1 _button_click:play(1) end
 			sel=mid(sel,0,#panels-1)
 			
 			if not starting and playdate.buttonJustReleased(playdate.kButtonA) then
-				sfx(8)
 				-- sub-state
         starting=true
 				do_async(function()
+					-- fade out music
+					music:setVolume(0,0,1)
 					local panel = panels[sel+1]
 					-- project location into world space
 					local world_loc = m_x_v(actors[1].m,panel.loc)		
@@ -982,6 +990,7 @@ function menu_state(angle)
 						look_at=v_lerp(look_at,world_loc,0.1)
 						coroutine.yield()
 					end
+					music:stop()
 					-- restore random seed
 					srand(playdate.getSecondsSinceEpoch())
 					local p=panels[sel+1]
@@ -1196,8 +1205,8 @@ function shop_state(...)
 		-- update
 		function()
 			if action_ttl==0 then
-				if playdate.buttonJustReleased(playdate.kButtonUp) then selection-=1 button_x = -80 end
-				if playdate.buttonJustReleased(playdate.kButtonDown) then selection+=1 button_x = -80 end
+				if playdate.buttonJustReleased(playdate.kButtonUp) then selection-=1 button_x = -80 _button_click:play(1) end
+				if playdate.buttonJustReleased(playdate.kButtonDown) then selection+=1 button_x = -80 _button_click:play(1) end
 				if selection<1 then selection=#_store_items-1 end
 				if selection>#_store_items then selection=1 end
 			end
@@ -1223,6 +1232,7 @@ function shop_state(...)
 				end
 			end
 			if playdate.buttonJustReleased(playdate.kButtonB) then
+				_button_click:play(1)
 				next_state(menu_zoomout_state,table.unpack(menu_params))
 			end
 
@@ -1499,8 +1509,7 @@ function play_state(params,help_ttl)
 		end
 	end
 	
-	-- stop music
-	music(-1,250)
+	-- todo: stop music	
 
 	-- reset particles
 	lib3d.clear_particles()
@@ -1628,8 +1637,8 @@ function play_state(params,help_ttl)
 
 				if plyr.dead then
 					_ski_sfx:stop()
-					
-					sfx(3)
+
+					-- todo: game over music
 					cam:shake()
 
 					-- latest score
@@ -1640,10 +1649,11 @@ function play_state(params,help_ttl)
 					local volume=plyr.on_ground and 0.25-2*plyr.height or 0
 					_ski_sfx:setVolume(volume)
 					_ski_sfx:setRate(1-abs(steering/2))
-
+					-- simulates fresh snow
+					_ski_sfx:setRate(1-8*plyr.drag)
 					-- reset?
 					if help_ttl>90 and playdate.buttonJustPressed(_input.back.id) then				
-						_ski_sfx:setVolume(volume/2)		
+						_ski_sfx:setVolume(volume/2)
 						next_state(restart_state,params)
 					end
 				end
@@ -1749,9 +1759,9 @@ function race_state(params)
 			play_update()
 			if plyr then
 				if plyr.on_track then
-					plyr:drag(0)
+					plyr.drag = 0
 				else
-					plyr:drag(rnd(0.1))
+					plyr.drag = rnd(0.1)
 				end
 			end
 			if npc then
@@ -1935,6 +1945,7 @@ function _init()
 	_coin_sfx = playdate.sound.sampleplayer.new("sounds/coin")
 	_checkpoint_sfx = playdate.sound.sampleplayer.new("sounds/checkpoint")
 	_treehit_sfx = playdate.sound.sampleplayer.new("sounds/tree-impact-1")
+	_button_click = playdate.sound.sampleplayer.new("sounds/ui_button_click")
 
 	_game_over = gfx.image.new("images/game_over")
 	_game_title = gfx.image.new("images/game_title")

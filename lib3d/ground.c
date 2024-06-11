@@ -357,7 +357,7 @@ void update_ground(Point3d* p, int* slice_id, char** pattern, Point3d* offset) {
         p->z -= GROUND_CELL_SIZE;
         offset->z -= GROUND_CELL_SIZE;
         _ground.max_pz -= GROUND_CELL_SIZE;
-        const GroundSlice* old_slice = _ground.slices[0];
+        GroundSlice* old_slice = _ground.slices[0];
         const float old_y = old_slice->y;
         offset->y -= old_y;
         // drop slice 0
