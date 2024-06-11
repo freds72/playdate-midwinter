@@ -25,6 +25,7 @@ typedef struct {
 
 typedef struct {
     int flags;
+    uint16_t color;
     IntRange ttl;
     FloatRange angularv;
     FloatRange decay;
@@ -38,12 +39,25 @@ Emitter _emitters[] = {
     // snow trail
     {
         .flags = 0,
-        .ttl = {.min = 24, .max = 45 },
-        .angularv = {.min = -1.f, .max=1.f},
+        .color = 1,
+        .ttl = {.min = 24, .max = 35 },
+        .angularv = {.min = -1.f, .max = 1.f},
         .decay = {.min = 0.95f, .max = 0.97f },
         .radius = {.min = 0.5f, .max = 1.f},
         .y_velocity = {.min = 0.1f, .max = 0.25f},
         .gravity = -0.05f,
+        .pool = {0}
+    },
+    // smoke
+    {
+        .flags = 0,
+        .color = 0,
+        .ttl = {.min = 24, .max = 45 },
+        .angularv = {.min = -1.f, .max = 1.f},
+        .decay = {.min = 1.f, .max = 1.01f },
+        .radius = {.min = 0.1f, .max = 0.25f},
+        .y_velocity = {.min = 0.f, .max = 0.f},
+        .gravity = +0.05f,
         .pool = {0}
     }
 };
@@ -88,7 +102,7 @@ void update_particles(Point3d offset) {
                 p->y_velocity += emitter->gravity;
                 p->pos.y += p->y_velocity;
 
-                // accumulate world offsets
+                // accumulate world offset
                 for (int j = 0; j < 3; j++) p->pos.v[j] += offset.v[j];
             }
             else {
@@ -123,7 +137,7 @@ static void draw_particle(Drawable* drawable, uint8_t* bitmap) {
         u.y = ux;
     }
 
-    alphafill(pts, 4, 0xffffffff, _dithers + 32 * particle->material, (uint32_t*)bitmap);
+    alphafill(pts, 4, 0xffffffff * particle->color, _dithers + 32 * particle->alpha, (uint32_t*)bitmap);
     END_FUNC();
 }
 
@@ -147,8 +161,9 @@ void push_particles(Drawables* drawables, Point3d cam_pos, float* m) {
                     drawable->particle.pos = res;
                     drawable->particle.angle = p->angle;
                     drawable->particle.radius = p->radius;
-                    drawable->particle.material = (8 * p->age) / emitter->ttl.max;
-                    if (drawable->particle.material > 8) drawable->particle.material = 8;
+                    drawable->particle.color = emitter->color;
+                    drawable->particle.alpha = (8 * p->age) / emitter->ttl.max;
+                    if (drawable->particle.alpha > 8) drawable->particle.alpha = 8;
                 }
             }
         }

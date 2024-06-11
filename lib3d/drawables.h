@@ -29,8 +29,14 @@ typedef struct {
     Point3d pos;
 } DrawableCoin;
 
-typedef struct {
-    int material;
+typedef struct {    
+    union {
+        struct {
+            uint16_t alpha;
+            uint16_t color;
+        };
+        uint32_t material;
+    };
     float radius;
     float angle;
     Point3d pos;

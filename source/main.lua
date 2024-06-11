@@ -450,7 +450,6 @@ function make_body(p)
 			-- apply some damping
 			angularv*=0.86
 			drag*=0.9
-			if drag>0 then print("drag:"..drag) end
 			-- kill boost while on ground
 			if self.on_ground then boost*=0.9 end
 			-- some friction
@@ -677,14 +676,13 @@ function make_npc(p)
 	local dir,boost=0,0
 	local body_update=body.update
 	body.id = models.PROP_SKIER
-	
-	body.update=function(self,offset)
-		-- shift
-		v_add(self.pos,offset)
-		
+
+	body.update=function(self)
+		local pos=self.pos
+
 		-- crude ai control!
 		local _,angle=self:get_pos()
-		local slice=ground:get_track(self.pos)
+		local slice=ground:get_track(pos)
 		if slice.z>29*4 or slice.z<4 then
 			-- kill npc
 			self.dead=true
@@ -709,7 +707,6 @@ function make_npc(p)
 		body_update(self)
 
 		-- create orientation matrix
-		local pos=self.pos
 		local newy,newn=ground:find_face(pos)
 		up=v_lerp(up,newn,0.3)
 		local _,angle=self:get_pos()
@@ -722,9 +719,7 @@ function make_npc(p)
 
 		-- spawn particles
 		if self.on_ground and abs(dir)>0.04 and rnd()>0.1 then
-			local p=v_lerp(vgroups.SKIER_LEFT_SKI,vgroups.SKIER_RIGHT_SKI,rnd())
-			p[2]+=0.25
-			local v=m_x_v(m,p)
+			local v=m_x_v(m,v_lerp(vgroups.SKIER_LEFT_SKI,vgroups.SKIER_RIGHT_SKI,rnd()))
 			
 			lib3d.spawn_particle(0, table.unpack(v))
 		end
@@ -950,6 +945,7 @@ function menu_state(angle)
 			m[13]=pos[1]
 			m[14]=pos[2]
 			m[15]=pos[3]
+
 			self.m=m
 		end
 	})
@@ -1332,7 +1328,6 @@ local make_static_actor=function(id,x,sfx_name,update)
 		local pos={x or (15.5-lane/2)*4,-16,30.5*4}
 		local y=ground:find_face(pos)
 		pos[2]=y
-		local y_acc=0
 		-- sfx?
 		local sfx=_ENV[sfx_name]
 		if sfx then
@@ -1347,12 +1342,8 @@ local make_static_actor=function(id,x,sfx_name,update)
 				0,1,0,0,
 				0,0,1,0,
 				0,0,0,1},
-			update=function(self,offset)
+			update=function(self)
 				local pos=self.pos
-
-				-- shift
-				v_add(pos,offset)
-				y_acc += offset[2]
 				-- out of landscape?
 				if pos[3]<0 then
 					if sfx then
@@ -1364,8 +1355,7 @@ local make_static_actor=function(id,x,sfx_name,update)
 				-- update pos?
 				local m=self.m
 				if update then					
-					update(pos)		
-					pos[2]+=y_acc			
+					update(pos)
 				end
 				-- if sound
 				if sfx then
@@ -1399,11 +1389,12 @@ local command_handlers={
 		return {
 			id=models.PROP_SNOWBALL,
 			pos=pos,
-			update=function(self,offset)
+			shift=function(self,offset)
 				-- shift
 				v_add(pos,offset)
 				v_add(prev_pos,offset)
-
+			end,
+			update=function(self)
 				-- integrate
 				y_force = -1
 				if on_ground then
@@ -1568,7 +1559,10 @@ function play_state(params,help_ttl)
 
 			-- adjust ground
 			local z,slice_id,commands,wx,wy,wz = ground:update(_tracked.pos)
-			_tracked.pos[3] = z
+			local offset={0,wy,wz}
+			if plyr then
+				v_add(plyr.pos,offset)
+			end
 
 			if plyr then
 				for _,b in pairs(bonus) do
@@ -1618,11 +1612,15 @@ function play_state(params,help_ttl)
 			local offset={0,wy,wz}
 			for i=#actors,1,-1 do
 				local a=actors[i]
-				if not a:update(offset) then
+				if a.shift then
+					a:shift(offset)
+				else
+					v_add(a.pos,offset)
+				end
+				if not a:update() then
 					table.remove(actors,i)
 				end
 			end
-
 			if plyr then
 				local pos,a,steering=plyr:get_pos()
 				local up=plyr:get_up()

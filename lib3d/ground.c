@@ -62,7 +62,6 @@ typedef struct {
     int max_pz;
     float slice_y;
     float noise_y_offset;
-    float y_offset;
     // active tracks
     Tracks* tracks;
 
@@ -191,7 +190,8 @@ static void mesh_slice(int j) {
 
 static void make_slice(GroundSlice* slice, float y, int warmup) {
     // BEGIN_FUNC();
-    static int trees[] = { PROP_TREE0,PROP_TREE1,PROP_TREE_SNOW };
+    static int trees[] = { PROP_TREE0,PROP_TREE0,PROP_TREE1,PROP_TREE1,PROP_TREE2,PROP_TREE3,PROP_TREE3,PROP_TREE4,PROP_TREE4,PROP_TREE4,PROP_TREE5,PROP_TREE5,PROP_TREE5 };
+    static int num_trees = sizeof(trees) / sizeof(PROP_TREE0);
 
     // smooth altitude changes
     _ground.slice_y = lerpf(_ground.slice_y, y, 0.2f);
@@ -226,7 +226,7 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
                 for (int i = 3; i < i0 - 1; i++) {
                     GroundTile* tile = &slice->tiles[i];
                     if (randf() > active_params.props_rate) {
-                        tile->prop_id = trees[(int)(3.f * randf())];
+                        tile->prop_id = trees[randi(num_trees)];
                         tile->prop_t = randf();
                         // slight shading under trees
                         shadow_mask |= 0x3 << i;
@@ -236,7 +236,7 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
                 for (int i = i1 + 1; i < GROUND_SIZE - 2; i++) {
                     GroundTile* tile = &slice->tiles[i];
                     if (randf() > active_params.props_rate) {
-                        tile->prop_id = trees[(int)(3.f * randf())];
+                        tile->prop_id = trees[randi(num_trees)];
                         tile->prop_t = randf();
                         // slight shading under trees
                         shadow_mask |= 0x3 << i;
@@ -257,7 +257,7 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
                     case 'J': prop_id = PROP_JUMPPAD; break;
                     case 'S': prop_id = PROP_START; break;
                     case 'T':
-                        prop_id = trees[(int)(3.f * randf())];
+                        prop_id = trees[randi(num_trees)];
                         prop_t = randf();
                         // tree shading
                         shadow_mask |= 0x3 << i;
@@ -325,7 +325,6 @@ void make_ground(GroundParams params) {
     // reset global params
     _ground.slice_id = 0;
     _ground.slice_y = 0;
-    _ground.y_offset = 0;
     _ground.noise_y_offset = 16.f * randf();
     _ground.plyr_z_index = GROUND_SIZE / 2 - 1;
     _ground.max_pz = 0;
@@ -358,9 +357,9 @@ void update_ground(Point3d* p, int* slice_id, char** pattern, Point3d* offset) {
         p->z -= GROUND_CELL_SIZE;
         offset->z -= GROUND_CELL_SIZE;
         _ground.max_pz -= GROUND_CELL_SIZE;
-        GroundSlice* old_slice = _ground.slices[0];
-        float old_y = old_slice->y;
-        offset->y -= _ground.slices[1]->y - old_y;
+        const GroundSlice* old_slice = _ground.slices[0];
+        const float old_y = old_slice->y;
+        offset->y -= old_y;
         // drop slice 0
         for (int i = 1; i < GROUND_SIZE; ++i) {
             _ground.slices[i - 1] = _ground.slices[i];
@@ -375,11 +374,10 @@ void update_ground(Point3d* p, int* slice_id, char** pattern, Point3d* offset) {
     }
     // update y offset
     if (p->z > _ground.max_pz) {
-        _ground.y_offset = lerpf(_ground.slices[0]->y, _ground.slices[1]->y, pz - (int)pz);        
         _ground.max_pz = (int)p->z;
     }
 
-    // update particles
+    // update particles (inc. world shifting)
     update_particles(*offset);
 
     *slice_id = _ground.slice_id;
@@ -415,7 +413,7 @@ int get_face(Point3d pos, Point3d* nout, float* yout) {
 
     // intersection point
     Point3d ptOnFace;
-    make_v((Point3d) { .v = {(float)i * GROUND_CELL_SIZE, t0->h + s0->y - _ground.y_offset, (float)j * GROUND_CELL_SIZE} }, pos, &ptOnFace);
+    make_v((Point3d) { .v = {(float)i * GROUND_CELL_SIZE, t0->h + s0->y, (float)j * GROUND_CELL_SIZE} }, pos, &ptOnFace);
          
     // height
     *yout = pos.y - v_dot(ptOnFace.v, f->n.v) / f->n.y;
@@ -463,7 +461,6 @@ void get_props(Point3d pos, PropInfo** info, int* nout) {
     if (i1 > GROUND_SIZE) i1 = GROUND_SIZE;
 
     const int j0 = (int)(pos.z / GROUND_CELL_SIZE) + 1;
-    const float y_offset = _ground.y_offset;
     _props_info.n = 0;
     for (int j = j0; j < j0 + 3 && _props_info.n < MAX_PROPS; ++j) {
         const GroundSlice* s0 = _ground.slices[j];
@@ -475,8 +472,8 @@ void get_props(Point3d pos, PropInfo** info, int* nout) {
                 PropInfo* info = &_props_info.props[_props_info.n++];
                 info->type = prop_id;                
                 v_lerp(
-                    &(Point3d) { {.v = { (float)i * GROUND_CELL_SIZE,         t0->h + s0->y - y_offset,       (float)j * GROUND_CELL_SIZE } } },
-                    &(Point3d) { {.v = { (float)(i + 1) * GROUND_CELL_SIZE,   s1->tiles[i + 1].h + s1->y - y_offset,   (float)(j + 1) * GROUND_CELL_SIZE } } },
+                    &(Point3d) { {.v = { (float)i * GROUND_CELL_SIZE,         t0->h + s0->y,       (float)j * GROUND_CELL_SIZE } } },
+                    &(Point3d) { {.v = { (float)(i + 1) * GROUND_CELL_SIZE,   s1->tiles[i + 1].h + s1->y,   (float)(j + 1) * GROUND_CELL_SIZE } } },
                     t0->prop_t,
                     &info->pos);
                 info->pos.z += 2.f;
@@ -527,8 +524,8 @@ void collide(Point3d pos, float radius, int* hit_type)
                         if (props->flags & PROP_FLAG_HITABLE) {
 
                             // generate vertex
-                            Point3d v0 = (Point3d){ .v = {(float)(i * GROUND_CELL_SIZE),t0->h + s0->y - _ground.y_offset,(float)(j * GROUND_CELL_SIZE)} };
-                            Point3d v2 = (Point3d){ .v = {(float)((i + 1) * GROUND_CELL_SIZE),s0->tiles[i + 1].h + s0->y - _ground.y_offset,(float)((j + 1) * GROUND_CELL_SIZE)} };
+                            Point3d v0 = (Point3d){ .v = {(float)(i * GROUND_CELL_SIZE),t0->h + s0->y,(float)(j * GROUND_CELL_SIZE)} };
+                            Point3d v2 = (Point3d){ .v = {(float)((i + 1) * GROUND_CELL_SIZE),s0->tiles[i + 1].h + s0->y,(float)((j + 1) * GROUND_CELL_SIZE)} };
                             Point3d res;
                             v_lerp(&v0, &v2, t0->prop_t, &res);
                             make_v(pos, res, &res);
@@ -743,8 +740,11 @@ void ground_init(PlaydateAPI* playdate) {
 
     // pine tree
     _props_properties[PROP_TREE0 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f};
-    _props_properties[PROP_TREE0 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
-    _props_properties[PROP_TREE_SNOW - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
+    _props_properties[PROP_TREE1 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
+    _props_properties[PROP_TREE2 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.f };
+    _props_properties[PROP_TREE3 - 1] = (PropProperties){ .flags = 0, .radius = 1.8f };
+    _props_properties[PROP_TREE4 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
+    _props_properties[PROP_TREE5 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
     // checkpoint flags
     _props_properties[PROP_CHECKPOINT_LEFT - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
     _props_properties[PROP_CHECKPOINT_RIGHT - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
@@ -1208,7 +1208,6 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
     _drawables.n = 0;
     collect_tiles(cam_pos, cam_angle);
 
-    const float y_offset = _ground.y_offset;
     const int time_offset = (int)(pd->system->getCurrentTimeMilliseconds() / 250.f);
     // transform
     for (int j = 0; j < GROUND_SIZE - 1; ++j) {
@@ -1221,7 +1220,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                 GroundSlice* s0 = _ground.slices[j];
                 GroundTile* t0 = &s0->tiles[i];
                 GroundSlice* s1 = _ground.slices[j + 1];
-                const Point3d v0 = {.v = {(float)i * GROUND_CELL_SIZE,         t0->h + s0->y - y_offset,       (float)j * GROUND_CELL_SIZE}};                
+                const Point3d v0 = {.v = {(float)i * GROUND_CELL_SIZE,         t0->h + s0->y,       (float)j * GROUND_CELL_SIZE}};                
 
                 // camera to face point
                 const Point3d cv = { .x = v0.x - cam_pos.x,.y = v0.y - cam_pos.y,.z = v0.z - cam_pos.z };
@@ -1231,10 +1230,10 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                     if (v_dot(f0->n.v, cv.v) < 0.f)
                     {
                         push_tile(f0, m, (GroundSliceCoord[]) {
-                            { .h = s0->tiles[i].h,   .y = s0->y - y_offset, .i = i,     .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
-                            { .h = s0->tiles[i+1].h, .y = s0->y - y_offset, .i = i + 1, .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
-                            { .h = s1->tiles[i+1].h, .y = s1->y - y_offset, .i = i + 1, .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask },
-                            { .h = s1->tiles[i].h,   .y = s1->y - y_offset, .i = i,     .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask }
+                            { .h = s0->tiles[i].h,   .y = s0->y, .i = i,     .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
+                            { .h = s0->tiles[i+1].h, .y = s0->y, .i = i + 1, .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
+                            { .h = s1->tiles[i+1].h, .y = s1->y, .i = i + 1, .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask },
+                            { .h = s1->tiles[i].h,   .y = s1->y, .i = i,     .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask }
                         }, 4, shading_band);
                     }
                 }
@@ -1242,18 +1241,18 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                     if (v_dot(f0->n.v, cv.v) < 0.f)
                     {
                         push_tile(f0, m, (GroundSliceCoord[]) {
-                            { .h = s0->tiles[i].h,     .y = s0->y - y_offset, .i = i,      .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
-                            { .h = s1->tiles[i + 1].h, .y = s1->y - y_offset, .i = i + 1,  .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask },
-                            { .h = s1->tiles[i].h,     .y = s1->y - y_offset, .i = i,      .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask }
+                            { .h = s0->tiles[i].h,     .y = s0->y, .i = i,      .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
+                            { .h = s1->tiles[i + 1].h, .y = s1->y, .i = i + 1,  .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask },
+                            { .h = s1->tiles[i].h,     .y = s1->y, .i = i,      .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask }
                         }, 3, shading_band);
                     }
                     const GroundFace* f1 = &t0->f1;
                     if (v_dot(f1->n.v, cv.v) < 0.f)
                     {
                         push_tile(f1, m, (GroundSliceCoord[]) {
-                            { .h = s0->tiles[i].h,   .y = s0->y - y_offset, .i = i,     .j = j,     .cache = cache[0], .mask = s1->tracks_mask},
-                            { .h = s0->tiles[i+1].h, .y = s0->y - y_offset, .i = i + 1, .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
-                            { .h = s1->tiles[i+1].h, .y = s1->y - y_offset, .i = i + 1, .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask }
+                            { .h = s0->tiles[i].h,   .y = s0->y, .i = i,     .j = j,     .cache = cache[0], .mask = s1->tracks_mask},
+                            { .h = s0->tiles[i+1].h, .y = s0->y, .i = i + 1, .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
+                            { .h = s1->tiles[i+1].h, .y = s1->y, .i = i + 1, .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask }
                         }, 3, shading_band);
                     }
                 }
@@ -1310,10 +1309,6 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
             tmp[i].outcode = -1;
         }
     }
-
-    // shifting world offset
-    float world_y_offset = _ground.y_offset - _ground.slices[0]->y;
-    m[13] -= world_y_offset;
 
     // any "free" props?
     for (int i = 0; i < _render_props.n; ++i) {
