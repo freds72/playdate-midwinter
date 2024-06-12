@@ -393,13 +393,13 @@ void get_start_pos(Point3d* out) {
 }
 
 int get_face(Point3d pos, Point3d* nout, float* yout) {
-    // BEGIN_FUNC();
+    BEGIN_FUNC();
 
     // z slice
     int i = (int)(pos.x / GROUND_CELL_SIZE), j = (int)(pos.z / GROUND_CELL_SIZE);
     // outside ground?
     if (i < 0 || i >= GROUND_SIZE || j < 0 || j >= GROUND_SIZE) {
-        // END_FUNC();
+        END_FUNC();
         return 0;
     }
 
@@ -420,7 +420,7 @@ int get_face(Point3d pos, Point3d* nout, float* yout) {
     // face normal
     *nout = f->n;
 
-    // END_FUNC();
+    END_FUNC();
 
     return 1;
 }
@@ -580,7 +580,7 @@ static void load_noise(void* ptr,const int i, const int _) {
     // copy "regular" dither
     memcpy((uint8_t*)(_dithers + i * 32), data, 32 * sizeof(uint32_t));
 
-    // organized by ramps
+    // organized by ramps to have darker variant as a single line
     for (int j = 0; j < 32; ++j) {
         for (int k = 0; k < 4; k++, data++) {
             // interleaved values (4 bytes)
