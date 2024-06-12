@@ -46,6 +46,17 @@ typedef struct {
     float light;
 } Point3du;
 
+// range helpers
+typedef struct {
+    int min;
+    int max;
+} IntRange;
+
+typedef struct {
+    float min;
+    float max;
+} FloatRange;
+
 // convert a tau angle [0;1] into a radian angle
 inline float detauify(const float tau) {
     return tau * 2 * PI;
@@ -86,6 +97,8 @@ void m_x_v(const float* restrict m, const float* restrict v, float* restrict out
 void m_x_m(const float* restrict a, const float* restrict b, float* restrict out);
 // translate matrix by vector v
 void m_x_translate(const float* restrict a, const float* restrict v, float* restrict out);
+// multiply by y rotation
+void m_x_y_rot(const float* restrict a, const float angle, float* restrict out);
 // matrix vector multiply invert
 // inc.position
 void m_inv_x_v(const float* restrict m, const float* restrict v, float* restrict out);

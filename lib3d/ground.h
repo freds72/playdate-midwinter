@@ -1,10 +1,8 @@
 #ifndef _ground_h
 #define _ground_h
 
+#include "ground_limits.h"
 #include "3dmath.h"
-
-#define GROUND_SIZE 32
-#define GROUND_CELL_SIZE 4
 
 typedef struct {
   float slope;

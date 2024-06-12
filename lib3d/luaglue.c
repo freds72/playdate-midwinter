@@ -13,6 +13,8 @@
 #include "ground.h"
 #include "tracks.h"
 #include "gfx.h"
+#include "particles.h"
+#include "drawables.h"
 #include "spall.h"
 
 #ifdef SPALL_COLLECT
@@ -25,6 +27,12 @@ SpallBuffer  spall_buffer;
 	do {if ( strcmp(arg, #name) == 0 ) { pd->lua->push ## type (s->name); return 1; } } while(0)
 #define LUA_TO_C(s, name, type) \
 	do {if ( strcmp(arg, #name) == 0 ) { p->name = pd->lua->getArg ## type (argc++); } } while(0)
+
+#define REGISTER_LUA_FUNC(func) \
+	do {\
+		if (!pd->lua->addFunction(lib3d_##func,"lib3d." #func, &err)) \
+			pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err); \
+	} while(0)
 
 static PlaydateAPI* pd = NULL;
 
@@ -289,11 +297,12 @@ static int lib3d_add_render_prop(lua_State* L) {
 }
 
 static int lib3d_collide(lua_State* L) {
+	int argc = 1;
 	Point3d pos;
 	for (int i = 0; i < 3; ++i) {
-		pos.v[i] = pd->lua->getArgFloat(i + 1);
+		pos.v[i] = pd->lua->getArgFloat(argc++);
 	}
-	float radius = pd->lua->getArgFloat(4);
+	float radius = pd->lua->getArgFloat(argc++);
 
 	int out = 0;
 	collide(pos, radius, &out);
@@ -313,6 +322,27 @@ static int lib3d_load_assets_async(lua_State* L) {
 	return 0;
 }
 
+// spawn a particle
+static int lib3d_spawn_particle(lua_State* L) {
+	int argc = 1;
+	int id = pd->lua->getArgInt(argc++);
+	Point3d pos;
+	for (int i = 0; i < 3; ++i) {
+		pos.v[i] = pd->lua->getArgFloat(argc++);
+	}
+	spawn_particle(id, pos);
+
+	return 0;
+}
+
+// reset particles
+static int lib3d_clear_particles(lua_State* L) {
+	clear_particles();
+	return 0;
+}
+
+// ****************************
+// profiling helpers
 SPALL_FN SPALL_FORCEINLINE bool spall_file_write_playdate(SpallProfile *ctx, const void *p, size_t n) {
     if (!ctx->data) return false;
 
@@ -382,42 +412,23 @@ void lib3d_register(PlaydateAPI* playdate)
 	gfx_init(playdate);
 	ground_init(playdate);
 	tracks_init(playdate);
+	particles_init(playdate);
+	drawables_init(playdate);
 
-	if (!pd->lua->addFunction(lib3d_make_ground, "lib3d.make_ground", &err))
-		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
-
-	if (!pd->lua->addFunction(lib3d_render_ground, "lib3d.render_ground", &err))
-		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
-
-	if (!pd->lua->addFunction(lib3d_render_props, "lib3d.render_props", &err))
-		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
-
-	if (!pd->lua->addFunction(lib3d_get_start_pos, "lib3d.get_start_pos", &err))
-		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
-
-	if (!pd->lua->addFunction(lib3d_get_face, "lib3d.get_face", &err))
-		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
-
-	if (!pd->lua->addFunction(lib3d_clear_checkpoint, "lib3d.clear_checkpoint", &err))
-		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
-
-	if (!pd->lua->addFunction(lib3d_get_track_info, "lib3d.get_track_info", &err))
-		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
-
-	if (!pd->lua->addFunction(lib3d_get_props, "lib3d.get_props", &err))
-		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
-
-	if (!pd->lua->addFunction(lib3d_add_render_prop, "lib3d.add_render_prop", &err))
-		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
-
-	if (!pd->lua->addFunction(lib3d_collide, "lib3d.collide", &err))
-		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
-
-	if (!pd->lua->addFunction(lib3d_load_assets_async, "lib3d.load_assets_async", &err))
-		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
-
-	if (!pd->lua->addFunction(lib3d_update_ground, "lib3d.update_ground", &err))
-		pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err);
+	REGISTER_LUA_FUNC(make_ground);
+	REGISTER_LUA_FUNC(render_ground);
+	REGISTER_LUA_FUNC(render_props);
+	REGISTER_LUA_FUNC(get_start_pos);
+	REGISTER_LUA_FUNC(get_face);
+	REGISTER_LUA_FUNC(clear_checkpoint);
+	REGISTER_LUA_FUNC(get_track_info);
+	REGISTER_LUA_FUNC(get_props);
+	REGISTER_LUA_FUNC(add_render_prop);
+	REGISTER_LUA_FUNC(collide);
+	REGISTER_LUA_FUNC(load_assets_async);
+	REGISTER_LUA_FUNC(update_ground);
+	REGISTER_LUA_FUNC(spawn_particle);
+	REGISTER_LUA_FUNC(clear_particles);
 
 	if (!pd->lua->registerClass("lib3d.GroundParams", lib3D_GroundParams, NULL, 0, &err))
 		pd->system->logToConsole("%s:%i: registerClass failed, %s", __FILE__, __LINE__, err);	

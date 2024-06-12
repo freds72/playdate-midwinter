@@ -11,10 +11,10 @@
 #include "scales.h"
 #include "tracks.h"
 #include "models.h"
+#include "particles.h"
+#include "drawables.h"
+#include "ground_limits.h"
 #include "spall.h"
-
-#define Z_NEAR 0.5f
-#define Z_FAR 64.f
 
 static PlaydateAPI* pd;
 
@@ -62,7 +62,6 @@ typedef struct {
     int max_pz;
     float slice_y;
     float noise_y_offset;
-    float y_offset;
     // active tracks
     Tracks* tracks;
 
@@ -89,6 +88,8 @@ struct {
 #define PROP_FLAG_KILL      4
 #define PROP_FLAG_3D        8
 #define PROP_FLAG_JUMP      16
+#define PROP_FLAG_Y_ROTATE  32
+#define PROP_FLAG_COIN      64
 
 typedef struct {
     int flags;
@@ -135,7 +136,7 @@ static Ground _ground;
 static GroundParams active_params;
 
 // 16 32 * 4 bytes bitmaps
-static uint32_t _dithers[32 * 16];
+uint32_t _dithers[32 * 16];
 
 // 16 32 * 8 bytes bitmaps (duplicated on x)
 static uint8_t _dither_ramps[8 * 32 * 16];
@@ -187,9 +188,10 @@ static void mesh_slice(int j) {
     // END_FUNC();
 }
 
-static void make_slice(GroundSlice* slice, float y) {
+static void make_slice(GroundSlice* slice, float y, int warmup) {
     // BEGIN_FUNC();
-    static int trees[] = { PROP_TREE0,PROP_TREE1,PROP_TREE_SNOW };
+    static int trees[] = { PROP_TREE0,PROP_TREE0,PROP_TREE1,PROP_TREE1,PROP_TREE2,PROP_TREE3,PROP_TREE3,PROP_TREE4,PROP_TREE4,PROP_TREE4,PROP_TREE5,PROP_TREE5,PROP_TREE5 };
+    static int num_trees = sizeof(trees) / sizeof(PROP_TREE0);
 
     // smooth altitude changes
     _ground.slice_y = lerpf(_ground.slice_y, y, 0.2f);
@@ -198,7 +200,7 @@ static void make_slice(GroundSlice* slice, float y) {
     slice->y = y;
     slice->tracks_mask = 0;
 
-    update_tracks();
+    update_tracks(warmup);
 
     // generate height
     uint32_t shadow_mask = 0;
@@ -216,60 +218,64 @@ static void make_slice(GroundSlice* slice, float y) {
     Tracks* tracks = _ground.tracks;    
     for (int k = 0; k < tracks->n; ++k) {
         Track* t = &tracks->tracks[k];
-        // center on track
-        const int i0 = t->imin, i1 = t->imax + 1;
-        if (t->is_main) {
-            main_track_x = t->x;
-            imin = i0;
-            imax = i1;
-            for (int i = i0; i < i1; ++i) {
-                // remove props from track
-                int prop_id = 0;
-                float prop_t = 0.5f;
-                switch (_ground.tracks->pattern[i - i0]) {
-                case 'W': prop_id = PROP_WARNING; break;
-                case 'R': prop_id = PROP_ROCK; break;
-                case 'M': prop_id = PROP_COW; prop_t = randf(); break;
-                case 'J': prop_id = PROP_JUMPPAD; break;
-                case 'T': 
-                    prop_id = trees[(int)(3.f * randf())]; 
-                    prop_t = randf(); 
-                    // tree shading
-                    shadow_mask |= 0x3 << i;
-                    break;
-                default:
-                    ;
+        if (!t->is_dead) {
+            // center on track
+            const int i0 = t->imin, i1 = t->imax + 1;
+            if (t->is_main) {
+                // random filling
+                for (int i = 3; i < i0 - 1; i++) {
+                    GroundTile* tile = &slice->tiles[i];
+                    if (randf() > active_params.props_rate) {
+                        tile->prop_id = trees[randi(num_trees)];
+                        tile->prop_t = randf();
+                        // slight shading under trees
+                        shadow_mask |= 0x3 << i;
+                    }
                 }
 
-                slice->tiles[i].prop_id = prop_id;
-                slice->tiles[i].prop_t = prop_t;
-                slice->tracks_mask |= 1 << i;
-            }
-        }
-        else {
-            // side tracks are less obvious
-            for (int i = i0; i < i1; ++i) {
-                slice->tracks_mask |= 1 << i;
-            }
-        }
+                for (int i = i1 + 1; i < GROUND_SIZE - 2; i++) {
+                    GroundTile* tile = &slice->tiles[i];
+                    if (randf() > active_params.props_rate) {
+                        tile->prop_id = trees[randi(num_trees)];
+                        tile->prop_t = randf();
+                        // slight shading under trees
+                        shadow_mask |= 0x3 << i;
+                    }
+                }
 
-        // random filling
-        for (int i = 3; i < i0 - 1; i++) {
-            GroundTile* tile = &slice->tiles[i];
-            if (randf() > active_params.props_rate) {
-                tile->prop_id = trees[(int)(3.f * randf())];
-                tile->prop_t = randf();
-                // slight shading under trees
-                shadow_mask |= 0x3 << i;
+                main_track_x = t->x;
+                imin = i0;
+                imax = i1;
+                for (int i = i0; i < i1; ++i) {
+                    // remove props from track
+                    int prop_id = 0;
+                    float prop_t = 0.5f;
+                    switch (_ground.tracks->pattern[i - i0]) {
+                    case 'W': prop_id = PROP_WARNING; break;
+                    case 'R': prop_id = PROP_ROCK; break;
+                    case 'M': prop_id = PROP_COW; prop_t = randf(); break;
+                    case 'J': prop_id = PROP_JUMPPAD; break;
+                    case 'S': prop_id = PROP_START; break;
+                    case 'T':
+                        prop_id = trees[randi(num_trees)];
+                        prop_t = randf();
+                        // tree shading
+                        shadow_mask |= 0x3 << i;
+                        break;
+                    default:
+                        ;
+                    }
+
+                    slice->tiles[i].prop_id = prop_id;
+                    slice->tiles[i].prop_t = prop_t;
+                    slice->tracks_mask |= 1 << i;
+                }
             }
-        }
-        for (int i = i1 + 1; i < GROUND_SIZE - 2; i++) {
-            GroundTile* tile = &slice->tiles[i];
-            if (randf() > active_params.props_rate) {
-                tile->prop_id = trees[(int)(3.f * randf())];
-                tile->prop_t = randf();
-                // slight shading under trees
-                shadow_mask |= 0x3 << i;
+            else {
+                // side tracks are less obvious
+                for (int i = i0; i < i1; ++i) {
+                    slice->tracks_mask |= 1 << i;
+                }
             }
         }
     }
@@ -319,19 +325,17 @@ void make_ground(GroundParams params) {
     // reset global params
     _ground.slice_id = 0;
     _ground.slice_y = 0;
-    _ground.y_offset = 0;
     _ground.noise_y_offset = 16.f * randf();
     _ground.plyr_z_index = GROUND_SIZE / 2 - 1;
     _ground.max_pz = 0;
 
     // init track generator
     make_tracks(4 * GROUND_CELL_SIZE, (GROUND_SIZE - 5)*GROUND_CELL_SIZE, params, &_ground.tracks);
-    update_tracks();
 
     for (int i = 0; i < GROUND_SIZE; ++i) {
         // reset slices
         _ground.slices[i] = &_slices_buffer[i];
-        make_slice(_ground.slices[i], -i * params.slope);
+        make_slice(_ground.slices[i], -i * params.slope, 1);
     }
     for (int i = 0; i < GROUND_SIZE - 1; ++i) {
         mesh_slice(i);
@@ -354,25 +358,28 @@ void update_ground(Point3d* p, int* slice_id, char** pattern, Point3d* offset) {
         offset->z -= GROUND_CELL_SIZE;
         _ground.max_pz -= GROUND_CELL_SIZE;
         GroundSlice* old_slice = _ground.slices[0];
-        float old_y = old_slice->y;
+        const float old_y = old_slice->y;
+        offset->y -= old_y;
         // drop slice 0
         for (int i = 1; i < GROUND_SIZE; ++i) {
             _ground.slices[i - 1] = _ground.slices[i];
             _ground.slices[i - 1]->y -= old_y;
         }
         // move shifted slices back to top
-        _ground.slices[GROUND_SIZE - 1] = old_slice;
+        _ground.slices[GROUND_SIZE - 1] = old_slice;        
 
         // use previous baseline
-        make_slice(old_slice, _ground.slices[GROUND_SIZE - 2]->y - active_params.slope * (randf() + 0.5f));
+        make_slice(old_slice, _ground.slices[GROUND_SIZE - 2]->y - active_params.slope * (randf() + 0.5f), 0);
         mesh_slice(GROUND_SIZE - 2);
     }
     // update y offset
     if (p->z > _ground.max_pz) {
-        _ground.y_offset = lerpf(_ground.slices[0]->y, _ground.slices[1]->y, pz - (int)pz);
-        offset->y = _ground.y_offset;
         _ground.max_pz = (int)p->z;
     }
+
+    // update particles (inc. world shifting)
+    update_particles(*offset);
+
     *slice_id = _ground.slice_id;
     *pattern = _ground.tracks->pattern;
 
@@ -386,13 +393,13 @@ void get_start_pos(Point3d* out) {
 }
 
 int get_face(Point3d pos, Point3d* nout, float* yout) {
-    // BEGIN_FUNC();
+    BEGIN_FUNC();
 
     // z slice
     int i = (int)(pos.x / GROUND_CELL_SIZE), j = (int)(pos.z / GROUND_CELL_SIZE);
     // outside ground?
     if (i < 0 || i >= GROUND_SIZE || j < 0 || j >= GROUND_SIZE) {
-        // END_FUNC();
+        END_FUNC();
         return 0;
     }
 
@@ -406,14 +413,14 @@ int get_face(Point3d pos, Point3d* nout, float* yout) {
 
     // intersection point
     Point3d ptOnFace;
-    make_v((Point3d) { .v = {(float)i * GROUND_CELL_SIZE, t0->h + s0->y - _ground.y_offset, (float)j * GROUND_CELL_SIZE} }, pos, &ptOnFace);
+    make_v((Point3d) { .v = {(float)i * GROUND_CELL_SIZE, t0->h + s0->y, (float)j * GROUND_CELL_SIZE} }, pos, &ptOnFace);
          
     // height
     *yout = pos.y - v_dot(ptOnFace.v, f->n.v) / f->n.y;
     // face normal
     *nout = f->n;
 
-    // END_FUNC();
+    END_FUNC();
 
     return 1;
 }
@@ -454,7 +461,6 @@ void get_props(Point3d pos, PropInfo** info, int* nout) {
     if (i1 > GROUND_SIZE) i1 = GROUND_SIZE;
 
     const int j0 = (int)(pos.z / GROUND_CELL_SIZE) + 1;
-    const float y_offset = _ground.y_offset;
     _props_info.n = 0;
     for (int j = j0; j < j0 + 3 && _props_info.n < MAX_PROPS; ++j) {
         const GroundSlice* s0 = _ground.slices[j];
@@ -466,8 +472,8 @@ void get_props(Point3d pos, PropInfo** info, int* nout) {
                 PropInfo* info = &_props_info.props[_props_info.n++];
                 info->type = prop_id;                
                 v_lerp(
-                    &(Point3d) { {.v = { (float)i * GROUND_CELL_SIZE,         t0->h + s0->y - y_offset,       (float)j * GROUND_CELL_SIZE } } },
-                    &(Point3d) { {.v = { (float)(i + 1) * GROUND_CELL_SIZE,   s1->tiles[i + 1].h + s1->y - y_offset,   (float)(j + 1) * GROUND_CELL_SIZE } } },
+                    &(Point3d) { {.v = { (float)i * GROUND_CELL_SIZE,         t0->h + s0->y,       (float)j * GROUND_CELL_SIZE } } },
+                    &(Point3d) { {.v = { (float)(i + 1) * GROUND_CELL_SIZE,   s1->tiles[i + 1].h + s1->y,   (float)(j + 1) * GROUND_CELL_SIZE } } },
                     t0->prop_t,
                     &info->pos);
                 info->pos.z += 2.f;
@@ -518,21 +524,17 @@ void collide(Point3d pos, float radius, int* hit_type)
                         if (props->flags & PROP_FLAG_HITABLE) {
 
                             // generate vertex
-                            Point3d v0 = (Point3d){ .v = {(float)(i * GROUND_CELL_SIZE),t0->h + s0->y - _ground.y_offset,(float)(j * GROUND_CELL_SIZE)} };
-                            Point3d v2 = (Point3d){ .v = {(float)((i + 1) * GROUND_CELL_SIZE),s0->tiles[i + 1].h + s0->y - _ground.y_offset,(float)((j + 1) * GROUND_CELL_SIZE)} };
+                            Point3d v0 = (Point3d){ .v = {(float)(i * GROUND_CELL_SIZE),t0->h + s0->y,(float)(j * GROUND_CELL_SIZE)} };
+                            Point3d v2 = (Point3d){ .v = {(float)((i + 1) * GROUND_CELL_SIZE),s0->tiles[i + 1].h + s0->y,(float)((j + 1) * GROUND_CELL_SIZE)} };
                             Point3d res;
                             v_lerp(&v0, &v2, t0->prop_t, &res);
                             make_v(pos, res, &res);
                             if (res.x * res.x + res.z * res.z < radius + props->radius * props->radius) {
-                                if (props->flags & PROP_FLAG_COLLECT) {
-                                    // "collect" prop
-                                    t0->prop_id = 0;
+                                if (props->flags & PROP_FLAG_COIN) {
                                     *hit_type = 3;
-                                    END_FUNC();
-                                    return;
                                 }
-                                // insta-kill?
-                                if (props->flags & PROP_FLAG_KILL) {
+                                else if (props->flags & PROP_FLAG_KILL) {
+                                    // insta-kill?
                                     *hit_type = 2;
                                 }
                                 else if (props->flags & PROP_FLAG_JUMP) {
@@ -541,6 +543,12 @@ void collide(Point3d pos, float radius, int* hit_type)
                                 else {
                                     *hit_type = 1;
                                 }
+
+                                if (props->flags & PROP_FLAG_COLLECT) {
+                                    // "collect" prop
+                                    t0->prop_id = 0;
+                                }
+
                                 END_FUNC();
                                 return;
                             }
@@ -572,7 +580,7 @@ static void load_noise(void* ptr,const int i, const int _) {
     // copy "regular" dither
     memcpy((uint8_t*)(_dithers + i * 32), data, 32 * sizeof(uint32_t));
 
-    // organized by ramps
+    // organized by ramps to have darker variant as a single line
     for (int j = 0; j < 32; ++j) {
         for (int k = 0; k < 4; k++, data++) {
             // interleaved values (4 bytes)
@@ -732,8 +740,11 @@ void ground_init(PlaydateAPI* playdate) {
 
     // pine tree
     _props_properties[PROP_TREE0 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f};
-    _props_properties[PROP_TREE0 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
-    _props_properties[PROP_TREE_SNOW - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
+    _props_properties[PROP_TREE1 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
+    _props_properties[PROP_TREE2 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.f };
+    _props_properties[PROP_TREE3 - 1] = (PropProperties){ .flags = 0, .radius = 1.8f };
+    _props_properties[PROP_TREE4 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
+    _props_properties[PROP_TREE5 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
     // checkpoint flags
     _props_properties[PROP_CHECKPOINT_LEFT - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
     _props_properties[PROP_CHECKPOINT_RIGHT - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
@@ -744,9 +755,9 @@ void ground_init(PlaydateAPI* playdate) {
     _props_properties[PROP_SNOWBALL - 1] = (PropProperties){ .flags = PROP_FLAG_KILL, .radius = 2.f };
     _props_properties[PROP_SPLASH - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
     // 
-    _props_properties[PROP_JUMPPAD - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_JUMP, .radius = 1.5f };
+    _props_properties[PROP_JUMPPAD - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_JUMP | PROP_FLAG_Y_ROTATE | PROP_FLAG_COLLECT, .radius = 2.0f };
     // coin
-    _props_properties[PROP_COIN - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_COLLECT, .radius = 2.0f };
+    _props_properties[PROP_COIN - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_COLLECT | PROP_FLAG_COIN, .radius = 2.0f };
 
     // bind all props to the corresponding 3d model
     for (int i = 0; i < NEXT_PROP_ID; ++i) {
@@ -777,65 +788,12 @@ int ground_load_assets_async() {
 // todo: move to settings?
 #define SHADING_CONTRAST 1.5f
 
-#define MAX_TILE_DIST 18
-
-typedef struct {
-    float x;
-    float y;
-    float z;
-    int outcode;
-} CameraPoint3d;
-
 // visible tiles encoded as 1 bit per cell
 static uint32_t _visible_tiles[GROUND_SIZE];
 
-typedef struct {
-    // texture type
-    int material;
-    // original flags
-    int flags;
-    // number of points
-    int n;
-    // clipped points in camera space
-    Point3du pts[5];
-} DrawableFace;
-
-typedef struct {
-    int material;
-    int angle;
-    Point3d pos;
-} DrawableProp;
-
-typedef struct {
-    int frame;
-    Point3d pos;
-} DrawableCoin;
-
-struct Drawable_s;
-typedef void(*draw_drawable)(struct Drawable_s* drawable, uint8_t* bitmap);
-
-// generic drawable thingy
-// cache-friendlyness???
-typedef struct Drawable_s {
-    float key;
-    draw_drawable draw;
-    union {
-        DrawableFace face;
-        DrawableProp prop;
-        DrawableCoin coin;
-    };
-} Drawable;
-
-static struct {
-    int n;
-    // arbitrary limit
-    Drawable all[GROUND_SIZE * GROUND_SIZE * 4];
-} _drawables;
-
-static Drawable* _sortables[GROUND_SIZE * GROUND_SIZE * 4];
-
-// visible tiles encoded as 1 bit per cell
-static uint32_t _visible_tiles[GROUND_SIZE];
+// stores all things that are going to be drawn
+static Drawables _drawables;
+static Drawable* _sortables[MAX_DRAWABLES];
 
 // cache entry (transformed point in camera space)
 typedef struct {
@@ -887,7 +845,7 @@ static int z_poly_clip(const float znear, Point3du* in, int n, Point3du* out) {
     return nout;
 }
 
-static void draw_tile(struct Drawable_s* drawable, uint8_t* bitmap) {
+static void draw_tile(Drawable* drawable, uint8_t* bitmap) {
     // BEGIN_FUNC();
 
     DrawableFace* face = &drawable->face;
@@ -971,7 +929,7 @@ static void draw_coin(Drawable* drawable, uint8_t* bitmap) {
 }
 
 // push a face to the drawing list
-static void push_tile(GroundFace* f, const float* m, GroundSliceCoord* coords, int n, const float light) {
+static void push_tile(const GroundFace* f, const float* m, GroundSliceCoord* coords, int n, const float light) {
     BEGIN_FUNC();
 
     Point3du tmp[4];
@@ -1042,7 +1000,7 @@ void add_render_prop(int id, const float* m) {
     memcpy(p->m, m, MAT4x4 * sizeof(float));
 }
 
-static void push_threeD_model(const int prop_id, const Point3d cv, const float* m) {
+static void push_threeD_model(const int prop_id, const Point3d cv, const float m[MAT4x4]) {
     BEGIN_FUNC();
 
     Point3du tmp[4];
@@ -1055,7 +1013,8 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float* 
             int n = f->flags & FACE_FLAG_QUAD?4:3;
             // transform
             int outcode = 0xfffffff, is_clipped_near = 0;
-            float min_key = FLT_MIN;
+            float min_key = FLT_MAX;
+            float max_key = FLT_MIN;
             for (int i = 0; i < n; ++i) {
                 Point3du* res = &tmp[i];
                 // project using active matrix
@@ -1063,9 +1022,10 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float* 
                 int code = res->z > Z_NEAR ? OUTCODE_IN : OUTCODE_NEAR;
                 if (res->x > res->z) code |= OUTCODE_RIGHT;
                 if (-res->x > res->z) code |= OUTCODE_LEFT;
+                if (res->z < min_key) min_key = res->z;
+                if (res->z > max_key) max_key = res->z;
                 outcode &= code;
                 is_clipped_near |= code;
-                if (res->z > min_key) min_key = res->z;
                 // use u to mark sharp edges
                 res->u = f->edges & (1 << i);
             }
@@ -1074,7 +1034,7 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float* 
             if (outcode == 0) {
                 Drawable* drawable = &_drawables.all[_drawables.n++];
                 drawable->draw = draw_face;
-                drawable->key = min_key;
+                drawable->key = f->flags & FACE_FLAG_LARGE ?max_key:min_key;
                 DrawableFace* face = &drawable->face;
                 face->flags = f->flags;
                 face->material = f->material;
@@ -1105,6 +1065,7 @@ static void push_coin(const Point3d* p, int time) {
 static void push_and_transform_threeD_model(const int prop_id, const Point3d cam_pos, const float* cam_m, const float* m) {
     BEGIN_FUNC();
 
+    // TODO: support for rotate flags?
     float mvv[MAT4x4];
     m_x_m(cam_m, m, mvv);
 
@@ -1247,7 +1208,6 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
     _drawables.n = 0;
     collect_tiles(cam_pos, cam_angle);
 
-    const float y_offset = _ground.y_offset;
     const int time_offset = (int)(pd->system->getCurrentTimeMilliseconds() / 250.f);
     // transform
     for (int j = 0; j < GROUND_SIZE - 1; ++j) {
@@ -1260,7 +1220,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                 GroundSlice* s0 = _ground.slices[j];
                 GroundTile* t0 = &s0->tiles[i];
                 GroundSlice* s1 = _ground.slices[j + 1];
-                const Point3d v0 = {.v = {(float)i * GROUND_CELL_SIZE,         t0->h + s0->y - y_offset,       (float)j * GROUND_CELL_SIZE}};                
+                const Point3d v0 = {.v = {(float)i * GROUND_CELL_SIZE,         t0->h + s0->y,       (float)j * GROUND_CELL_SIZE}};                
 
                 // camera to face point
                 const Point3d cv = { .x = v0.x - cam_pos.x,.y = v0.y - cam_pos.y,.z = v0.z - cam_pos.z };
@@ -1270,10 +1230,10 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                     if (v_dot(f0->n.v, cv.v) < 0.f)
                     {
                         push_tile(f0, m, (GroundSliceCoord[]) {
-                            { .h = s0->tiles[i].h,   .y = s0->y - y_offset, .i = i,     .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
-                            { .h = s0->tiles[i+1].h, .y = s0->y - y_offset, .i = i + 1, .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
-                            { .h = s1->tiles[i+1].h, .y = s1->y - y_offset, .i = i + 1, .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask },
-                            { .h = s1->tiles[i].h,   .y = s1->y - y_offset, .i = i,     .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask }
+                            { .h = s0->tiles[i].h,   .y = s0->y, .i = i,     .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
+                            { .h = s0->tiles[i+1].h, .y = s0->y, .i = i + 1, .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
+                            { .h = s1->tiles[i+1].h, .y = s1->y, .i = i + 1, .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask },
+                            { .h = s1->tiles[i].h,   .y = s1->y, .i = i,     .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask }
                         }, 4, shading_band);
                     }
                 }
@@ -1281,18 +1241,18 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                     if (v_dot(f0->n.v, cv.v) < 0.f)
                     {
                         push_tile(f0, m, (GroundSliceCoord[]) {
-                            { .h = s0->tiles[i].h,     .y = s0->y - y_offset, .i = i,      .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
-                            { .h = s1->tiles[i + 1].h, .y = s1->y - y_offset, .i = i + 1,  .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask },
-                            { .h = s1->tiles[i].h,     .y = s1->y - y_offset, .i = i,      .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask }
+                            { .h = s0->tiles[i].h,     .y = s0->y, .i = i,      .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
+                            { .h = s1->tiles[i + 1].h, .y = s1->y, .i = i + 1,  .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask },
+                            { .h = s1->tiles[i].h,     .y = s1->y, .i = i,      .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask }
                         }, 3, shading_band);
                     }
                     const GroundFace* f1 = &t0->f1;
                     if (v_dot(f1->n.v, cv.v) < 0.f)
                     {
                         push_tile(f1, m, (GroundSliceCoord[]) {
-                            { .h = s0->tiles[i].h,   .y = s0->y - y_offset, .i = i,     .j = j,     .cache = cache[0], .mask = s1->tracks_mask},
-                            { .h = s0->tiles[i+1].h, .y = s0->y - y_offset, .i = i + 1, .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
-                            { .h = s1->tiles[i+1].h, .y = s1->y - y_offset, .i = i + 1, .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask }
+                            { .h = s0->tiles[i].h,   .y = s0->y, .i = i,     .j = j,     .cache = cache[0], .mask = s1->tracks_mask},
+                            { .h = s0->tiles[i+1].h, .y = s0->y, .i = i + 1, .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
+                            { .h = s1->tiles[i+1].h, .y = s1->y, .i = i + 1, .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask }
                         }, 3, shading_band);
                     }
                 }
@@ -1316,11 +1276,26 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                             push_coin(&res, time_offset + j + _z_offset);
                         }
                         else {    
-                            const Point3d cv = { .x = cam_pos.x - pos.x,.y = cam_pos.y - pos.y,.z = cam_pos.z - pos.z};
+                            Point3d cv;
                             // adjust matrix to project into position
                             float mmvm[MAT4x4];
-                            m_x_translate(m, pos.v, mmvm);
-                            push_threeD_model(prop_id, cv, mmvm);
+                            if (_props_properties[prop_id - 1].flags & PROP_FLAG_Y_ROTATE) {
+                                float tmp[MAT4x4] = {
+                                    1.f,0.f,0.f,0.f,
+                                    0.f,1.f,0.f,0.f,
+                                    0.f,0.f,1.f,0.f,
+                                    pos.x,pos.y,pos.z,1.f };
+                                m_x_y_rot(tmp, pd->system->getElapsedTime(), mmvm);
+                                m_inv_x_v(mmvm, cam_pos.v, cv.v);
+                                m_x_m(m, mmvm, tmp);
+                                push_threeD_model(prop_id, cv, tmp);
+                            }
+                            else {
+                                cv = (Point3d){.x = cam_pos.x - pos.x,.y = cam_pos.y - pos.y,.z = cam_pos.z - pos.z};
+                                m_x_translate(m, pos.v, mmvm);
+                                push_threeD_model(prop_id, cv, mmvm);
+                            }
+                            
                         }
                     }
                 }
@@ -1343,8 +1318,11 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
     // reset "free" props
     _render_props.n = 0;
 
+    // particles?
+    push_particles(&_drawables, cam_pos, m);
+
     // sort & renders back to front
-    if (_drawables.n > 0) {
+    if (_drawables.n > 0) {        
         for (int i = 0; i < _drawables.n; ++i) {
             _sortables[i] = &_drawables.all[i];
         }
@@ -1373,6 +1351,9 @@ void render_props(Point3d cam_pos, float* m, uint8_t* bitmap) {
     // reset "free" props
     _render_props.n = 0;
 
+    // particles?
+    push_particles(&_drawables, cam_pos, m);
+
     // sort & renders back to front
     if (_drawables.n > 0) {
         for (int i = 0; i < _drawables.n; ++i) {
@@ -1387,5 +1368,6 @@ void render_props(Point3d cam_pos, float* m, uint8_t* bitmap) {
             _sortables[k]->draw(_sortables[k], bitmap);
         }
     }
+
     END_FUNC();
 }
