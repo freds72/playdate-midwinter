@@ -68,21 +68,6 @@ typedef struct {
     GroundSlice* slices[GROUND_SIZE];
 } Ground;
 
-typedef struct {
-    int w, h;
-    LCDBitmap* image;
-} PropImage;
-
-typedef struct {
-    // contains all zoom levels
-    PropImage scaled[_scaled_image_count];
-} ScaledProp;
-
-struct {
-    // animation frames
-    ScaledProp frames[5];
-} _coin_frames;
-
 #define PROP_FLAG_HITABLE   1
 #define PROP_FLAG_COLLECT   2
 #define PROP_FLAG_KILL      4
@@ -120,10 +105,6 @@ static struct {
     RenderProp props[MAX_RENDER_PROPS];
 } _render_props;
 
-
-// must be next
-#define PROP_COIN               NEXT_PROP_ID
-
 // raycasting angles
 #define RAYCAST_PRECISION 196
 static float _raycast_angles[RAYCAST_PRECISION];
@@ -140,6 +121,11 @@ uint32_t _dithers[32 * 16];
 
 // 16 32 * 8 bytes bitmaps (duplicated on x)
 static uint8_t _dither_ramps[8 * 32 * 16];
+static uint8_t _danger_dither_ramps[8 * 32 * 16];
+
+// 16 32 * 4 bytes bitmaps
+uint32_t _ordered_dithers[32 * 16];
+uint32_t _ordered_dithers[32 * 16];
 
 static uint32_t* _backgrounds[61];
 static int _backgrounds_heights[61];
@@ -245,17 +231,19 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
 
                 main_track_x = t->x;
                 imin = i0;
-                imax = i1;
+                imax = i1;  
+                
                 for (int i = i0; i < i1; ++i) {
                     // remove props from track
                     int prop_id = 0;
                     float prop_t = 0.5f;
-                    switch (_ground.tracks->pattern[i - i0]) {
+                    switch (_ground.tracks->pattern[i]) {
                     case 'W': prop_id = PROP_WARNING; break;
                     case 'R': prop_id = PROP_ROCK; break;
                     case 'M': prop_id = PROP_COW; prop_t = randf(); break;
                     case 'J': prop_id = PROP_JUMPPAD; break;
                     case 'S': prop_id = PROP_START; break;
+                    case 'C': prop_id = PROP_COIN; break;
                     case 'T':
                         prop_id = trees[randi(num_trees)];
                         prop_t = randf();
@@ -317,6 +305,15 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
 
     _ground.slice_id++;
 
+    /*
+    char buffer[33];
+    memset(buffer, 32, 32);
+    buffer[32] = 0;
+    for (int i = 0; i < 32; i++) {        
+        buffer[i] = '0' + slice->tiles[i].prop_id;
+    }
+    pd->system->logToConsole("%s [%i %i]", _ground.tracks->pattern, imin, imax);
+    */
     // END_FUNC();
 }
 
@@ -590,6 +587,48 @@ static void load_noise(void* ptr,const int i, const int _) {
     }
 }
 
+static void load_ordered_noise(void* ptr, const int i, const int _) {
+    LCDBitmap* bitmap = pd->graphics->getTableBitmap((LCDBitmapTable*)ptr, i);
+    int w = 0, h = 0, r = 0;
+    uint8_t* mask = NULL;
+    uint8_t* data = NULL;
+    pd->graphics->getBitmapData(bitmap, &w, &h, &r, &mask, &data);
+    if (w != 32 || h != 32)
+        pd->system->logToConsole("Invalid noise image format: %dx%d", w, h);
+
+    // copy "regular" dither
+    memcpy((uint8_t*)(_ordered_dithers + i * 32), data, 32 * sizeof(uint32_t));
+}
+
+
+static void load_danger_noise(void* ptr, const int i, const int _) {
+    LCDBitmap* bitmap = pd->graphics->getTableBitmap((LCDBitmapTable*)ptr, i);
+    int w = 0, h = 0, r = 0;
+    uint8_t* mask = NULL;
+    uint8_t* data = NULL;
+    pd->graphics->getBitmapData(bitmap, &w, &h, &r, &mask, &data);
+    if (w != 32 || h != 32)
+        pd->system->logToConsole("Invalid noise image format: %dx%d", w, h);
+
+    // write danger pattern
+    uint32_t pattern = ~0x83838383;
+    uint32_t* data32 = (uint32_t*)data;
+    for (int i = 0; i < 32; i++) {
+        data32[i] &= pattern;
+        pattern = (pattern >> 1) | (pattern << 31);
+    }
+
+    // organized by ramps to have darker variant as a single line
+    for (int j = 0; j < 32; ++j) {
+        for (int k = 0; k < 4; k++, data++) {
+            // interleaved values (4 bytes)
+            _danger_dither_ramps[i * 8 + j * 16 * 8 + k] = *data;
+            _danger_dither_ramps[i * 8 + j * 16 * 8 + k + 4] = *data;
+        }
+    }
+}
+
+
 static void load_background(void* ptr, const int angle, const int _) {
     const int image_index = angle - _scaled_image_min_angle;
     LCDBitmap* bitmap = pd->graphics->getTableBitmap((LCDBitmapTable*)ptr, image_index);
@@ -620,26 +659,6 @@ static void load_background(void* ptr, const int angle, const int _) {
     _backgrounds_heights[image_index] = h;
 }
 
-static void load_coins(void* ptr, const int _1, const int _2) {    
-    for (int frame = 0; frame < 5; frame++) {
-        for (int i = 0; i < _scaled_image_count; i++) {
-            int w, h, stride;
-            uint8_t* data, * alpha;
-            LCDBitmap* bitmap = pd->graphics->getTableBitmap((LCDBitmapTable*)ptr, frame * _scaled_image_count + i);
-            if (!bitmap) {
-                pd->system->error("Missing coin frame: %i scale: %i", frame, i);
-            }
-            pd->graphics->getBitmapData(bitmap, &w, &h, &stride, &alpha, &data);
-
-            _coin_frames.frames[frame].scaled[i] = (PropImage){
-                .w = w,
-                .h = h,
-                .image = bitmap
-            };
-        }
-    }
-}
-
 typedef void(* unit_of_work_callback)(void*, const int, const int);
 typedef struct {
     unit_of_work_callback callback;
@@ -668,24 +687,9 @@ void ground_init(PlaydateAPI* playdate) {
     _work.cursor = 0;
     _work.n = 0;
 
-    // read animated & scaled coins
-    {
-        pd->system->logToConsole("Loading coins");
-        bitmaps = pd->graphics->loadBitmapTable("images/generated/coin", &err);
-        if (!bitmaps)
-            pd->system->logToConsole("Failed to load: %s, %s", path, err);
-
-        _work.todo[_work.n++] = (UnitOfWork){
-            .callback = load_coins,
-            .param0 = bitmaps,
-            .param1 = -1,
-            .param2 = -1
-        };
-    }
-
     // read dither table
     pd->system->formatString(&path, "images/generated/noise32x32");
-    pd->system->logToConsole("Loading noise: %s", path);
+    pd->system->logToConsole("Loading blue noise: %s", path);
     bitmaps = pd->graphics->loadBitmapTable(path, &err);
     
     if (!bitmaps)
@@ -694,6 +698,39 @@ void ground_init(PlaydateAPI* playdate) {
     for (int i = 0; i < 16; ++i) {
         _work.todo[_work.n++] = (UnitOfWork){
             .callback = load_noise,
+            .param0 = bitmaps,
+            .param1 = i,
+            .param2 = -1
+        };
+    }
+
+    for (int i = 0; i < 16; ++i) {
+        _work.todo[_work.n++] = (UnitOfWork){
+            .callback = load_danger_noise,
+            .param0 = bitmaps,
+            .param1 = i,
+            .param2 = -1
+        };
+    }
+
+    _work.todo[_work.n++] = (UnitOfWork){
+        .callback = free_bitmap_table,
+        .param0 = bitmaps,
+        .param1 = -1,
+        .param2 = -1
+    };
+
+    // read ordered dither table
+    pd->system->formatString(&path, "images/generated/bayer-noise32x32");
+    pd->system->logToConsole("Loading Bayer noise: %s", path);
+    bitmaps = pd->graphics->loadBitmapTable(path, &err);
+
+    if (!bitmaps)
+        pd->system->logToConsole("Failed to load: %s, %s", path, err);
+
+    for (int i = 0; i < 16; ++i) {
+        _work.todo[_work.n++] = (UnitOfWork){
+            .callback = load_ordered_noise,
             .param0 = bitmaps,
             .param1 = i,
             .param2 = -1
@@ -736,6 +773,7 @@ void ground_init(PlaydateAPI* playdate) {
         _raycast_angles[i] = atan2f(Z_NEAR, Z_NEAR * t * 2.f) - PI / 2.f;
     }
 
+
     // props config (todo: get from lua?)
 
     // pine tree
@@ -757,7 +795,7 @@ void ground_init(PlaydateAPI* playdate) {
     // 
     _props_properties[PROP_JUMPPAD - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_JUMP | PROP_FLAG_Y_ROTATE | PROP_FLAG_COLLECT, .radius = 2.0f };
     // coin
-    _props_properties[PROP_COIN - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_COLLECT | PROP_FLAG_COIN, .radius = 2.0f };
+    _props_properties[PROP_COIN - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_COLLECT | PROP_FLAG_COIN | PROP_FLAG_Y_ROTATE, .radius = 2.0f };
 
     // bind all props to the corresponding 3d model
     for (int i = 0; i < NEXT_PROP_ID; ++i) {
@@ -880,6 +918,29 @@ static void draw_tile(Drawable* drawable, uint8_t* bitmap) {
     // END_FUNC();
 }
 
+static void draw_blinking_tile(Drawable* drawable, uint8_t* bitmap) {
+    DrawableFace* face = &drawable->face;
+
+    const int n = face->n;
+    Point3du* pts = face->pts;
+    for (int i = 0; i < n; ++i) {
+        // project 
+        float w = 1.f / pts[i].z;
+        pts[i].x = 199.5f + 199.5f * w * pts[i].x;
+        pts[i].y = 119.5f - 199.5f * w * pts[i].y;
+        // works ok
+        float shading = face->material == GROUNDFACE_FLAG_SNOW ? 4.0f * pts[i].u + 8.f * w : 4.0f + 4.0f * pts[i].u + 4.f * w;
+        // attenuation
+        shading *= pts[i].light;
+        if (shading > 15.f) shading = 15.f;
+        if (shading < 0.f) shading = 0.f;
+        pts[i].u = shading;
+    }
+
+    // 
+    texfill(pts, n, _danger_dither_ramps, bitmap);    
+}
+
 static void draw_face(Drawable* drawable, uint8_t* bitmap) {
     BEGIN_FUNC();
     DrawableFace* face = &drawable->face;
@@ -899,7 +960,7 @@ static void draw_face(Drawable* drawable, uint8_t* bitmap) {
     if (shading > 1.f) shading = 1.f;
     if (shading < 0.f) shading = 0.f;    
     if (!(face->flags & FACE_FLAG_TRANSPARENT)) {
-        polyfill(pts, n, _dithers + (int)(face->material * (1.f - shading)) * 32, (uint32_t*)bitmap);
+        polyfill(pts, n, _ordered_dithers + (int)(face->material * (1.f - shading)) * 32, (uint32_t*)bitmap);
     }
 
     // don't "pop" edges if too far away
@@ -916,20 +977,9 @@ static void draw_face(Drawable* drawable, uint8_t* bitmap) {
     END_FUNC();
 }
 
-static void draw_coin(Drawable* drawable, uint8_t* bitmap) {
-    DrawableCoin* prop = &drawable->coin;
-    
-    const float w = 199.5f / prop->pos.z;
-    const float x = 199.5f + w * prop->pos.x;
-    const float y = 119.5f - w * prop->pos.y;
-    int i = (int)(_scaled_image_count * (prop->pos.z - Z_NEAR) / GROUND_CELL_SIZE);
-    if (i > 255) i = 255;
-    PropImage* image = &_coin_frames.frames[prop->frame].scaled[_scaled_by_z[i]];
-    pd->graphics->drawBitmap(image->image, (int)(x - image->w / 2), (int)(y - image->h / 2), 0);
-}
 
 // push a face to the drawing list
-static void push_tile(const GroundFace* f, const float* m, GroundSliceCoord* coords, int n, const float light) {
+static void push_tile(const GroundFace* f, const float* m, GroundSliceCoord* coords, int n, const float light, const int is_danger) {
     BEGIN_FUNC();
 
     Point3du tmp[4];
@@ -972,7 +1022,7 @@ static void push_tile(const GroundFace* f, const float* m, GroundSliceCoord* coo
     // visible?
     if (outcode == 0) {
         Drawable* drawable = &_drawables.all[_drawables.n++];
-        drawable->draw = draw_tile;
+        drawable->draw = is_danger ?draw_blinking_tile: draw_tile;
         drawable->key = min_key;
         DrawableFace* face = &drawable->face;
         face->material = f->flags & GROUNDFACE_FLAG_MATERIAL_MASK;
@@ -1053,15 +1103,6 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float m
     END_FUNC();
 }
 
-static void push_coin(const Point3d* p, int time) {
-    static int animation[9] = { 0,1,2,3,4,3,2,1 };
-    Drawable* drawable = &_drawables.all[_drawables.n++];
-    drawable->draw = draw_coin;
-    drawable->key = p->z;
-    drawable->coin.pos = *p;
-    drawable->coin.frame = animation[time%8];
-}
-
 static void push_and_transform_threeD_model(const int prop_id, const Point3d cam_pos, const float* cam_m, const float* m) {
     BEGIN_FUNC();
 
@@ -1114,7 +1155,7 @@ int render_sky(float* m, uint8_t* screen) {
     if (h1 > LCD_ROWS) h1 = LCD_ROWS;
     
     memset(bitmap, 0xff, h0 * LCD_ROWSIZE);
-    const uint32_t *dither_base = _dithers + 8 * 32;
+    const uint32_t *dither_base = _ordered_dithers + 8 * 32;
     bitmap += h0 * LCD_ROWSIZE / sizeof(uint32_t);
     for (int h = h0; h < h1; ++h) {
         const uint32_t dither = dither_base[h & 31];
@@ -1187,7 +1228,7 @@ static void collect_tiles(const Point3d pos, float base_angle) {
 
 // render ground
 
-void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t* bitmap) {
+void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_t blink, uint8_t * bitmap) {
     BEGIN_FUNC();
 
     // cache lines
@@ -1225,7 +1266,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                 // camera to face point
                 const Point3d cv = { .x = v0.x - cam_pos.x,.y = v0.y - cam_pos.y,.z = v0.z - cam_pos.z };
                 const GroundFace* f0 = &t0->f0;
-
+                const int is_danger = blink & (1 << i);
                 if (f0->flags & GROUNDFACE_FLAG_QUAD) {
                     if (v_dot(f0->n.v, cv.v) < 0.f)
                     {
@@ -1234,7 +1275,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                             { .h = s0->tiles[i+1].h, .y = s0->y, .i = i + 1, .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
                             { .h = s1->tiles[i+1].h, .y = s1->y, .i = i + 1, .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask },
                             { .h = s1->tiles[i].h,   .y = s1->y, .i = i,     .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask }
-                        }, 4, shading_band);
+                        }, 4, shading_band, is_danger);
                     }
                 }
                 else {
@@ -1244,7 +1285,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                             { .h = s0->tiles[i].h,     .y = s0->y, .i = i,      .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
                             { .h = s1->tiles[i + 1].h, .y = s1->y, .i = i + 1,  .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask },
                             { .h = s1->tiles[i].h,     .y = s1->y, .i = i,      .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask }
-                        }, 3, shading_band);
+                        }, 3, shading_band, is_danger);
                     }
                     const GroundFace* f1 = &t0->f1;
                     if (v_dot(f1->n.v, cv.v) < 0.f)
@@ -1253,7 +1294,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                             { .h = s0->tiles[i].h,   .y = s0->y, .i = i,     .j = j,     .cache = cache[0], .mask = s1->tracks_mask},
                             { .h = s0->tiles[i+1].h, .y = s0->y, .i = i + 1, .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
                             { .h = s1->tiles[i+1].h, .y = s1->y, .i = i + 1, .j = j + 1, .cache = cache[1], .mask = s0->tracks_mask }
-                        }, 3, shading_band);
+                        }, 3, shading_band, is_danger);
                     }
                 }
                 // draw prop (if any)
@@ -1265,37 +1306,27 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint8_t
                         .y = v0.y + (s1->tiles[i + 1].h + s1->y - s0->tiles[i].h - s0->y) * t,
                         .z = v0.z + GROUND_CELL_SIZE * t
                     };
-                    if (prop_id == PROP_COIN) {
-                        // adjust coin height
-                        pos.z += 2.f;
-                    }
                     Point3d res;
                     m_x_v(m, pos.v, res.v);
                     if (res.z > Z_NEAR && res.z < (float)(GROUND_CELL_SIZE * MAX_TILE_DIST)) {
-                        if (prop_id == PROP_COIN) {
-                            push_coin(&res, time_offset + j + _z_offset);
+                        Point3d cv;
+                        float mmvm[MAT4x4];
+                        // adjust matrix to project into position
+                        if (_props_properties[prop_id - 1].flags & PROP_FLAG_Y_ROTATE) {
+                            float tmp[MAT4x4] = {
+                                1.f,0.f,0.f,0.f,
+                                0.f,1.f,0.f,0.f,
+                                0.f,0.f,1.f,0.f,
+                                pos.x,pos.y,pos.z,1.f };
+                            m_x_y_rot(tmp, pd->system->getElapsedTime(), mmvm);
+                            m_inv_x_v(mmvm, cam_pos.v, cv.v);
+                            m_x_m(m, mmvm, tmp);
+                            push_threeD_model(prop_id, cv, tmp);
                         }
-                        else {    
-                            Point3d cv;
-                            // adjust matrix to project into position
-                            float mmvm[MAT4x4];
-                            if (_props_properties[prop_id - 1].flags & PROP_FLAG_Y_ROTATE) {
-                                float tmp[MAT4x4] = {
-                                    1.f,0.f,0.f,0.f,
-                                    0.f,1.f,0.f,0.f,
-                                    0.f,0.f,1.f,0.f,
-                                    pos.x,pos.y,pos.z,1.f };
-                                m_x_y_rot(tmp, pd->system->getElapsedTime(), mmvm);
-                                m_inv_x_v(mmvm, cam_pos.v, cv.v);
-                                m_x_m(m, mmvm, tmp);
-                                push_threeD_model(prop_id, cv, tmp);
-                            }
-                            else {
-                                cv = (Point3d){.x = cam_pos.x - pos.x,.y = cam_pos.y - pos.y,.z = cam_pos.z - pos.z};
-                                m_x_translate(m, pos.v, mmvm);
-                                push_threeD_model(prop_id, cv, mmvm);
-                            }
-                            
+                        else {
+                            cv = (Point3d){.x = cam_pos.x - pos.x,.y = cam_pos.y - pos.y,.z = cam_pos.z - pos.z};
+                            m_x_translate(m, pos.v, mmvm);
+                            push_threeD_model(prop_id, cv, mmvm);
                         }
                     }
                 }

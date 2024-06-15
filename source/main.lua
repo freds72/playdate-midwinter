@@ -874,7 +874,7 @@ function menu_state(angle)
 		{state=play_state,loc=vgroups.MOUNTAIN_RED_TRACK,help=function()
 			return "Death Canyon\nHow far can you go?\nBest: ".._save_state.best_2.."m"
 		end
-		,params={name="Biquettes",dslot=2,slope=2,twist=3,num_tracks=1,tight_mode=1,props_rate=0.97,track_type=1,min_cooldown=8,max_cooldown=12}},
+		,params={name="Biquettes",dslot=2,slope=2,twist=4,num_tracks=1,tight_mode=1,props_rate=1,track_type=3,min_cooldown=2,max_cooldown=8}},
 		{state=race_state,loc=vgroups.MOUNTAIN_BLACK_TRACK,help=function()
 			return "Endless Race\nTake over mania!\nBest: ".._save_state.best_3.."m"
 		end,params={name="Chamois",dslot=3,slope=2.25,twist=5,num_tracks=1,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=8,max_cooldown=12}},
@@ -1335,7 +1335,7 @@ end
 -- generic static prop
 local make_static_actor=function(id,x,sfx_name,update)
 	return function(lane)
-		local pos={x or (15.5-lane/2)*4,-16,30.5*4}
+		local pos={x or (lane+0.5)*4,-16,30.5*4}
 		local y=ground:find_face(pos)
 		pos[2]=y
 		-- sfx?
@@ -1384,13 +1384,11 @@ end
 local command_handlers={
 	-- snowball!!
 	B=function(lane)
-		local y_velocity,z_velocity = 0,1+rnd(0.25)
+		local y_velocity,z_velocity = 0,1.5
 		local y_force,on_ground = 0
 		local base_angle = rnd()
-		local pos=v_clone(plyr.pos)
-		pos[1]+=(lane-1)*4
+		local pos={(lane+0.5)*4,0,0.5}
 		local prev_pos=v_clone(pos)
-		v_add(pos,{0,0,-4*8})
 		-- helper
 		local function v2_sqrlen(x,z,b)
 			local dx,dz=b[1]-x,b[3]-z
@@ -1399,17 +1397,19 @@ local command_handlers={
 		return {
 			id=models.PROP_SNOWBALL,
 			pos=pos,
+			warning=lane,
 			shift=function(self,offset)
 				-- shift
 				v_add(pos,offset)
 				v_add(prev_pos,offset)
 			end,
 			update=function(self)
-				-- integrate
-				y_force = -1
+				-- gravity
+				y_force = -4
 				if on_ground then
 					-- todo: shake?
 					-- force += 4
+					-- y_force += 0.5
 				end
 				y_velocity+=y_force*0.5/30
 				prev_pos=v_clone(prev_pos)
@@ -1417,14 +1417,19 @@ local command_handlers={
 				pos[3]+=z_velocity
 				y_force=0
 
-				-- collision with player
+				-- capsule collision with player
 				if plyr then
 					local plyr_x,plyr_z=plyr.pos[1],plyr.pos[3]
+					-- kill warning if past player
+					if pos[3]-plyr_z>4 then
+						self.warning = nil
+					end
 					if v2_sqrlen(plyr_x,plyr_z,pos)<2.25 or 
 						v2_sqrlen(plyr_x,plyr_z,prev_pos)<2.25 or 
 						(plyr_x<pos[1]+1.5 and plyr_x>pos[1]-1.5 
 						and plyr_z<pos[3] and plyr_z>prev_pos[3]) then
-						plyr.dead = true
+						-- todo: remove after testing
+						-- plyr.dead = true
 					end
 				end
 				
@@ -1437,6 +1442,7 @@ local command_handlers={
 				if pos[2]<=newy then
 					pos[2]=newy
 					on_ground = true
+					y_velocity = 0
 				end
 				-- shadow plane projection matrix
 				local m = make_m_from_v(newn)
@@ -1449,25 +1455,13 @@ local command_handlers={
 				-- roll!!!
 				local m = make_m_x_rot(base_angle-4*time())
 				m[13]=pos[1]
-				-- offset ball radius
+				-- offset with ball radius
 				m[14]=pos[2]+1.25
 				m[15]=pos[3]
 				self.m = m
 				return true
 			end
 		}
-	end,
-	-- warning sign
-	w=function(lane)
-		do_async(function()
-			warnings[lane]=_warning_avalanche
-			wait_async(40)
-			warnings[lane]=nil
-			wait_async(5)
-			warnings[lane]=_warning_avalanche
-			wait_async(5)
-			warnings[lane]=nil
-		end)
 	end,
 	-- (tele)cabin
 	t=make_static_actor(models.PROP_CABINS,15.5*4),
@@ -1493,9 +1487,7 @@ function play_state(params,help_ttl)
 	-- read data slot
 	local best_distance = params.dslot and _save_state["best_"..params.dslot]	
 	local prev_slice_id
-	-- warning signs
-	local warnings={}
-
+	local frame_t=0
 	-- trick event
 	local combo_ttl,bonus,total_tricks,coins,bonus_coins=0,{},0,_save_state.coins
 	local function register_trick(type,msg)
@@ -1608,7 +1600,7 @@ function play_state(params,help_ttl)
 					for i=1,#commands do
 						local c=string.sub(commands,i,i)
 						if command_handlers[c] then
-							local actor=command_handlers[c](i)
+							local actor=command_handlers[c](i-1)
 							if actor then
 								add(actors,actor)
 							end
@@ -1660,16 +1652,26 @@ function play_state(params,help_ttl)
 			end
 
 			help_ttl+=1
+			frame_t+=1
 		end,
 		-- draw
 		function()
+			blink_mask = 0
 			for _,a in pairs(actors) do
 				ground:add_render_prop(a.id,a.m)
 				if a.m_shadow then
 					ground:add_render_prop(models.PROP_SHADOW,a.m_shadow)
+				end				
+				-- foreshadowing lines
+				if plyr then
+					if a.warning then
+						if (frame_t+a.warning)%8<4 then
+							blink_mask |= (1<<a.warning)
+						end
+					end
 				end
 			end
-			ground:draw(cam)			 
+			ground:draw(cam, blink_mask)			 
 
 			if plyr then
 				local pos,a,steering,_,boost=plyr:get_pos()
@@ -1680,11 +1682,24 @@ function play_state(params,help_ttl)
 				_ski:draw(228-xoffset,210+dy+steering*14)
 			
 				-- any warning messages?
-				for i,img in pairs(warnings) do
-					local w=img:getSize()
-					img:draw(200-w/2,42)
+				for _,a in pairs(actors) do
+					-- any warning line?
+					if a.warning then
+						--[[
+						if (time()//0.0625)%2==0 then
+							local m=make_m_x_rot(-0.05)
+							m[13]=(a.warning + 0.5)*4
+							m[14]=plyr.pos[2]-0.5
+							m[15]=plyr.pos[3]+2
+							lib3d.add_render_prop(models.PROP_DANGER,table.unpack(m))
+							lib3d.render_props(cam.pos[1],cam.pos[2],cam.pos[3],table.unpack(cam.m))
+						end	
+						]]
+						-- local x,y,w=cam:project2d(m_x_v(cam.m,{(a.warning + 0.5)*4,plyr.pos[2]+0.5,plyr.pos[3]+4}))
+						-- _warning_avalanche:draw(x-16,42)
+					end
 				end
-
+	
 				-- boost "speed lines" effect 
 				if boost>0.25 then
 					gfx.setColor(gfx.kColorBlack)
@@ -2026,8 +2041,8 @@ function make_ground(params)
 		update=function(self,p)
 			return lib3d.update_ground(table.unpack(p))
 		end,
-		draw=function(self,cam)
-			lib3d.render_ground(cam.pos[1],cam.pos[2],cam.pos[3],cam.angle%1,table.unpack(cam.m))
+		draw=function(self,cam,blink_mask)
+			lib3d.render_ground(cam.pos[1],cam.pos[2],cam.pos[3],cam.angle%1,blink_mask,table.unpack(cam.m))
 		end,
 		draw_props=function(self,cam)
 			lib3d.render_props(cam.pos[1],cam.pos[2],cam.pos[3],table.unpack(cam.m))

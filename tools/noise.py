@@ -23,14 +23,14 @@ import os
 def GetBayerPattern(Log2Width):
     """Creates a two-dimensional Bayer pattern with a width and height of 
        2**Log2Width."""
-    X,Y=np.meshgrid(range(2**Log2Width),range(2**Log2Width));
+    X,Y=np.meshgrid(range(2**Log2Width),range(2**Log2Width))
     Result=np.zeros_like(X);
     for i in range(Log2Width):
-        StripesY=np.where(np.bitwise_and(Y,2**(Log2Width-1-i))!=0,1,0);
-        StripesX=np.where(np.bitwise_and(X,2**(Log2Width-1-i))!=0,1,0);
-        Checker=np.bitwise_xor(StripesX,StripesY);
-        Result+=np.bitwise_or(StripesY*2**(2*i),Checker*2**(2*i+1));
-    return Result;
+        StripesY=np.where(np.bitwise_and(Y,2**(Log2Width-1-i))!=0,1,0)
+        StripesX=np.where(np.bitwise_and(X,2**(Log2Width-1-i))!=0,1,0)
+        Checker=np.bitwise_xor(StripesX,StripesY)
+        Result+=np.bitwise_or(StripesY*2**(2*i),Checker*2**(2*i+1))
+    return Result
 
 
 def FindLargestVoid(BinaryPattern,StandardDeviation):

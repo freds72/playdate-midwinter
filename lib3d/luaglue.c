@@ -131,7 +131,10 @@ static int lib3d_render_ground(lua_State* L)
 	// cam angle
 	const float tau_angle = pd->lua->getArgFloat(argc++);
 
-    // camera matrix
+	// blinking mask (warning)
+	uint32_t blink = pd->lua->getArgInt(argc++);
+	
+	// camera matrix
     float m[16];
 
     for (int i = 0; i < 16; ++i) {
@@ -141,7 +144,7 @@ static int lib3d_render_ground(lua_State* L)
 
     uint8_t* bitmap = pd->graphics->getFrame();
 
-	render_ground(pos, tau_angle, m, bitmap);
+	render_ground(pos, tau_angle, m, blink, bitmap);
 
     pd->graphics->markUpdatedRows(0, LCD_ROWS - 1);
 
