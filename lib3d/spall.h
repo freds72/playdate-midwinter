@@ -41,7 +41,7 @@ TODO: Optional Helper APIs:
 
 #define SPALL_MIN(a, b) (((a) < (b)) ? (a) : (b))
 
-// #define SPALL_COLLECT
+//#define SPALL_COLLECT
 #ifdef SPALL_COLLECT
 #define BEGIN_FUNC() do { \
 	spall_buffer_begin(&spall_ctx, &spall_buffer, __FUNCTION__, sizeof(__FUNCTION__) - 1, pd->system->getElapsedTime()); \

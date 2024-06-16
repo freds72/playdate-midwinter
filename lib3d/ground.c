@@ -244,6 +244,14 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
                     case 'J': prop_id = PROP_JUMPPAD; break;
                     case 'S': prop_id = PROP_START; break;
                     case 'C': prop_id = PROP_COIN; break;
+                        // hole
+                    case 'O': slice->tiles[i].h = -4.f; break;
+                        // geump :)
+                    case '1': slice->tiles[i].h += 0.75f * active_params.slope; break;
+                    case '2': slice->tiles[i].h += 1.f * active_params.slope; break;
+                    case '3': slice->tiles[i].h += 1.5f * active_params.slope; break;
+                    case '4': slice->tiles[i].h += 2.5f * active_params.slope; break;
+                    case '5': slice->tiles[i].h += 3.5f * active_params.slope; break;
                     case 'T':
                         prop_id = trees[randi(num_trees)];
                         prop_t = randf();
@@ -786,6 +794,7 @@ void ground_init(PlaydateAPI* playdate) {
     // checkpoint flags
     _props_properties[PROP_CHECKPOINT_LEFT - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
     _props_properties[PROP_CHECKPOINT_RIGHT - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
+    _props_properties[PROP_START - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.f };
     // obstacles
     _props_properties[PROP_ROCK - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_KILL, .radius = 3.f };
     _props_properties[PROP_COW - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_KILL, .radius = 2.5f };
@@ -896,7 +905,7 @@ static void draw_tile(Drawable* drawable, uint8_t* bitmap) {
         pts[i].x = 199.5f + 199.5f * w * pts[i].x;
         pts[i].y = 119.5f - 199.5f * w * pts[i].y;
         // works ok
-        float shading = face->material == GROUNDFACE_FLAG_SNOW ? 4.0f * pts[i].u + 8.f * w : 4.0f + 4.0f * pts[i].u + 4.f * w;
+        float shading = face->material == GROUNDFACE_FLAG_SNOW ? 4.0f * pts[i].u + 8.f * w : 6.0f + 4.0f * pts[i].u + 4.f * w;
         // attenuation
         shading *= pts[i].light;
         if (shading > 15.f) shading = 15.f;
@@ -1249,7 +1258,6 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
     _drawables.n = 0;
     collect_tiles(cam_pos, cam_angle);
 
-    const int time_offset = (int)(pd->system->getCurrentTimeMilliseconds() / 250.f);
     // transform
     for (int j = 0; j < GROUND_SIZE - 1; ++j) {
         uint32_t visible_tiles = _visible_tiles[j];

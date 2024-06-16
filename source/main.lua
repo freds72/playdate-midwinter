@@ -37,7 +37,6 @@ local _inputs={
 	}
 }
 local _input=_inputs[true]
-local _flip_crank=1
 
 -- some "pico-like" helpers
 function cls(c)
@@ -381,13 +380,14 @@ function make_cam(pos)
 end
 
 -- basic gravity+slope physic body
-function make_body(p)
+function make_body(p,angle)
 	-- last contact face
 	local up,oldf={0,1,0}
 
 	local velocity,angularv,forces,torque={0,0,0},0,{0,0,0},0
 	local boost,perm_boost=0,0
-	local angle,steering_angle,on_air_ttl,was_on_air=0,0,0
+	local steering_angle=0
+	angle=angle or 0
 
 	local g={0,-4,0}
 	return {
@@ -499,10 +499,8 @@ function make_body(p)
 		update=function(self)
 			if self.on_ground then
 				steering_angle*=0.8				
-				on_air_ttl=0
 			else
 				steering_angle*=0.85
-				on_air_ttl+=1
 			end
 			
 			-- find ground
@@ -511,18 +509,13 @@ function make_body(p)
 			local newy,newn=ground:find_face(pos)
 			-- stop at ground
 			self.on_ground=nil
+			self.on_cliff=newn[2]<0.5
 			local tgt_height=1
 			if pos[2]<=newy then
 				up=newn
 				tgt_height=pos[2]-newy
 				pos[2]=newy			
 				self.on_ground=true
-				-- was on air? big enough jump?
-				if on_air_ttl>23 then 
-					cam:shake(16) 					
-					on_air_ttl=0 
-					-- todo: sfx
-				end
 			end
 
 			self.height=lerp(self.height,tgt_height,0.4)
@@ -545,8 +538,8 @@ function make_plyr(p,on_trick)
 	-- timers + avoid free airtime on drop!
 	local reverse_t,air_t=0,0
 
-	body.hp = 3
 	body.distance = 0
+	body.on_coin=function() end
 	body.control=function(self)	
 		local da=0
 		if playdate.isCrankDocked() then
@@ -554,12 +547,13 @@ function make_plyr(p,on_trick)
 			if playdate.buttonIsPressed(playdate.kButtonRight) then da=-1 end
 		else
 			local change, acceleratedChange = playdate.getCrankChange()
-			da = _flip_crank * acceleratedChange
+			local flip = _save_state.flip_crank and -1 or 1
+			da = flip * acceleratedChange
 		end
 
 		if self.on_ground then
 			-- was flying?			
-			if air_t>23 then
+			if air_t>30 then
 				-- pro trick? :)
 				if reverse_t>0 then
 					on_trick(2,"reverse air!")
@@ -615,10 +609,12 @@ function make_plyr(p,on_trick)
 			cam:shake()
 			self.dead=true
 		elseif hit_type==3 then
-			-- todo: remove coins
+			-- notify controller
+			self.on_coin(1)
 		elseif hit_type==4 then
 			-- accel pad
 			if self.on_ground then
+				_boost_sfx:play(1)
 				self:boost(1.5)
 			end
 		elseif hit_ttl<0 and hit_type==1 then
@@ -635,7 +631,7 @@ function make_plyr(p,on_trick)
 		local slice=ground:get_track(pos)
 		self.gps=slice.angle+angle
 		self.on_track=pos[1]>=slice.xmin and pos[1]<=slice.xmax
-
+		
 		-- need to have some speed
 		if v_dot(velocity,{-sin(angle),0,cos(angle)})<-0.2 then
 			reverse_t+=1
@@ -654,6 +650,12 @@ function make_plyr(p,on_trick)
 
 		-- call parent
 		body_update(self)
+		
+		-- prevent "hill" climbing!
+		if self.on_cliff then
+			plyr.dead=true
+		end
+
 		-- total distance
 		-- 2: crude 1 game unit = 2 meters
 		body.distance+=max(0,2*velocity[3])
@@ -664,7 +666,7 @@ function make_plyr(p,on_trick)
 end
 
 function make_npc(p)
-	local body=make_body(p)
+	local body=make_body(p,0)
 	local up={0,1,0}
 	local dir,boost=0,0
 	local body_update=body.update
@@ -722,8 +724,8 @@ function make_npc(p)
 
 		-- update sfx
 		local volume=self.on_ground and 1 or 0
-		-- distance to player
-		local dist=v_len(make_v(self.pos,plyr.pos))
+		-- distance to camera
+		local dist=v_len(make_v(self.pos,cam.pos))
 		if dist<4 then dist=4 end
 		sfx:setVolume(volume*4/dist)
 		sfx:setRate(1-abs(da/2))
@@ -870,14 +872,14 @@ function menu_state(angle)
   local starting
 	local best_y = -20
 	local panels={
-		{state=play_state,loc=vgroups.MOUNTAIN_GREEN_TRACK,help="Chill mood?\nEnjoy the snow!",params={name="Marmottes",slope=1.5,twist=2.5,num_tracks=3,tight_mode=0,props_rate=0.90,track_type=0,min_cooldown=30*5,max_cooldown=30*15}},
+		{state=play_state,loc=vgroups.MOUNTAIN_GREEN_TRACK,help="Chill mood?\nEnjoy the snow!",params={hp=3,name="Marmottes",slope=1.5,twist=2.5,num_tracks=3,tight_mode=0,props_rate=0.90,track_type=0,min_cooldown=30*2,max_cooldown=30*12}},
 		{state=play_state,loc=vgroups.MOUNTAIN_RED_TRACK,help=function()
 			return "Death Canyon\nHow far can you go?\nBest: ".._save_state.best_2.."m"
 		end
-		,params={name="Biquettes",dslot=2,slope=2,twist=4,num_tracks=1,tight_mode=1,props_rate=1,track_type=3,min_cooldown=2,max_cooldown=8}},
+		,params={hp=1,name="Biquettes",dslot=2,slope=2,twist=4,num_tracks=1,tight_mode=1,props_rate=1,track_type=1,min_cooldown=8,max_cooldown=12}},
 		{state=race_state,loc=vgroups.MOUNTAIN_BLACK_TRACK,help=function()
 			return "Endless Race\nTake over mania!\nBest: ".._save_state.best_3.."m"
-		end,params={name="Chamois",dslot=3,slope=2.25,twist=5,num_tracks=1,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=8,max_cooldown=12}},
+		end,params={hp=1,name="Chamois",dslot=3,slope=2.25,twist=5,num_tracks=1,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=8,max_cooldown=12}},
 		{state=shop_state,loc=vgroups.MOUNTAIN_SHOP,help=function()
 			return "Buy gear!\n$".._save_state.coins
 		end ,params={name="Shop"},transition=false}
@@ -904,8 +906,8 @@ function menu_state(angle)
 			_futures={}
 			next_state(menu_state)
 	end)	
-	local menuItem, error = menu:addCheckmarkMenuItem("flip crank", false, function(value)
-		_flip_crank = value and -1 or 1
+	local menuItem, error = menu:addCheckmarkMenuItem("flip crank", _save_state.flip_crank, function(value)
+		_save_state.flip_crank = value
 	end)	
 
 	local scale = 1
@@ -942,7 +944,8 @@ function menu_state(angle)
 					angle += 0.001
 				else
 					local change, acceleratedChange = playdate.getCrankChange()
-					angle += _flip_crank * acceleratedChange/360
+					local flip = _save_state.flip_crank and -1 or 1
+					angle += flip * acceleratedChange/360
 				end
 				
 				m = make_m_y_rot(angle)
@@ -1511,6 +1514,12 @@ function play_state(params,help_ttl)
 
 	-- create player in correct direction
 	plyr=make_plyr(ground:get_pos(),register_trick)
+	plyr.on_coin=function(c)
+		_coin_sfx:play(1)
+		coins+=c
+		_save_state.coins+=c
+	end
+	plyr.hp = params.hp
 	_tracked = plyr
 		
 	cam=make_cam()
@@ -1581,6 +1590,7 @@ function play_state(params,help_ttl)
 							bonus_coins = 1<<multi
 							wait_async(30)
 							for i=1,bonus_coins do
+								_coin_sfx:play(1)
 								coins += 1
 								wait_async(3)
 							end
@@ -1680,26 +1690,7 @@ function play_state(params,help_ttl)
 				local xoffset=6*cos(time()/4)
 				_ski:draw(152+xoffset,210+dy-steering*14,gfx.kImageFlippedX)
 				_ski:draw(228-xoffset,210+dy+steering*14)
-			
-				-- any warning messages?
-				for _,a in pairs(actors) do
-					-- any warning line?
-					if a.warning then
-						--[[
-						if (time()//0.0625)%2==0 then
-							local m=make_m_x_rot(-0.05)
-							m[13]=(a.warning + 0.5)*4
-							m[14]=plyr.pos[2]-0.5
-							m[15]=plyr.pos[3]+2
-							lib3d.add_render_prop(models.PROP_DANGER,table.unpack(m))
-							lib3d.render_props(cam.pos[1],cam.pos[2],cam.pos[3],table.unpack(cam.m))
-						end	
-						]]
-						-- local x,y,w=cam:project2d(m_x_v(cam.m,{(a.warning + 0.5)*4,plyr.pos[2]+0.5,plyr.pos[3]+4}))
-						-- _warning_avalanche:draw(x-16,42)
-					end
-				end
-	
+				
 				-- boost "speed lines" effect 
 				if boost>0.25 then
 					gfx.setColor(gfx.kColorBlack)
@@ -1711,6 +1702,7 @@ function play_state(params,help_ttl)
 						local x0,y0=200 + c*radius,120 + s*radius
 						local x1,y1=x0+c*100-s*4,y0+s*100+c*4
 						local x2,y2=x0+c*100+s*4,y0+s*100-c*4
+						gfx.setDitherPattern(rnd(), gfx.image.kDitherTypeBayer4x4)
 						gfx.fillTriangle(x0,y0,x1,y1,x2,y2)
 					end
 				end
@@ -1761,10 +1753,62 @@ function race_state(params)
 	-- custom handling of 
 	local npc,dist
 	local boost_ttl = 0
-	command_handlers.n = function()
-		if npc then return end
-		npc=make_npc(plyr.pos)
-		return npc
+	local droping_in,dropped
+	local make_helo=function(lane)
+		droping_in=true
+		local pos={(lane+0.5)*4,-16,4}
+		local y=ground:find_face(pos)
+		pos[2]=y+16
+		-- sfx?
+		_helo_sfx:play(0)
+		_helo_sfx:setVolume(0)
+
+		return {
+			id=models.PROP_HELO,
+			pos=pos,
+			m=make_m_y_rot(0.5),
+			update=function(self)
+				local pos=self.pos
+				-- update pos?
+				pos[3]+=1
+				-- get current height
+				local ny=ground:find_face(pos)
+				-- out of landscape?
+				if not ny then
+					_helo_sfx:stop()
+					return 
+				end
+				if not dropped then
+					local slice=ground:get_track(pos)
+					pos[1]=lerp(pos[1],(slice.xmin+slice.xmax)/2,0.2)
+				end
+
+				-- wooble over ground
+				pos[2] = ny + 16 + cos(time())
+
+				if not dropped and pos[3]>plyr.pos[3]+24 then
+					-- avoid reentrancy
+					dropped=true
+					do_async(function()
+						npc=make_npc(v_clone(pos))
+						add(actors,npc)
+					end)
+				end
+				local d=v_len(make_v(pos,plyr.pos))
+				if d<16 then d=16 end
+				_helo_sfx:setVolume(16/d)
+
+				local m=self.m
+				m[13]=pos[1]
+				m[14]=pos[2]
+				m[15]=pos[3]
+				return true
+			end
+		}
+	end	
+	command_handlers.n = function(lane)
+		if droping_in then return end
+		return make_helo(lane)
 	end
 	local play_update,play_draw=play_state(params)
 
@@ -1785,12 +1829,14 @@ function race_state(params)
 					npc = nil
 					return					
 				end
-				-- distance to player?			
-				dist=2*(npc.pos[3]-plyr.pos[3])
-				boost_ttl-=1
-				if dist<-4 and boost_ttl<0 then
-					npc:boost(1.8)
-					boost_ttl = 8
+				if plyr then
+					-- distance to player?			
+					dist=2*(npc.pos[3]-plyr.pos[3])
+					boost_ttl-=1
+					if dist<-4 and boost_ttl<0 then
+						npc:boost(1.8)
+						boost_ttl = 8
+					end
 				end
 			end
 		end,
@@ -1961,6 +2007,7 @@ function _init()
 	_checkpoint_sfx = playdate.sound.sampleplayer.new("sounds/checkpoint")
 	_treehit_sfx = playdate.sound.sampleplayer.new("sounds/tree-impact-1")
 	_button_click = playdate.sound.sampleplayer.new("sounds/ui_button_click")
+	_boost_sfx = playdate.sound.sampleplayer.new("sounds/boost")
 
 	_game_over = gfx.image.new("images/game_over")
 	_game_title = gfx.image.new("images/game_title")
@@ -1993,6 +2040,7 @@ function _init()
 		_save_state = {}		
 		_save_state.version = 1
 		_save_state.coins = 0
+		_save_state.flip_crank = false
 		_save_state.best_1 = 1000
 		_save_state.best_2 = 500
 		_save_state.best_3 = 250
