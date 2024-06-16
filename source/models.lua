@@ -29,6 +29,8 @@ PROP_TREE1 = 1
 ,PROP_TREE2 = 26
 ,PROP_TREE4 = 27
 ,PROP_TREE3 = 28
+,PROP_COIN = 29
+,PROP_DANGER = 30
 
 }
 -- named vertices

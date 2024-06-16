@@ -49,7 +49,7 @@ void update_ground(Point3d* pos, int* slice_id, char** pattern, Point3d* offset)
 void collide(Point3d pos, float radius, int* hit_type);
 
 // render ground
-void render_ground(Point3d pos, const float tau_angle, float*m, uint8_t* bitmap);
+void render_ground(Point3d pos, const float tau_angle, float*m, uint32_t blink, uint8_t* bitmap);
 
 // register a new "free" prop to be rendered using the given transformation matrix
 void add_render_prop(int id, const float* m);

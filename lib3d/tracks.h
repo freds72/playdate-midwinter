@@ -39,7 +39,7 @@ typedef struct {
   Track tracks[3];
   // active tracks
   int n;
-  char pattern[MAX_TIMELINES + 1];
+  char pattern[GROUND_SIZE+1];
 } Tracks;
 
 void make_tracks(const int xmin, const int xmax, GroundParams params, Tracks** out);
