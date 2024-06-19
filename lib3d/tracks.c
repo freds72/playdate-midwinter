@@ -88,6 +88,18 @@ Section _chill_sections[] = {
             {.timeline = NULL }
         }
     },
+    // UFO (super rare)
+    {
+        .random = 1,
+        .seq = {.min = 12, .max = 18 },
+        .timelines = {
+            {.timeline = "." },
+            {.timeline = "." },
+            {.timeline = "." },
+            {.timeline = "u" },
+            {.timeline = NULL }
+        }
+    },
     // cows
     {
         .random = 1,
@@ -267,12 +279,12 @@ Section _test_sections[] = {
         .random = 0,
         .seq = {.min = 0, .max = INT_MAX },
         .timelines = {
-            {.timeline = "W........" },
-            {.timeline = "....OO..."},
-            {.timeline = "...O55O.."},
-            {.timeline = "...O55O.."},
-            {.timeline = "....OO..."},
-            {.timeline = "W........" },
+            {.timeline = "..." },
+            {.timeline = "..."},
+            {.timeline = "..."},
+            {.timeline = ".u."},
+            {.timeline = "..."},
+            {.timeline = "..." },
             {.timeline = NULL }
         }
     }
