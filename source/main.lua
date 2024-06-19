@@ -872,14 +872,14 @@ function menu_state(angle)
   local starting
 	local best_y = -20
 	local panels={
-		{state=play_state,loc=vgroups.MOUNTAIN_GREEN_TRACK,help="Chill mood?\nEnjoy the snow!",params={hp=3,name="Marmottes",slope=1.5,twist=2.5,num_tracks=3,tight_mode=0,props_rate=0.90,track_type=0,min_cooldown=30*2,max_cooldown=30*12}},
+		{state=play_state,loc=vgroups.MOUNTAIN_GREEN_TRACK,help="Chill mood?\nEnjoy the snow!",params={hp=3,name="Marmottes",slope=1.5,twist=2.5,num_tracks=3,tight_mode=0,props_rate=0.90,track_type=0,min_cooldown=30,max_cooldown=30*4}},
 		{state=play_state,loc=vgroups.MOUNTAIN_RED_TRACK,help=function()
 			return "Death Canyon\nHow far can you go?\nBest: ".._save_state.best_2.."m"
 		end
 		,params={hp=1,name="Biquettes",dslot=2,slope=2,twist=4,num_tracks=1,tight_mode=1,props_rate=1,track_type=1,min_cooldown=8,max_cooldown=12}},
 		{state=race_state,loc=vgroups.MOUNTAIN_BLACK_TRACK,help=function()
 			return "Endless Race\nTake over mania!\nBest: ".._save_state.best_3.."m"
-		end,params={hp=1,name="Chamois",dslot=3,slope=2.25,twist=5,num_tracks=1,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=8,max_cooldown=12}},
+		end,params={hp=1,name="Chamois",dslot=3,slope=2.25,twist=6,num_tracks=1,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=4,max_cooldown=12}},
 		{state=shop_state,loc=vgroups.MOUNTAIN_SHOP,help=function()
 			return "Buy gear!\n$".._save_state.coins
 		end ,params={name="Shop"},transition=false}
@@ -1470,6 +1470,8 @@ local command_handlers={
 	t=make_static_actor(models.PROP_CABINS,15.5*4),
 	-- hot air balloon
 	h=make_static_actor(models.PROP_BALLOON),
+	-- ufo
+	u=make_static_actor(models.PROP_UFO,nil,"_ufo_sfx"),
 	-- eagles
 	a=make_static_actor(models.PROP_EAGLES,nil,"_eagle_sfx"),
 	-- heli
@@ -2002,6 +2004,7 @@ function _init()
 	_ski = gfx.image.new("images/ski")
 	_ski_sfx = playdate.sound.sampleplayer.new("sounds/skiing_loop")
 	_eagle_sfx = playdate.sound.sampleplayer.new("sounds/eagle_loop")
+	_ufo_sfx = playdate.sound.sampleplayer.new("sounds/ufo_loop")
 	_helo_sfx = playdate.sound.sampleplayer.new("sounds/helo_loop")
 	_coin_sfx = playdate.sound.sampleplayer.new("sounds/coin")
 	_checkpoint_sfx = playdate.sound.sampleplayer.new("sounds/checkpoint")
