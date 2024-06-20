@@ -52,12 +52,12 @@ Emitter _emitters[] = {
     {
         .flags = 0,
         .color = 0,
-        .ttl = {.min = 24, .max = 45 },
+        .ttl = {.min = 15, .max = 24 },
         .angularv = {.min = -1.f, .max = 1.f},
-        .decay = {.min = 1.f, .max = 1.01f },
+        .decay = {.min = 0.95f, .max = 0.97f },
         .radius = {.min = 0.1f, .max = 0.25f},
-        .y_velocity = {.min = 0.f, .max = 0.f},
-        .gravity = +0.05f,
+        .y_velocity = {.min = 0.1f, .max = 0.25f},
+        .gravity = 0.f,
         .pool = {0}
     }
 };

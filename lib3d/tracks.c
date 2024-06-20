@@ -414,13 +414,13 @@ Section _race_section_start = {
     .random = 0,
     .seq = {.min = 0, .max = 0 },
     .timelines = {
-        {.timeline = "W...." },
-        {.timeline = "S...." },
-        {.timeline = "....." },
-        {.timeline = "...n." },
-        {.timeline = "....." },
-        {.timeline = "S...." },
-        {.timeline = "W...." },
+        {.timeline = "W.............." },
+        {.timeline = "S.............." },
+        {.timeline = "..............." },
+        {.timeline = "...n..........m" },
+        {.timeline = "..............." },
+        {.timeline = "S.............." },
+        {.timeline = "W.............." },
         {.timeline = NULL }
     }
 };

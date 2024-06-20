@@ -176,7 +176,7 @@ static void mesh_slice(int j) {
 
 static void make_slice(GroundSlice* slice, float y, int warmup) {
     // BEGIN_FUNC();
-    static int trees[] = { PROP_TREE0,PROP_TREE0,PROP_TREE1,PROP_TREE1,PROP_TREE2,PROP_TREE3,PROP_TREE3,PROP_TREE4,PROP_TREE4,PROP_TREE4,PROP_TREE5,PROP_TREE5,PROP_TREE5 };
+    static int trees[] = { PROP_TREE0,PROP_TREE0,PROP_TREE1,PROP_TREE1,PROP_TREE2,PROP_TREE3,PROP_TREE3,PROP_TREE4,PROP_TREE4,PROP_TREE4,PROP_TREE5,PROP_TREE5,PROP_TREE5,PROP_LOG };
     static int num_trees = sizeof(trees) / sizeof(PROP_TREE0);
 
     // smooth altitude changes
@@ -784,13 +784,14 @@ void ground_init(PlaydateAPI* playdate) {
 
     // props config (todo: get from lua?)
 
-    // pine tree
+    // forest stuff
     _props_properties[PROP_TREE0 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f};
     _props_properties[PROP_TREE1 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
     _props_properties[PROP_TREE2 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.f };
     _props_properties[PROP_TREE3 - 1] = (PropProperties){ .flags = 0, .radius = 1.8f };
     _props_properties[PROP_TREE4 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
     _props_properties[PROP_TREE5 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
+    _props_properties[PROP_LOG - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
     // checkpoint flags
     _props_properties[PROP_CHECKPOINT_LEFT - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
     _props_properties[PROP_CHECKPOINT_RIGHT - 1] = (PropProperties){ .flags = 0, .radius = 0.f };

@@ -303,34 +303,37 @@ end
 
 -- main engine
 -- global vars
-local actors,ground,plyr,cam,_tracked={}
+local _actors,_ground,_plyr,_tracked={}
 
--- camera clip planes
-local k_far,k_near,k_right,k_left,z_near=0,2,4,8,0.2
+-- screen efects
+local screen={}
+-- screen shake
+local shkx,shky=0,0
+function screen:shake(scale)
+	scale=scale or 24
+	shkx,shkx=min(8,shkx+rnd(scale)),min(8,shky+rnd(scale))
+end
+function screen:update()
+	shkx=shkx*-0.7-rnd(0.4)
+	shky=shky*-0.7-rnd(0.4)
+	if abs(shkx)<0.5 and abs(shky)<0.5 then
+		shkx,shky=0,0
+	end
+end
 
 -- camera
 function make_cam(pos)
 	--
 	local up={0,1,0}
 
-	-- screen shake
-	local shkx,shky=0,0
 	camera()
 
 	return {
 		pos=pos and v_clone(pos) or {0,0,0},
 		angle=0,
 		m=make_m_from_v_angle(v_up,0),
-		shake=function(self,scale)
-			scale=scale or 24
-			shkx,shkx=min(8,shkx+rnd(scale)),min(8,shky+rnd(scale))
-		end,
 		update=function()
-			shkx=shkx*-0.7-rnd(0.4)
-			shky=shky*-0.7-rnd(0.4)
-			if abs(shkx)<0.5 and abs(shky)<0.5 then
-				shkx,shky=0,0
-			end
+			screen:update()
 			camera(shkx,shky)
 		end,
 		look=function(self,to)
@@ -456,6 +459,8 @@ function make_body(p,angle)
 			forces,torque={0,0,0},0
 		end,
 		steer=function(self,steering_dt)
+			-- stiff direction when boosting!
+			if boost>0.1 then steering_dt/=2 end
 			steering_angle+=mid(steering_dt,-0.15,0.15)
 			-- on ground?
 			if self.on_ground and v_len(velocity)>0.001 then
@@ -506,7 +511,7 @@ function make_body(p,angle)
 			-- find ground
 			local pos=self.pos
 
-			local newy,newn=ground:find_face(pos)
+			local newy,newn=_ground:find_face(pos)
 			-- stop at ground
 			self.on_ground=nil
 			self.on_cliff=newn[2]<0.5
@@ -603,10 +608,10 @@ function make_plyr(p,on_trick)
 			spin_prev=nil
 		end
 
-		local hit_type=ground:collide(pos,0.2)
+		local hit_type=_ground:collide(pos,0.2)
 		if hit_type==2 then
 			-- walls: insta-death
-			cam:shake()
+			screen:shake()
 			self.dead=true
 		elseif hit_type==3 then
 			-- notify controller
@@ -620,7 +625,7 @@ function make_plyr(p,on_trick)
 		elseif hit_ttl<0 and hit_type==1 then
 			-- props: 
 			_treehit_sfx:play()
-			cam:shake()
+			screen:shake()
 			-- temporary invincibility
 			hit_ttl=15
 			self.hp-=1
@@ -628,7 +633,7 @@ function make_plyr(p,on_trick)
 			reverse_t,spin_prev=0
 		end
 
-		local slice=ground:get_track(pos)
+		local slice=_ground:get_track(pos)
 		self.gps=slice.angle+angle
 		self.on_track=pos[1]>=slice.xmin and pos[1]<=slice.xmax
 		
@@ -653,7 +658,7 @@ function make_plyr(p,on_trick)
 		
 		-- prevent "hill" climbing!
 		if self.on_cliff then
-			plyr.dead=true
+			_plyr.dead=true
 		end
 
 		-- total distance
@@ -665,26 +670,99 @@ function make_plyr(p,on_trick)
 	return body
 end
 
-function make_npc(p)
+function make_jinx(id,pos,velocity,effect)
+	local base_angle=rnd()
+	return {
+		id=id,
+		pos=pos,
+		m=make_m_y_rot(time()),
+		-- blinking=true,
+		update=function(self)
+			-- gravity
+			velocity[2]-=0.25
+			v_add(pos,velocity)
+			-- find ground
+			local newy=_ground:find_face(pos)
+			-- out of bound: kill actor
+			if not newy then return end
+
+			if pos[2]<newy then
+				pos[2] = newy
+				-- damping
+				velocity[1]*=0.97
+				velocity[3]*=0.97
+				velocity[2] = 0
+			end
+
+			-- distance to player
+			if _plyr then
+				local dist=v_len(make_v(pos,_plyr.pos))
+				if dist<3 then
+					-- effect()
+					return
+				end
+			end
+
+			if rnd()>0.1 then
+				lib3d.spawn_particle(1, table.unpack(pos))
+			end
+	
+			local m=self.m
+			m[13]=pos[1]
+			m[14]=pos[2]
+			m[15]=pos[3]			
+			self.m = m
+			return true
+		end
+	}
+end
+
+function make_npc(p,cam)
 	local body=make_body(p,0)
 	local up={0,1,0}
 	local dir,boost=0,0
+	local boost_ttl=0
+	local jinx_ttl=90
 	local body_update=body.update
 	body.id = models.PROP_SKIER
 	local sfx=_ski_sfx:copy()
 	sfx:play(0)
 
+	-- distance to player
+	body.dist = 0
 	body.update=function(self)
 		local pos=self.pos
 
 		-- crude ai control!
 		local _,angle=self:get_pos()
-		local slice=ground:get_track(pos)
+		local slice=_ground:get_track(pos)
 		if slice.z>29*4 or slice.z<4 then
 			sfx:stop()
 			-- kill npc
 			self.dead=true
 			return
+		end
+
+		if _plyr then
+			-- distance to player?			
+			local dist=2*(pos[3]-_plyr.pos[3])
+			boost_ttl-=1
+			if dist<-4 and boost_ttl<0 then
+				self:boost(1.8)
+				boost_ttl = 8
+			end
+
+			jinx_ttl-=1
+			if self.on_ground and dist>24 and jinx_ttl<0 then
+				do_async(function()
+					add(_actors,make_jinx(models.PROP_DYNAMITE, v_clone(pos), {0,2,-0.1}, function()
+						print("boom!")
+						if _plyr then _plyr.dead=true end
+					end))
+				end)
+				jinx_ttl = 90 + rnd(90)
+			end
+			self.dist = dist
 		end
 
 		local da=slice.angle+angle
@@ -705,7 +783,7 @@ function make_npc(p)
 		body_update(self)
 
 		-- create orientation matrix
-		local newy,newn=ground:find_face(pos)
+		local newy,newn=_ground:find_face(pos)
 		up=v_lerp(up,newn,0.3)
 		local _,angle=self:get_pos()
 		local m=make_m_from_v_angle(up,angle)
@@ -757,7 +835,7 @@ function make_snowball(pos)
 	body.update=function(self)
 		local pos=self.pos
 		-- update
-		local newy,newn=ground:find_face(pos)
+		local newy,newn=_ground:find_face(pos)
 		-- out of bound: kill actor
 		if not newy then return end
 
@@ -1339,7 +1417,7 @@ end
 local make_static_actor=function(id,x,sfx_name,update)
 	return function(lane)
 		local pos={x or (lane+0.5)*4,-16,30.5*4}
-		local y=ground:find_face(pos)
+		local y=_ground:find_face(pos)
 		pos[2]=y
 		-- sfx?
 		local sfx=_ENV[sfx_name]
@@ -1372,7 +1450,7 @@ local make_static_actor=function(id,x,sfx_name,update)
 				end
 				-- if sound
 				if sfx then
-					local d=v_len(make_v(pos,plyr.pos))
+					local d=v_len(make_v(pos,_plyr.pos))
 					if d<16 then d=16 end
 					sfx:setVolume(16/d)
 				end
@@ -1421,8 +1499,8 @@ local command_handlers={
 				y_force=0
 
 				-- capsule collision with player
-				if plyr then
-					local plyr_x,plyr_z=plyr.pos[1],plyr.pos[3]
+				if _plyr then
+					local plyr_x,plyr_z=_plyr.pos[1],_plyr.pos[3]
 					-- kill warning if past player
 					if pos[3]-plyr_z>4 then
 						self.warning = nil
@@ -1431,13 +1509,12 @@ local command_handlers={
 						v2_sqrlen(plyr_x,plyr_z,prev_pos)<2.25 or 
 						(plyr_x<pos[1]+1.5 and plyr_x>pos[1]-1.5 
 						and plyr_z<pos[3] and plyr_z>prev_pos[3]) then
-						-- todo: remove after testing
-						-- plyr.dead = true
+						_plyr.dead = true
 					end
 				end
 				
 				-- update
-				local newy,newn=ground:find_face(pos)
+				local newy,newn=_ground:find_face(pos)
 				-- out of bound: kill actor
 				if not newy then return end
 
@@ -1479,7 +1556,7 @@ local command_handlers={
 		-- move toward player
 		pos[3]-=1
 		-- get current height
-		local ny=ground:find_face(pos)
+		local ny=_ground:find_face(pos)
 		-- wooble over ground
 		pos[2] = ny + 16 + 2*cos(time())
 	end)
@@ -1505,26 +1582,25 @@ function play_state(params,help_ttl)
 			combo_ttl=90
 		end
 	end
-	
-	-- todo: stop music	
 
 	-- reset particles
 	lib3d.clear_particles()
 
 	-- start over
-	actors,ground={},make_ground(params)
+	_actors,_ground={},make_ground(params)
 
 	-- create player in correct direction
-	plyr=make_plyr(ground:get_pos(),register_trick)
-	plyr.on_coin=function(c)
+	_plyr=make_plyr(_ground:get_pos(),register_trick)
+	_plyr.on_coin=function(c)
 		_coin_sfx:play(1)
 		coins+=c
 		_save_state.coins+=c
 	end
-	plyr.hp = params.hp
-	_tracked = plyr
+	_plyr.hp = params.hp
+	_tracked = _plyr
 		
-	cam=make_cam()
+	-- create cam (or grab from caller)
+	local cam=params.cam or make_cam()
 	-- 
 	_ski_sfx:play(0)
 
@@ -1563,20 +1639,20 @@ function play_state(params,help_ttl)
 		function()
 			cam:update()
 			-- 
-			if plyr then
-				plyr:control()	
-				plyr:integrate()
-				plyr:update()
+			if _plyr then
+				_plyr:control()	
+				_plyr:integrate()
+				_plyr:update()
 			end
 
 			-- adjust ground
-			local z,slice_id,commands,wx,wy,wz = ground:update(_tracked.pos)
+			local z,slice_id,commands,wx,wy,wz = _ground:update(_tracked.pos)
 			local offset={0,wy,wz}
-			if plyr then
-				v_add(plyr.pos,offset)
+			if _plyr then
+				v_add(_plyr.pos,offset)
 			end
 
-			if plyr then
+			if _plyr then
 				for _,b in pairs(bonus) do
 					b.t+=1
 					b.x=lerp(b.x,4,0.25)
@@ -1602,8 +1678,8 @@ function play_state(params,help_ttl)
 						end)
 					end
 				end
-				if best_distance and plyr.distance>best_distance then
-					best_distance = plyr.distance
+				if best_distance and _plyr.distance>best_distance then
+					best_distance = _plyr.distance
 					_save_state["best_"..params.dslot] = flr(best_distance)
 				end
 
@@ -1614,7 +1690,7 @@ function play_state(params,help_ttl)
 						if command_handlers[c] then
 							local actor=command_handlers[c](i-1)
 							if actor then
-								add(actors,actor)
+								add(_actors,actor)
 							end
 						end
 					end
@@ -1623,38 +1699,38 @@ function play_state(params,help_ttl)
 			end
 
 			local offset={0,wy,wz}
-			for i=#actors,1,-1 do
-				local a=actors[i]
+			for i=#_actors,1,-1 do
+				local a=_actors[i]
 				if a.shift then
 					a:shift(offset)
 				else
 					v_add(a.pos,offset)
 				end
 				if not a:update() then
-					table.remove(actors,i)
+					table.remove(_actors,i)
 				end
 			end
-			if plyr then
-				local pos,a,steering=plyr:get_pos()
-				local up=plyr:get_up()
+			if _plyr then
+				local pos,a,steering=_plyr:get_pos()
+				local up=_plyr:get_up()
 				cam:track({pos[1],pos[2]+0.5,pos[3]},a,up)
 
-				if plyr.dead then
+				if _plyr.dead then
 					_ski_sfx:stop()
 
 					-- todo: game over music
-					cam:shake()
+					screen:shake()
 
 					-- latest score
-					next_state(plyr_death_state,pos,flr(plyr.distance),total_tricks,params)
+					next_state(plyr_death_state,cam,pos,flr(_plyr.distance),total_tricks,params)
 					-- not active
-					plyr=nil
+					_plyr=nil
 				else	
-					local volume=plyr.on_ground and 0.25-2*plyr.height or 0
+					local volume=_plyr.on_ground and 0.25-2*_plyr.height or 0
 					_ski_sfx:setVolume(volume)
 					_ski_sfx:setRate(1-abs(steering/2))
 					-- simulates fresh snow
-					_ski_sfx:setRate(1-8*plyr.drag)
+					_ski_sfx:setRate(1-8*_plyr.drag)
 					-- reset?
 					if help_ttl>90 and playdate.buttonJustPressed(_input.back.id) then				
 						_ski_sfx:setVolume(volume/2)
@@ -1669,13 +1745,15 @@ function play_state(params,help_ttl)
 		-- draw
 		function()
 			blink_mask = 0
-			for _,a in pairs(actors) do
-				ground:add_render_prop(a.id,a.m)
-				if a.m_shadow then
-					ground:add_render_prop(models.PROP_SHADOW,a.m_shadow)
-				end				
+			for _,a in pairs(_actors) do
+				if not a.blinking or frame_t%2==0 then
+					_ground:add_render_prop(a.id,a.m)
+					if a.m_shadow then
+						_ground:add_render_prop(models.PROP_SHADOW,a.m_shadow)
+					end
+				end	
 				-- foreshadowing lines
-				if plyr then
+				if _plyr then
 					if a.warning then
 						if (frame_t+a.warning)%8<4 then
 							blink_mask |= (1<<a.warning)
@@ -1683,11 +1761,11 @@ function play_state(params,help_ttl)
 					end
 				end
 			end
-			ground:draw(cam, blink_mask)			 
+			_ground:draw(cam, blink_mask)			 
 
-			if plyr then
-				local pos,a,steering,_,boost=plyr:get_pos()
-				local dy=plyr.height*24
+			if _plyr then
+				local pos,a,steering,_,boost=_plyr:get_pos()
+				local dy=_plyr.height*24
 				-- ski
 				local xoffset=6*cos(time()/4)
 				_ski:draw(152+xoffset,210+dy-steering*14,gfx.kImageFlippedX)
@@ -1725,7 +1803,7 @@ function play_state(params,help_ttl)
 				-- chill mode?
 				if best_distance then
 					-- total distance
-					print_regular(flr(plyr.distance).."m",nil,0,text_color)
+					print_regular(flr(_plyr.distance).."m",nil,0,text_color)
 				end
 
 				local y_bonus = 28
@@ -1753,13 +1831,14 @@ end
 
 function race_state(params)
 	-- custom handling of 
-	local npc,dist
-	local boost_ttl = 0
+	local npc
 	local droping_in,dropped
-	local make_helo=function(lane)
+	local frame_t=0
+	local cam=make_cam()
+	local make_helo=function(lane,cam)
 		droping_in=true
 		local pos={(lane+0.5)*4,-16,4}
-		local y=ground:find_face(pos)
+		local y=_ground:find_face(pos)
 		pos[2]=y+16
 		-- sfx?
 		_helo_sfx:play(0)
@@ -1774,29 +1853,29 @@ function race_state(params)
 				-- update pos?
 				pos[3]+=1
 				-- get current height
-				local ny=ground:find_face(pos)
+				local ny=_ground:find_face(pos)
 				-- out of landscape?
 				if not ny then
 					_helo_sfx:stop()
 					return 
 				end
 				if not dropped then
-					local slice=ground:get_track(pos)
+					local slice=_ground:get_track(pos)
 					pos[1]=lerp(pos[1],(slice.xmin+slice.xmax)/2,0.2)
 				end
 
 				-- wooble over ground
 				pos[2] = ny + 16 + cos(time())
 
-				if not dropped and pos[3]>plyr.pos[3]+24 then
+				if not dropped and pos[3]>_plyr.pos[3]+24 then
 					-- avoid reentrancy
 					dropped=true
 					do_async(function()
-						npc=make_npc(v_clone(pos))
-						add(actors,npc)
+						npc=make_npc(v_clone(pos),cam)
+						add(_actors,npc)
 					end)
 				end
-				local d=v_len(make_v(pos,plyr.pos))
+				local d=v_len(make_v(pos,cam.pos))
 				if d<16 then d=16 end
 				_helo_sfx:setVolume(16/d)
 
@@ -1809,44 +1888,49 @@ function race_state(params)
 		}
 	end	
 	command_handlers.n = function(lane)
+		-- run helo sequence only once
+		if params.skip_helo then return end
+		params.skip_helo = true
 		if droping_in then return end
-		return make_helo(lane)
+		return make_helo(lane,cam)
 	end
+	command_handlers.p = function(lane)
+		if dropped then return end
+		dropped=true
+		local y=0
+		if _plyr then y=_plr.pos[2]+12 end
+		npc=make_npc({(lane+0.5)*4,y,4},cam)
+		return npc
+	end
+	-- use main "play" state for core loop
+	params.cam = cam
 	local play_update,play_draw=play_state(params)
 
 	return
 		-- update
 		function()
 			play_update()
-			if plyr then
-				if plyr.on_track then
-					plyr.drag = 0
+			if _plyr then
+				if _plyr.on_track then
+					_plyr.drag = 0
 				else
-					plyr.drag = rnd(0.1)
+					_plyr.drag = rnd(0.1)
 				end
 			end
 			if npc then
 				if npc.dead then
-					plyr.dead = true
+					if _plyr then _plyr.dead = true end
 					npc = nil
 					return					
 				end
-				if plyr then
-					-- distance to player?			
-					dist=2*(npc.pos[3]-plyr.pos[3])
-					boost_ttl-=1
-					if dist<-4 and boost_ttl<0 then
-						npc:boost(1.8)
-						boost_ttl = 8
-					end
-				end
 			end
+			frame_t+=1
 		end,
 		-- draw
 		function()
 			play_draw()
-			if npc and dist>30 then	
-				local s=flr(dist).."m"
+			if npc and npc.dist>30 then	
+				local s=flr(npc.dist).."m"
 				gfx.setFont(smallFont[gfx.kColorWhite])
 				local sw,sh=gfx.getTextSize(s)
 				sw += 4
@@ -1858,14 +1942,14 @@ function race_state(params)
 				gfx.setColor(gfx.kColorBlack)
 				gfx.fillRect(x,y,sw,sh)
 				print_small(s,x+2,y,gfx.kColorWhite)
-				if dist>70 and (time()//0.0625)%2==0 then
+				if npc.dist>70 and frame_t%4<2 then
 					_warning_small:draw(x + sw/2 - 12,y - 28)
 				end
 			end
 		end
 end
 
-function plyr_death_state(pos,total_distance,total_tricks,params)
+function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 	-- convert to string
 	local active_msg,msgs=0,{
 		"Distance: "..total_distance.."m",
@@ -1875,7 +1959,7 @@ function plyr_death_state(pos,total_distance,total_tricks,params)
 	local prev_update,prev_draw = _update_state,_draw_state
 
 	-- snowballing!!!
-	local snowball=add(actors,make_snowball(pos))
+	local snowball=add(_actors,make_snowball(pos))
 	-- hugh :/
 	snowball:update()
 	_tracked = snowball
@@ -1906,11 +1990,11 @@ function plyr_death_state(pos,total_distance,total_tricks,params)
 			text_ttl-=1
 
 			local p=snowball.pos
-			if text_ttl<0 and ground:collide(p,1) then
+			if text_ttl<0 and _ground:collide(p,1) then
 				snowball:hit()
 				active_text,text_ttl=pick(text),10
 				turn_side=-turn_side
-				cam:shake()
+				screen:shake()
 			end
 			-- keep camera off side walls
 			cam:track({mid(p[1],8,29*4),p[2],p[3]+16},0.5,v_up,0.2)

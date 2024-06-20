@@ -33,6 +33,8 @@ PROP_TREE1 = 1
 ,PROP_DANGER = 30
 ,PROP_LOG = 31
 ,PROP_UFO = 32
+,PROP_DYNAMITE = 33
+,PROP_INVERT = 34
 
 }
 -- named vertices
