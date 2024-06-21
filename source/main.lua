@@ -746,6 +746,11 @@ function make_npc(p,cam)
 		if _plyr then
 			-- distance to player?			
 			local dist=2*(pos[3]-_plyr.pos[3])
+			self.warning=nil
+			-- behind player?
+			if dist<2 then
+				self.warning = pos[1]//4
+			end
 			boost_ttl-=1
 			if dist<-4 and boost_ttl<0 then
 				self:boost(1.8)
@@ -1288,8 +1293,7 @@ function shop_state(...)
 			if action_ttl==0 then
 				if playdate.buttonJustReleased(playdate.kButtonUp) then selection-=1 button_x = -80 _button_click:play(1) end
 				if playdate.buttonJustReleased(playdate.kButtonDown) then selection+=1 button_x = -80 _button_click:play(1) end
-				if selection<1 then selection=#_store_items-1 end
-				if selection>#_store_items then selection=1 end
+				selection=mid(selection,1,#_store_items)
 			end
 
 			local item=_store_items[selection]
@@ -1649,7 +1653,9 @@ function play_state(params,help_ttl)
 			local z,slice_id,commands,wx,wy,wz = _ground:update(_tracked.pos)
 			local offset={0,wy,wz}
 			if _plyr then
-				v_add(_plyr.pos,offset)
+				-- player position is already "corrected"
+				_plyr.pos[2]+=wy
+				_plyr.pos[3]=z
 			end
 
 			if _plyr then
@@ -1822,7 +1828,13 @@ function play_state(params,help_ttl)
 				if help_ttl<90 then
 					-- help msg?
 					if help_ttl<80 or help_ttl%2==0 then
-						print_regular(_input.back.glyph.."Restart/Jump".._input.action.glyph,nil,mask and 132 or 162,gfx.kColorBlack)
+						local text
+						if _input.flipped then
+							text = "ⒷJump/RestartⒶ"
+						else
+							text = "ⒷRestart/JumpⒶ"
+						end
+						print_regular(text,nil,mask and 132 or 162,gfx.kColorBlack)
 					end
 				end					
 			end
@@ -2019,7 +2031,13 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 			_game_over:draw(200-211/2,gameover_y)
 
 			if (time()%1)<0.5 then
-				print_regular(_input.back.glyph.."Menu/Restart".._input.action.glyph,nil,162)
+				local text
+				if _input.flipped then
+					text = "ⒷMenu/RestartⒶ"
+				else
+					text = "ⒷRestart/MenuⒶ"
+				end				
+				print_regular(text,nil,162)
 			end
 		end
 end
@@ -2270,7 +2288,8 @@ _init()
 
 function playdate.update()
 	-- switch input using crank state
-	_input=_inputs[playdate.isCrankDocked()]
+	_input.flipped = playdate.isCrankDocked()
+	_input = _inputs[playdate.isCrankDocked()]
   _update()
   if _draw_state then _draw_state() end
   playdate.drawFPS(0,228)

@@ -8,18 +8,8 @@
 // ***********************
 // particle system
 
-typedef struct {
-    int age;
-    int ttl;
-    float angle;
-    float angularv;
-    float radius;
-    float radius_decay;
-    float y_velocity;
-    Point3d pos;
-} Particle;
-
 #define EMITTER_SNOW_TRAIL 0
+#define EMITTER_SMOKE 1
 
 void particles_init(PlaydateAPI* playdate);
 void clear_particles();

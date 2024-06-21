@@ -356,7 +356,7 @@ void update_ground(Point3d* p, int* slice_id, char** pattern, Point3d* offset) {
     offset->v[1] = 0.f;
     offset->v[2] = 0.f;
     float pz;
-    // todo: make sure to handle faster than 1 tile moves
+    // handles faster than 1 tile moves
     while ((pz = p->z / GROUND_CELL_SIZE) > _ground.plyr_z_index) {
         // shift back
         p->z -= GROUND_CELL_SIZE;
@@ -959,9 +959,9 @@ static void draw_face(Drawable* drawable, uint8_t* bitmap) {
     Point3du* pts = face->pts;
     for (int i = 0; i < n; ++i) {
         // project 
-        float w = 1.f / pts[i].z;
-        pts[i].x = 199.5f + 199.5f * w * pts[i].x;
-        pts[i].y = 119.5f - 199.5f * w * pts[i].y;
+        const float w = 199.5f / pts[i].z;
+        pts[i].x = 199.5f +  w * pts[i].x;
+        pts[i].y = 119.5f -  w * pts[i].y;
     }
 
     // 
@@ -1006,7 +1006,7 @@ static void push_tile(const GroundFace* f, const float* m, GroundSliceCoord* coo
         if (cp->outcode == -1) {
             Point3du* res = &cp->p;
             // compute point  
-            Point3d p = { .v = {(float)c.i * GROUND_CELL_SIZE, c.h + c.y, (float)c.j * GROUND_CELL_SIZE} };
+            Point3d p = { .v = {(float)(c.i * GROUND_CELL_SIZE), c.h + c.y, (float)(c.j * GROUND_CELL_SIZE)} };
             // project using active matrix
             m_x_v(m, p.v, res->v);
             int code = res->z > Z_NEAR ? OUTCODE_IN : OUTCODE_NEAR;
@@ -1216,8 +1216,10 @@ static void collect_tiles(const Point3d pos, float base_angle) {
         else {
             disty = (mapy + 1 - y) * ddy;
         }
-
-        for (int dist = 0; dist < MAX_TILE_DIST; ++dist) {
+        
+        int dist = 0;
+        const int dist_max = ((float)MAX_TILE_DIST) / cosf(_raycast_angles[i]);
+        while(dist++ < dist_max) {
             if (distx < disty) {
                 distx += ddx;
                 mapx += mapdx;
@@ -1270,7 +1272,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
                 GroundSlice* s0 = _ground.slices[j];
                 GroundTile* t0 = &s0->tiles[i];
                 GroundSlice* s1 = _ground.slices[j + 1];
-                const Point3d v0 = {.v = {(float)i * GROUND_CELL_SIZE,         t0->h + s0->y,       (float)j * GROUND_CELL_SIZE}};                
+                const Point3d v0 = {.v = {(float)(i * GROUND_CELL_SIZE),         t0->h + s0->y,       (float)(j * GROUND_CELL_SIZE)}};                
 
                 // camera to face point
                 const Point3d cv = { .x = v0.x - cam_pos.x,.y = v0.y - cam_pos.y,.z = v0.z - cam_pos.z };

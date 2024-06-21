@@ -16,6 +16,18 @@ extern uint32_t _dithers[32 * 16];
 // check against ground?
 #define PARTICLE_SOLID 1
 
+typedef struct {
+    int age;
+    int ttl;
+    int t;
+    float angle;
+    float angularv;
+    float radius;
+    float radius_decay;
+    float y_velocity;
+    Point3d pos;
+} Particle;
+
 // ring buffer for particles
 typedef struct {
     int head;
@@ -44,7 +56,7 @@ Emitter _emitters[] = {
         .angularv = {.min = -1.f, .max = 1.f},
         .decay = {.min = 0.95f, .max = 0.97f },
         .radius = {.min = 0.5f, .max = 1.f},
-        .y_velocity = {.min = 0.1f, .max = 0.25f},
+        .y_velocity = {.min = 0.15f, .max = 0.25f},
         .gravity = -0.05f,
         .pool = {0}
     },
@@ -55,7 +67,7 @@ Emitter _emitters[] = {
         .ttl = {.min = 15, .max = 24 },
         .angularv = {.min = -1.f, .max = 1.f},
         .decay = {.min = 0.95f, .max = 0.97f },
-        .radius = {.min = 0.1f, .max = 0.25f},
+        .radius = {.min = 0.15f, .max = 0.25f},
         .y_velocity = {.min = 0.1f, .max = 0.25f},
         .gravity = 0.f,
         .pool = {0}
@@ -69,7 +81,8 @@ void spawn_particle(int id, Point3d pos) {
     Particle* p = &pool->particles[pool->tail++];
     // init particle
     p->age = emitter->ttl.max;
-    p->ttl = lerpi(emitter->ttl.min, emitter->ttl.max, randf());
+    p->t = lerpi(emitter->ttl.min, emitter->ttl.max, randf());
+    p->ttl = p->t;
     p->radius_decay = lerpf(emitter->decay.min, emitter->decay.max, randf());
     p->radius = lerpf(emitter->radius.min, emitter->radius.max, randf());
     p->angle = randf();
@@ -95,8 +108,9 @@ void update_particles(Point3d offset) {
         while (it != pool->tail) {
             Particle* p = &pool->particles[it++];
             it &= PARTICLE_RING_MOD_SIZE;
+            // !!all particles must age the same way!!
             if (p->age--) {
-                p->ttl--;
+                p->t--;
                 p->radius *= p->radius_decay;
                 p->angle += p->angularv;
                 p->y_velocity += emitter->gravity;
@@ -151,7 +165,7 @@ void push_particles(Drawables* drawables, Point3d cam_pos, float* m) {
             Particle* p = &pool->particles[it++];
             it &= PARTICLE_RING_MOD_SIZE;
             // active?
-            if (p->ttl > 0) {
+            if (p->t > 0) {
                 m_x_v(m, p->pos.v, res.v);
                 // visible?
                 if (res.z > Z_NEAR && res.z < (float)(GROUND_CELL_SIZE * MAX_TILE_DIST)) {
@@ -162,8 +176,8 @@ void push_particles(Drawables* drawables, Point3d cam_pos, float* m) {
                     drawable->particle.angle = p->angle;
                     drawable->particle.radius = p->radius;
                     drawable->particle.color = emitter->color;
-                    drawable->particle.alpha = (8 * p->age) / emitter->ttl.max;
-                    if (drawable->particle.alpha > 8) drawable->particle.alpha = 8;
+                    drawable->particle.alpha = (16 * p->t) / p->ttl;
+                    // if (drawable->particle.alpha > 8) drawable->particle.alpha = 8;
                 }
             }
         }
