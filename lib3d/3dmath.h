@@ -1,6 +1,8 @@
 #ifndef _lib3d_math_h
 #define _lib3d_math_h
 
+#include <stdint.h>
+
 #define PI 3.1415927410125732421875f
 #define MAT4x4 16
 #define VEC3 3
@@ -56,6 +58,14 @@ typedef struct {
     float min;
     float max;
 } FloatRange;
+
+// aliases a float to a 32bits memory address
+typedef struct {
+    union {
+        float f;
+        uint32_t i;
+    };
+} Flint;
 
 // convert a tau angle [0;1] into a radian angle
 inline float detauify(const float tau) {

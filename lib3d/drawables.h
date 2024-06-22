@@ -24,11 +24,6 @@ typedef struct {
     Point3d pos;
 } DrawableProp;
 
-typedef struct {
-    int frame;
-    Point3d pos;
-} DrawableCoin;
-
 typedef struct {    
     union {
         struct {
@@ -52,8 +47,6 @@ typedef struct Drawable_s {
     draw_drawable draw;
     union {
         DrawableFace face;
-        DrawableProp prop;
-        DrawableCoin coin;
         DrawableParticle particle;
     };
 } Drawable;

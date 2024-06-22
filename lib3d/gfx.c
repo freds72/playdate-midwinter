@@ -153,6 +153,9 @@ static void drawTextureFragment(uint8_t* row, int x1, int x2, int lu, int ru, ui
     }
 }
 
+// todo: http://www.sunshine2k.de/coding/java/TriangleRasterization/TriangleRasterization.html
+
+
 void polyfill(const Point3du* verts, const int n, uint32_t* dither, uint32_t* bitmap) {
     BEGIN_FUNC();
 

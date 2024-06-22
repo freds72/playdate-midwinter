@@ -781,7 +781,6 @@ void ground_init(PlaydateAPI* playdate) {
         _raycast_angles[i] = atan2f(Z_NEAR, Z_NEAR * t * 2.f) - PI / 2.f;
     }
 
-
     // props config (todo: get from lua?)
 
     // forest stuff
@@ -836,12 +835,26 @@ int ground_load_assets_async() {
 // todo: move to settings?
 #define SHADING_CONTRAST 1.5f
 
-// visible tiles encoded as 1 bit per cell
-static uint32_t _visible_tiles[GROUND_SIZE];
-
-// stores all things that are going to be drawn
+// indexes all things that are going to be drawn
 static Drawables _drawables;
-static Drawable* _sortables[MAX_DRAWABLES];
+typedef struct {
+    union {
+        struct {
+            uint16_t i;
+            uint16_t key;
+        };
+        int v;
+    };
+} Sortable;
+
+static Sortable _sortables[MAX_DRAWABLES];
+
+static inline Drawable* pop_drawable(const float sortkey) {
+    const int i = _drawables.n++;
+    // pack everything into a int32
+    _sortables[i] = (Sortable){.i = i, .key = (uint16_t)(sortkey * 256.0f)};
+    return &_drawables.all[i];
+}
 
 // cache entry (transformed point in camera space)
 typedef struct {
@@ -858,10 +871,10 @@ typedef struct {
 } GroundSliceCoord;
 
 // compare 2 drawables
-static int cmp_drawable(const void* a, const void* b) {
-    const float x = (*(Drawable**)a)->key;
-    const float y = (*(Drawable**)b)->key;
-    return x < y ? -1 : x == y ? 0 : 1;
+static int cmp_sortable(const void* a, const void* b) {
+    const int x = ((Sortable*)a)->key;
+    const int y = ((Sortable*)b)->key;
+    return x > y ? -1 : x == y ? 0 : 1;
 }
 
 // clip polygon against near-z
@@ -989,7 +1002,7 @@ static void draw_face(Drawable* drawable, uint8_t* bitmap) {
 
 
 // push a face to the drawing list
-static void push_tile(const GroundFace* f, const float* m, GroundSliceCoord* coords, int n, const float light, const int is_danger) {
+static void push_tile(const GroundFace* f, const float m[MAT4x4], GroundSliceCoord* coords, int n, const float light, const int is_danger) {
     BEGIN_FUNC();
 
     Point3du tmp[4];
@@ -1009,9 +1022,12 @@ static void push_tile(const GroundFace* f, const float* m, GroundSliceCoord* coo
             Point3d p = { .v = {(float)(c.i * GROUND_CELL_SIZE), c.h + c.y, (float)(c.j * GROUND_CELL_SIZE)} };
             // project using active matrix
             m_x_v(m, p.v, res->v);
-            int code = res->z > Z_NEAR ? OUTCODE_IN : OUTCODE_NEAR;
-            if (res->x > res->z) code |= OUTCODE_RIGHT;
-            if (-res->x > res->z) code |= OUTCODE_LEFT;
+            
+            int code =
+                ((Flint) { .f = res->z - Z_NEAR }.i & 0x80000000) >> 30 |
+                ((Flint) { .f = res->z - res->x }.i & 0x80000000) >> 29 |
+                ((Flint) { .f = res->z + res->x }.i & 0x80000000) >> 28;
+
             cp->outcode = code;
 
             // light
@@ -1031,7 +1047,7 @@ static void push_tile(const GroundFace* f, const float* m, GroundSliceCoord* coo
 
     // visible?
     if (outcode == 0) {
-        Drawable* drawable = &_drawables.all[_drawables.n++];
+        Drawable* drawable = pop_drawable(min_key);
         drawable->draw = is_danger ?draw_blinking_tile: draw_tile;
         drawable->key = min_key;
         DrawableFace* face = &drawable->face;
@@ -1079,9 +1095,12 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float m
                 Point3du* res = &tmp[i];
                 // project using active matrix
                 m_x_v(m, f->vertices[i].v, res->v);
-                int code = res->z > Z_NEAR ? OUTCODE_IN : OUTCODE_NEAR;
-                if (res->x > res->z) code |= OUTCODE_RIGHT;
-                if (-res->x > res->z) code |= OUTCODE_LEFT;
+
+                int code =
+                    ((Flint) { .f = res->z - Z_NEAR }.i & 0x80000000) >> 30 |
+                    ((Flint) { .f = res->z - res->x }.i & 0x80000000) >> 29 |
+                    ((Flint) { .f = res->z + res->x }.i & 0x80000000) >> 28;
+
                 if (res->z < min_key) min_key = res->z;
                 if (res->z > max_key) max_key = res->z;
                 outcode &= code;
@@ -1092,9 +1111,10 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float m
 
             // visible?
             if (outcode == 0) {
-                Drawable* drawable = &_drawables.all[_drawables.n++];
+                const float sortkey = f->flags & FACE_FLAG_LARGE ? max_key : min_key;
+                Drawable* drawable = pop_drawable(sortkey);
                 drawable->draw = draw_face;
-                drawable->key = f->flags & FACE_FLAG_LARGE ?max_key:min_key;
+                drawable->key = sortkey;
                 DrawableFace* face = &drawable->face;
                 face->flags = f->flags;
                 face->material = f->material;
@@ -1180,17 +1200,14 @@ int render_sky(float* m, uint8_t* screen) {
     return angle;
 }
 
-static void collect_tiles(const Point3d pos, float base_angle) {
+static void collect_tiles(uint32_t visible_tiles[GROUND_SIZE], const Point3d pos, float base_angle) {
     BEGIN_FUNC();
 
     float x = pos.x / GROUND_CELL_SIZE, y = pos.z / GROUND_CELL_SIZE;
     int32_t x0 = (int)x, y0 = (int)y;
 
-    // reset tiles
-    memset((uint8_t*)_visible_tiles, 0, sizeof(uint32_t) * GROUND_SIZE);
-
     // current tile is always in
-    _visible_tiles[y0] |= 1 << x0;
+    visible_tiles[y0] |= 1 << x0;
 
     for (int i = 0; i < RAYCAST_PRECISION; ++i) {
         float angle = base_angle + _raycast_angles[i];
@@ -1231,7 +1248,7 @@ static void collect_tiles(const Point3d pos, float base_angle) {
             // out of range?
             if ( (mapx | mapy) & 0xffffffe0 ) break;
 
-            _visible_tiles[mapy] |= 1 << mapx;
+            visible_tiles[mapy] |= 1 << mapx;
         }
     }
 
@@ -1244,8 +1261,8 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
     BEGIN_FUNC();
 
     // cache lines
-    static CameraPoint c0[GROUND_SIZE];
-    static CameraPoint c1[GROUND_SIZE];
+    CameraPoint c0[GROUND_SIZE];
+    CameraPoint c1[GROUND_SIZE];
 
     CameraPoint* cache[2] = { c0, c1 };
     // reset cache
@@ -1258,12 +1275,14 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
     render_sky(m, bitmap);
 
     // collect visible tiles
-    _drawables.n = 0;
-    collect_tiles(cam_pos, cam_angle);
+    // visible tiles encoded as 1 bit per cell
+    uint32_t tiles[GROUND_SIZE] = { 0 };
+    collect_tiles(tiles, cam_pos, cam_angle);
 
     // transform
+    _drawables.n = 0;
     for (int j = 0; j < GROUND_SIZE - 1; ++j) {
-        uint32_t visible_tiles = _visible_tiles[j];
+        const uint32_t visible_tiles = tiles[j];
         // slightly alter shading of even/odd slices
         const float shading_band = SHADING_CONTRAST * (0.5f + 0.5f * ((j + _z_offset) & 1));
         for (int i = 0; i < GROUND_SIZE; ++i) {
@@ -1365,16 +1384,15 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
 
     // sort & renders back to front
     if (_drawables.n > 0) {        
-        for (int i = 0; i < _drawables.n; ++i) {
-            _sortables[i] = &_drawables.all[i];
-        }
         BEGIN_BLOCK("qsort");
-        qsort(_sortables, (size_t)_drawables.n, sizeof(Drawable*), cmp_drawable);
+        qsort(_sortables, (size_t)_drawables.n, sizeof(Sortable), cmp_sortable);
         END_BLOCK();
 
         // rendering
-        for (int k = _drawables.n - 1; k >= 0; --k) {
-            _sortables[k]->draw(_sortables[k], bitmap);
+        const int n = _drawables.n;
+        for (int k = 0; k < n; k++) {
+            Drawable* drawable = &_drawables.all[_sortables[k].i];
+            drawable->draw(drawable, bitmap);
         }
     }
     END_FUNC();
@@ -1398,16 +1416,15 @@ void render_props(Point3d cam_pos, float* m, uint8_t* bitmap) {
 
     // sort & renders back to front
     if (_drawables.n > 0) {
-        for (int i = 0; i < _drawables.n; ++i) {
-            _sortables[i] = &_drawables.all[i];
-        }
         BEGIN_BLOCK("qsort");
-        qsort(_sortables, (size_t)_drawables.n, sizeof(Drawable*), cmp_drawable);
+        qsort(_sortables, (size_t)_drawables.n, sizeof(Sortable), cmp_sortable);
         END_BLOCK();
 
         // rendering
-        for (int k = _drawables.n - 1; k >= 0; --k) {
-            _sortables[k]->draw(_sortables[k], bitmap);
+        const int n = _drawables.n;
+        for (int k = 0; k < n; k++) {
+            Drawable* drawable = &_drawables.all[_sortables[k].i];
+            drawable->draw(drawable, bitmap);
         }
     }
 
