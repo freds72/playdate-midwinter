@@ -6,6 +6,7 @@
 
 #define Z_NEAR 0.5f
 #define Z_FAR 64.f
+#define MAX_DRAWABLES 2048
 
 typedef struct {
     // texture type
@@ -17,12 +18,6 @@ typedef struct {
     // clipped points in camera space
     Point3du pts[5];
 } DrawableFace;
-
-typedef struct {
-    int material;
-    int angle;
-    Point3d pos;
-} DrawableProp;
 
 typedef struct {    
     union {
@@ -51,13 +46,9 @@ typedef struct Drawable_s {
     };
 } Drawable;
 
-#define MAX_DRAWABLES 2048
-typedef struct {
-    int n;
-    // arbitrary limit
-    Drawable all[MAX_DRAWABLES];
-} Drawables;
-
 void drawables_init(PlaydateAPI* playdate);
+void reset_drawables();
+Drawable* pop_drawable(const float sortkey);
+void draw_drawables(uint8_t* bitmap);
 
 #endif

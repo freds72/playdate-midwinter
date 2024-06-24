@@ -15,6 +15,7 @@
 #include "drawables.h"
 #include "ground_limits.h"
 #include "spall.h"
+#include "simd.h"
 
 static PlaydateAPI* pd;
 
@@ -97,7 +98,7 @@ typedef struct {
     // property id
     int id;
     // transformation matrix
-    float m[16];
+    float m[MAT4x4];
 } RenderProp;
 
 static struct {
@@ -106,7 +107,7 @@ static struct {
 } _render_props;
 
 // raycasting angles
-#define RAYCAST_PRECISION 196
+#define RAYCAST_PRECISION 256
 static float _raycast_angles[RAYCAST_PRECISION];
 
 // global buffer to store slices
@@ -145,7 +146,7 @@ static void mesh_slice(int j) {
 
     for (int i = 0; i < GROUND_SIZE - 1; ++i) {
         GroundTile* t0 = &s0->tiles[i];
-        const Point3d v0 = { .v = {(float)i * GROUND_CELL_SIZE,t0->h + s0->y,(float)j * GROUND_CELL_SIZE} };
+        const Point3d v0 = { .v = {(float)(i * GROUND_CELL_SIZE),t0->h + s0->y,(float)(j * GROUND_CELL_SIZE)} };
         // v1-v0
         const Point3d u1 = { .v = {(float)GROUND_CELL_SIZE,s0->tiles[i + 1].h + s0->y - v0.y,0.f} };
         // v2-v0
@@ -777,8 +778,8 @@ void ground_init(PlaydateAPI* playdate) {
 
     // raycasting angles
     for(int i=0;i<RAYCAST_PRECISION;++i) {
-        float t = 2.f * (((float)i) / RAYCAST_PRECISION - 0.5f);
-        _raycast_angles[i] = atan2f(Z_NEAR, Z_NEAR * t * 2.f) - PI / 2.f;
+        float t = 1.25f * (((float)i) / RAYCAST_PRECISION - 0.5f);
+        _raycast_angles[i] = atan2f(MAX_TILE_DIST, MAX_TILE_DIST * t * 2.f) - PI / 2.f;
     }
 
     // props config (todo: get from lua?)
@@ -835,27 +836,6 @@ int ground_load_assets_async() {
 // todo: move to settings?
 #define SHADING_CONTRAST 1.5f
 
-// indexes all things that are going to be drawn
-static Drawables _drawables;
-typedef struct {
-    union {
-        struct {
-            uint16_t i;
-            uint16_t key;
-        };
-        int v;
-    };
-} Sortable;
-
-static Sortable _sortables[MAX_DRAWABLES];
-
-static inline Drawable* pop_drawable(const float sortkey) {
-    const int i = _drawables.n++;
-    // pack everything into a int32
-    _sortables[i] = (Sortable){.i = i, .key = (uint16_t)(sortkey * 256.0f)};
-    return &_drawables.all[i];
-}
-
 // cache entry (transformed point in camera space)
 typedef struct {
     Point3du p;
@@ -869,13 +849,6 @@ typedef struct {
     float y;
     CameraPoint* cache;
 } GroundSliceCoord;
-
-// compare 2 drawables
-static int cmp_sortable(const void* a, const void* b) {
-    const int x = ((Sortable*)a)->key;
-    const int y = ((Sortable*)b)->key;
-    return x > y ? -1 : x == y ? 0 : 1;
-}
 
 // clip polygon against near-z
 static int z_poly_clip(const float znear, Point3du* in, int n, Point3du* out) {
@@ -924,6 +897,7 @@ static void draw_tile(Drawable* drawable, uint8_t* bitmap) {
         shading *= pts[i].light;
         if (shading > 15.f) shading = 15.f;
         if (shading < 0.f) shading = 0.f;
+
         pts[i].u = shading;
     }
 
@@ -938,6 +912,7 @@ static void draw_tile(Drawable* drawable, uint8_t* bitmap) {
         x0 = x1, y0 = y1;
     }
     */
+
     // END_FUNC();
 }
 
@@ -978,7 +953,7 @@ static void draw_face(Drawable* drawable, uint8_t* bitmap) {
     }
 
     // 
-    float dist = drawable->key - 12.f * GROUND_CELL_SIZE;
+    float dist = drawable->key - (MAX_TILE_DIST*0.707f - 2.f) * GROUND_CELL_SIZE;
     float shading = dist / (2.f * GROUND_CELL_SIZE);
     if (shading > 1.f) shading = 1.f;
     if (shading < 0.f) shading = 0.f;    
@@ -1009,7 +984,7 @@ static void push_tile(const GroundFace* f, const float m[MAT4x4], GroundSliceCoo
 
     // transform
     int outcode = 0xfffffff, is_clipped_near = 0;
-    float min_key = FLT_MIN;
+    float min_key = -FLT_MAX;
     for (int i = 0; i < n; ++i) {
         // check cache entry
         GroundSliceCoord c = coords[i];
@@ -1090,7 +1065,7 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float m
             // transform
             int outcode = 0xfffffff, is_clipped_near = 0;
             float min_key = FLT_MAX;
-            float max_key = FLT_MIN;
+            float max_key = -FLT_MAX;
             for (int i = 0; i < n; ++i) {
                 Point3du* res = &tmp[i];
                 // project using active matrix
@@ -1200,6 +1175,155 @@ int render_sky(float* m, uint8_t* screen) {
     return angle;
 }
 
+#define stepXSize 8
+
+typedef struct {
+    union {
+        int16_t v[8];
+        uint32_t word[4];
+    };
+} Vec8i;
+
+typedef struct {
+    Vec8i oneStepX;
+    Vec8i oneStepY;
+} Edge;
+
+static inline Vec8i make_vec(const int16_t a) {
+    return (Vec8i) {
+        .v = {
+        a,
+        a,
+        a,
+        a,
+        a,
+        a,
+        a,
+        a }
+    };
+}
+
+static Vec8i edge_init(Edge* edge, const Point2di* v0, const Point2di* v1, const Point2di* origin)
+{
+    // Edge setup
+    int16_t A = v0->y - v1->y, B = v1->x - v0->x;
+    int16_t C = v0->x * v1->y - v0->y * v1->x;
+
+    // Step deltas
+    edge->oneStepX = make_vec(A * stepXSize);
+    edge->oneStepY = make_vec(B);
+
+    // x/y values for initial pixel block
+    Vec8i x = (Vec8i){
+        .v = {
+        origin->x + 7,
+        origin->x + 6,
+        origin->x + 5,
+        origin->x + 4,
+        origin->x + 3,
+        origin->x + 2,
+        origin->x + 1,
+        origin->x + 0 }
+    };
+    Vec8i y = make_vec(origin->y);
+
+    // Edge function values at origin
+    Vec8i out;
+    for (int i = 0; i < 8; ++i) {
+        out.v[i] = A * x.v[i] + B * y.v[i] + C;
+    }
+    return out;
+}
+
+static inline uint8_t vec_mask(const Vec8i a, const Vec8i b, const Vec8i c) {
+    uint8_t out = 0;
+    for (int i = 0; i < 8; ++i) {
+        out |= (~((a.v[i] | b.v[i] | c.v[i]) >> 31)) & (0x80 >> i);
+    }
+    return out;
+}
+
+static inline Vec8i vec_inc(Vec8i a, Vec8i b) {
+#ifdef  TARGET_PLAYDATE
+    return (Vec8i) {
+        .word = {
+__SADD16(a.word[0], b.word[0]),
+__SADD16(a.word[1], b.word[1]),
+__SADD16(a.word[2], b.word[2]),
+__SADD16(a.word[3], b.word[3]) }
+    };
+#else
+    Vec8i out;
+    for (int i = 0; i < 8; ++i) {
+        out.v[i] = a.v[i] + b.v[i];
+    }
+    return out;
+#endif //  TARGET_PLAYDATE
+}
+
+static int min3(int a, int b, int c) {
+    if (a < b) b = a;
+    if (c < b) b = c;
+    return b;
+}
+static int max3(int a, int b, int c) {
+    if (a > b) b = a;
+    if (c > b) b = c;
+    return b;
+}
+
+static void collect_tri(const Point2di v0, const Point2di v1, const Point2di v2, uint8_t* bitmap) {
+    // Compute triangle bounding box
+    int16_t minX = min3(v0.x, v1.x, v2.x);
+    int16_t minY = min3(v0.y, v1.y, v2.y);
+    int16_t maxX = max3(v0.x, v1.x, v2.x);
+    int16_t maxY = max3(v0.y, v1.y, v2.y);
+
+    // Clip against screen bounds
+    if (minX < 0) minX = 0;
+    if (minY < 0) minY = 0;
+    if (maxX > 31) maxX = 31;
+    if (maxY > 32) maxY = 32;
+
+    // align to uint8 boundaries
+    minX = 8 * (minX / 8);
+    maxX = 8 * (maxX / 8) + 1;
+
+    // Barycentric coordinates at minX/minY corner
+    Point2di p = (Point2di){ .v = {minX, minY} };
+    Edge e01, e12, e20;
+
+    // Triangle setup
+    Vec8i w0_row = edge_init(&e12, &v1, &v2, &p);
+    Vec8i w1_row = edge_init(&e20, &v2, &v0, &p);
+    Vec8i w2_row = edge_init(&e01, &v0, &v1, &p);
+
+    // Rasterize
+    bitmap += (minX >> 3) + minY * 4;
+    for (int y = minY; y < maxY; y ++, bitmap += 4) {
+        uint8_t* bitmap_row = bitmap;
+        // Barycentric coordinates at start of row
+        Vec8i w0 = w0_row;
+        Vec8i w1 = w1_row;
+        Vec8i w2 = w2_row;
+        for (int x = minX; x < maxX; x += stepXSize, bitmap_row++) {
+            // If p is on or inside all edges, render pixel.
+            uint8_t mask = vec_mask(w0, w1, w2);
+            if (mask) {
+                *bitmap_row = ((*bitmap_row) & ~mask) | mask;
+            }
+            // One step to the right            
+            w0 = vec_inc(w0, e12.oneStepX);
+            w1 = vec_inc(w1, e20.oneStepX);
+            w2 = vec_inc(w2, e01.oneStepX);
+        }
+        // One row step        
+        w0_row = vec_inc(w0_row, e12.oneStepY);
+        w1_row = vec_inc(w1_row, e20.oneStepY);
+        w2_row = vec_inc(w2_row, e01.oneStepY);
+    }
+}
+
 static void collect_tiles(uint32_t visible_tiles[GROUND_SIZE], const Point3d pos, float base_angle) {
     BEGIN_FUNC();
 
@@ -1233,10 +1357,9 @@ static void collect_tiles(uint32_t visible_tiles[GROUND_SIZE], const Point3d pos
         else {
             disty = (mapy + 1 - y) * ddy;
         }
-        
-        int dist = 0;
-        const int dist_max = ((float)MAX_TILE_DIST) / cosf(_raycast_angles[i]);
-        while(dist++ < dist_max) {
+
+        const float dist_max = ((float)MAX_TILE_DIST) / cosf(_raycast_angles[i]);        
+        while(distx* distx + disty* disty < dist_max * dist_max) {
             if (distx < disty) {
                 distx += ddx;
                 mapx += mapdx;
@@ -1246,7 +1369,7 @@ static void collect_tiles(uint32_t visible_tiles[GROUND_SIZE], const Point3d pos
                 mapy += mapdy;
             }
             // out of range?
-            if ( (mapx | mapy) & 0xffffffe0 ) break;
+            if ((mapx | mapy) & 0xffffffe0) break;
 
             visible_tiles[mapy] |= 1 << mapx;
         }
@@ -1280,8 +1403,9 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
     collect_tiles(tiles, cam_pos, cam_angle);
 
     // transform
-    _drawables.n = 0;
+    reset_drawables();
     for (int j = 0; j < GROUND_SIZE - 1; ++j) {
+        // const uint32_t visible_tiles = tiles[j];
         const uint32_t visible_tiles = tiles[j];
         // slightly alter shading of even/odd slices
         const float shading_band = SHADING_CONTRAST * (0.5f + 0.5f * ((j + _z_offset) & 1));
@@ -1380,21 +1504,17 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
     _render_props.n = 0;
 
     // particles?
-    push_particles(&_drawables, cam_pos, m);
+    push_particles(cam_pos, m);
 
     // sort & renders back to front
-    if (_drawables.n > 0) {        
-        BEGIN_BLOCK("qsort");
-        qsort(_sortables, (size_t)_drawables.n, sizeof(Sortable), cmp_sortable);
-        END_BLOCK();
+    draw_drawables(bitmap);
 
-        // rendering
-        const int n = _drawables.n;
-        for (int k = 0; k < n; k++) {
-            Drawable* drawable = &_drawables.all[_sortables[k].i];
-            drawable->draw(drawable, bitmap);
-        }
+    /*
+    uint32_t* dst = (uint32_t*)bitmap;
+    for (int i = 0; i < 32; i++,dst+=LCD_ROWSIZE/sizeof(uint32_t)) {
+        *dst = swap(tiles[i]);
     }
+    */
     END_FUNC();
 }
 
@@ -1403,7 +1523,7 @@ void render_props(Point3d cam_pos, float* m, uint8_t* bitmap) {
     BEGIN_FUNC();
 
     // "free" props?
-    _drawables.n = 0;
+    reset_drawables();
     for (int i = 0; i < _render_props.n; ++i) {
         RenderProp* prop = &_render_props.props[i];
         push_and_transform_threeD_model(prop->id, cam_pos, m, prop->m);
@@ -1412,21 +1532,10 @@ void render_props(Point3d cam_pos, float* m, uint8_t* bitmap) {
     _render_props.n = 0;
 
     // particles?
-    push_particles(&_drawables, cam_pos, m);
+    push_particles(cam_pos, m);
 
     // sort & renders back to front
-    if (_drawables.n > 0) {
-        BEGIN_BLOCK("qsort");
-        qsort(_sortables, (size_t)_drawables.n, sizeof(Sortable), cmp_sortable);
-        END_BLOCK();
-
-        // rendering
-        const int n = _drawables.n;
-        for (int k = 0; k < n; k++) {
-            Drawable* drawable = &_drawables.all[_sortables[k].i];
-            drawable->draw(drawable, bitmap);
-        }
-    }
+    draw_drawables(bitmap);
 
     END_FUNC();
 }

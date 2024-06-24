@@ -336,6 +336,7 @@ function make_cam(pos)
 			screen:update()
 			camera(shkx,shky)
 		end,
+
 		look=function(self,to)
 			local pos=self.pos
 			local m=make_m_lookat(pos,to)
@@ -350,12 +351,12 @@ function make_cam(pos)
 			
 			self.pos=pos
 		end,
-		track=function(self,pos,a,u,power)
-   			pos=v_clone(pos)
-   			-- lerp angle
+		track=function(self,pos,a,u,power,snap)
+   		pos=v_clone(pos)
+   		-- lerp angle
 			self.angle=lerp(self.angle,a,power or 0.8)
-			-- lerp orientation
-			up=v_lerp(up,u,0.1)
+			-- lerp orientation (or snap to angle)
+			up=v_lerp(up,u,snap or 0.1)
 			v_normz(up)
 
 			-- shift cam position			
@@ -885,6 +886,7 @@ function loading_state()
 			end
 		end
 		next_state(menu_state)
+		--next_state(bench_state)
 	end)
 
 	return 
@@ -1567,6 +1569,26 @@ local command_handlers={
 }
 
 -- -------------------------
+-- bench mode
+function bench_state()
+	_ground = make_ground({slope=2,twist=4,num_tracks=1,tight_mode=0,props_rate=0.87,track_type=0,min_cooldown=8,max_cooldown=12})
+	local pos={15.5*4,-16,12.5*4}
+	local newy,newn=_ground:find_face(pos)
+	pos[2]=newy+1
+	local cam=make_cam()
+	local u={0,0.9,1}
+	v_normz(u)
+	cam:track(pos,0,u,1,1)
+
+	return 
+		-- update
+		function() end,
+		-- draw
+		function()
+			_ground:draw(cam)
+		end
+end
+
 -- endless run mode
 function play_state(params,help_ttl)
 	help_ttl=help_ttl or 0
