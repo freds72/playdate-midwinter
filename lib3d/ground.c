@@ -244,6 +244,8 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
                     case 'M': prop_id = PROP_COW; prop_t = randf(); break;
                     case 'J': prop_id = PROP_JUMPPAD; break;
                     case 'S': prop_id = PROP_START; break;
+                    case 'D': prop_id = PROP_GORIGHT; break;
+                    case 'G': prop_id = PROP_GOLEFT; break;
                     case 'C': prop_id = PROP_COIN; break;
                         // hole
                     case 'O': slice->tiles[i].h = -4.f; break;
@@ -266,6 +268,7 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
                     slice->tiles[i].prop_id = prop_id;
                     slice->tiles[i].prop_t = prop_t;
                     slice->tracks_mask |= 1 << i;
+                    slice->is_checkpoint = i % 8 == 0;
                 }
             }
             else {
@@ -778,7 +781,8 @@ void ground_init(PlaydateAPI* playdate) {
 
     // raycasting angles
     for(int i=0;i<RAYCAST_PRECISION;++i) {
-        float t = 1.25f * (((float)i) / RAYCAST_PRECISION - 0.5f);
+        // 1.5f to overshoot 
+        float t = 1.5f * (((float)i) / RAYCAST_PRECISION - 0.5f);
         _raycast_angles[i] = atan2f(MAX_TILE_DIST, MAX_TILE_DIST * t * 2.f) - PI / 2.f;
     }
 
@@ -851,23 +855,23 @@ typedef struct {
 } GroundSliceCoord;
 
 // clip polygon against near-z
-static int z_poly_clip(const float znear, Point3du* in, int n, Point3du* out) {
+static int z_poly_clip(const float z, const float flip, Point3du* in, int n, Point3du* out) {
     BEGIN_FUNC();
     Point3du v0 = in[n - 1];
-    float d0 = v0.z - znear;
+    float d0 = flip * (v0.z - z);
     int nout = 0;
     for (int i = 0; i < n; i++) {
         Point3du v1 = in[i];
         int side = d0 > 0;
         if (side) out[nout++] = (Point3du){ .v = { v0.x, v0.y, v0.z }, .u = v0.u, .light = v0.light };
-        const float d1 = v1.z - znear;
+        const float d1 = flip * (v1.z - z);
         if ((d1 > 0) != side) {
             // clip!
             const float t = d0 / (d0 - d1);
             out[nout++] = (Point3du){ .v = {
                 lerpf(v0.x,v1.x,t),
                 lerpf(v0.y,v1.y,t),
-                znear},
+                z},
                 .u = lerpf(v0.u,v1.u,t),
                 .light = lerpf(v0.light,v1.light,t)
             };
@@ -898,7 +902,12 @@ static void draw_tile(Drawable* drawable, uint8_t* bitmap) {
         if (shading > 15.f) shading = 15.f;
         if (shading < 0.f) shading = 0.f;
 
-        pts[i].u = shading;
+        float dist = Z_FAR - pts[i].z - 2*GROUND_CELL_SIZE;
+        float dist_shading = dist / (2.0f * GROUND_CELL_SIZE);
+        if (dist_shading > 1.f) dist_shading = 1.f;
+        if (dist_shading < 0.f) dist_shading = 0.f;
+
+        pts[i].u = shading * dist_shading;
     }
 
     // 
@@ -998,7 +1007,8 @@ static void push_tile(const GroundFace* f, const float m[MAT4x4], GroundSliceCoo
             // project using active matrix
             m_x_v(m, p.v, res->v);
             
-            int code =
+            const int code =
+                ((Flint) { .f = Z_FAR - res->z  }.i & 0x80000000) >> 31 |
                 ((Flint) { .f = res->z - Z_NEAR }.i & 0x80000000) >> 30 |
                 ((Flint) { .f = res->z - res->x }.i & 0x80000000) >> 29 |
                 ((Flint) { .f = res->z + res->x }.i & 0x80000000) >> 28;
@@ -1028,7 +1038,10 @@ static void push_tile(const GroundFace* f, const float m[MAT4x4], GroundSliceCoo
         DrawableFace* face = &drawable->face;
         face->material = f->flags & GROUNDFACE_FLAG_MATERIAL_MASK;
         if (is_clipped_near & OUTCODE_NEAR) {
-            face->n = z_poly_clip(Z_NEAR, tmp, n, face->pts);
+            face->n = z_poly_clip(Z_NEAR, 1.0f, tmp, n, face->pts);
+        }
+        else if (is_clipped_near & OUTCODE_FAR) {
+            face->n = z_poly_clip(Z_FAR, -1.f, tmp, n, face->pts);
         }
         else {
             face->n = n;
@@ -1094,7 +1107,7 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float m
                 face->flags = f->flags;
                 face->material = f->material;
                 if (is_clipped_near & OUTCODE_NEAR) {
-                    face->n = z_poly_clip(Z_NEAR, tmp, n, face->pts);
+                    face->n = z_poly_clip(Z_NEAR, 1.0f, tmp, n, face->pts);
                 }
                 else {
                     face->n = n;
@@ -1136,7 +1149,7 @@ int render_sky(float* m, uint8_t* screen) {
     Point3d p = { .v = { 0.f, -n.z / n.y, 1.f } };
 
     float w = 199.5f / p.z;
-    float y0 = 169.5f - w * p.y;
+    float y0 = 109.5f - w * p.y;
 
     // horizon 'normal'
     n.z = 0;
@@ -1513,6 +1526,19 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
     uint32_t* dst = (uint32_t*)bitmap;
     for (int i = 0; i < 32; i++,dst+=LCD_ROWSIZE/sizeof(uint32_t)) {
         *dst = swap(tiles[i]);
+    }
+    */
+
+    // dither gradient
+    /*
+    for (int j = 0; j < 32; j++) {
+        uint8_t* dst = bitmap + j * LCD_ROWSIZE;
+        uint8_t* src = _dither_ramps + j*16*8;
+        for (int i = 0; i < 16; i++) {
+            *dst++ = *src++;
+            *dst++ = *src++;
+            src += 6;
+        }
     }
     */
     END_FUNC();

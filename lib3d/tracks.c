@@ -166,6 +166,20 @@ Section _endless_sections[] = {
             {.timeline = NULL }
         }
     },
+    // coins 
+    {
+        .random = 0,
+        .seq = {.min = 0, .max = INT_MAX },
+        .timelines = {
+            {.timeline = "." },
+            {.timeline = "......C.C" },
+            {.timeline = "...C.C..." },
+            {.timeline = "C.C......" },
+            {.timeline = "." },
+            {.timeline = "." },
+            {.timeline = NULL }
+        }
+    },
     // 
     // 1 rock
     {
@@ -207,21 +221,59 @@ Section _endless_sections[] = {
         .seq = {.min = 5, .max = INT_MAX },
         .timelines = {
             {.timeline = "." },
-            {.timeline = "T..C." },
+            {.timeline = ".T..C." },
             {.timeline = "." },
             {.timeline = NULL }
         }
     },
-    // tree pattern
+    // forest 1
     {
         .random = 0,
-        .seq = {.min = 10, .max = 35 },
+        .seq = {.min = 10, .max = INT_MAX },
         .timelines = {
-            {.timeline = "T....T.T.." },
-            {.timeline = "T..CC...T.T.T.T" },
-            {.timeline = "....T..CC..T.T." },
-            {.timeline = ".......T..CC..." },
-            {.timeline = "..T...T" },
+            {.timeline = "T..TT.T.T.." },
+            {.timeline = "T....CC.D.T.T.T.T" },
+            {.timeline = "........CC.D.T.T." },
+            {.timeline = ".....G.T.T..CC..." },
+            {.timeline = "G.T.....T..T.T.T." },
+            {.timeline = NULL }
+        }
+    },
+    // forest 2
+    {
+        .random = 0,
+        .seq = {.min = 10, .max = INT_MAX },
+        .timelines = {
+            {.timeline = "T..TT.T.T.....C.C" },
+            {.timeline = "D.T.T.......G.T.T" },
+            {.timeline = "........G.T.T.TT." },
+            {.timeline = ".....G.T.T......." },
+            {.timeline = "G.T.....T..T.T.T." },
+            {.timeline = NULL }
+        }
+    },
+    // forest 3
+    {
+        .random = 0,
+        .seq = {.min = 10, .max = INT_MAX },
+        .timelines = {
+            {.timeline = "D.T.....T..T.T.T..." },
+            {.timeline = ".....D.T.T........." },
+            {.timeline = "........D.T.T.TT..." },
+            {.timeline = "G.T.T.......D.T.T.." },
+            {.timeline = "T..TT.T.T.....C.C.." },
+            {.timeline = NULL }
+        }
+    },
+    // forest 3
+    {
+        .random = 0,
+        .seq = {.min = 8, .max = 35 },
+        .timelines = {
+            {.timeline = "T...D.T..T.T....C." },
+            {.timeline = "..............W.T." },
+            {.timeline = "T...G.T.T.......C." },
+            {.timeline = "T.T.TT.." },
             {.timeline = NULL }
         }
     },
@@ -242,15 +294,27 @@ Section _endless_sections[] = {
         .random = 1,
         .seq = {.min = 18, .max = 55 },
         .timelines = {
-            {.timeline = "........"},
+            {.timeline = "."},
             {.timeline = "...B........C.C"},
             {.timeline = NULL }
         }
     },
-    // 3x snowball
+        // 2x snowball
     {
         .random = 1,
-        .seq = {.min = 20, .max = 80 },
+        .seq = {.min = 18, .max = INT_MAX },
+        .timelines = {
+            {.timeline = ".....B............C...."},
+            {.timeline = "."},
+            {.timeline = "."},
+            {.timeline = ".....B............C...."},
+            {.timeline = NULL }
+        }
+    },
+        // 3x snowball
+    {
+        .random = 1,
+        .seq = {.min = 20, .max = INT_MAX },
         .timelines = {
             {.timeline = ".....B............C...."},
             {.timeline = "."},
@@ -259,10 +323,10 @@ Section _endless_sections[] = {
             {.timeline = NULL }
         }
     },
-    // 4x snowball - no random
+    // 3x snowball - no random
     {
         .random = 0,
-        .seq = {.min = 20, .max = 80 },
+        .seq = {.min = 20, .max = INT_MAX },
         .timelines = {
             {.timeline = ".....B............C...."},
             {.timeline = "."},
@@ -526,7 +590,7 @@ static Section* pick_next_section() {
     _section_director.seq++;
 
     if (!n) {
-        pd->system->logToConsole("No active section to pick @%i", _section_director.seq);
+        pd->system->error("No active section to pick @%i", _section_director.seq);
         return NULL;
     }
 

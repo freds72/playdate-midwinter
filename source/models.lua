@@ -35,6 +35,8 @@ PROP_TREE1 = 1
 ,PROP_UFO = 32
 ,PROP_DYNAMITE = 33
 ,PROP_INVERT = 34
+,PROP_GOLEFT = 35
+,PROP_GORIGHT = 36
 
 }
 -- named vertices

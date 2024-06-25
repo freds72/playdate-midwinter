@@ -109,9 +109,11 @@ static void drawTextureFragment(uint8_t* row, int x1, int x2, int lu, int ru, ui
     const uint8_t endmask = ((1 << endbit) - 1) << (8 - endbit);
 
     // ensure lu by step of 8*du do not overlap with invalid noise
-    dither_ramp++;
-    du *= 8;
+    // dither_ramp++;
 
+    // move by whole shading block (2x32 pixels)
+    du *= 8;
+    
     int col = x1 / 8;
     uint8_t* p = row + col;
     
@@ -148,6 +150,8 @@ static void drawTextureFragment(uint8_t* row, int x1, int x2, int lu, int ru, ui
         }
 
         if (endbit > 0) {
+            // the last block of 8 pixels can overflow into negative territory
+            if (lu < 0) lu = 0;           
             *p = (*p & ~endmask) | ((*(dither_ramp + (lu >> 16) * 8 + ((x/8) % 4))) & endmask);
         }
     }

@@ -956,12 +956,13 @@ end
 function menu_state(angle)
   local starting
 	local best_y = -20
+	local frame_t=0
 	local panels={
-		{state=play_state,loc=vgroups.MOUNTAIN_GREEN_TRACK,help="Chill mood?\nEnjoy the snow!",params={hp=3,name="Marmottes",slope=1.5,twist=2.5,num_tracks=3,tight_mode=0,props_rate=0.90,track_type=0,min_cooldown=30,max_cooldown=30*4}},
+		{state=play_state,loc=vgroups.MOUNTAIN_GREEN_TRACK,help="Chill mood?\nEnjoy the snow!",params={hp=3,name="Marmottes",slope=1.5,twist=2.5,num_tracks=3,tight_mode=0,props_rate=0.90,track_type=0,min_cooldown=30*2,max_cooldown=30*4}},
 		{state=play_state,loc=vgroups.MOUNTAIN_RED_TRACK,help=function()
 			return "Death Canyon\nHow far can you go?\nBest: ".._save_state.best_2.."m"
 		end
-		,params={hp=1,name="Biquettes",dslot=2,slope=2,twist=4,num_tracks=1,tight_mode=1,props_rate=1,track_type=1,min_cooldown=8,max_cooldown=12}},
+		,params={hp=1,name="Biquettes",dslot=2,slope=2,twist=4,num_tracks=1,tight_mode=1,props_rate=1,track_type=1,min_cooldown=4,max_cooldown=8}},
 		{state=race_state,loc=vgroups.MOUNTAIN_BLACK_TRACK,help=function()
 			return "Endless Race\nTake over mania!\nBest: ".._save_state.best_3.."m"
 		end,params={hp=1,name="Chamois",dslot=3,slope=2.25,twist=6,num_tracks=1,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=4,max_cooldown=12}},
@@ -1109,6 +1110,7 @@ function menu_state(angle)
 		
 			--
 			cam:look(look_at)
+			frame_t+=1
 		end,
 		-- draw
 		function()
@@ -1120,19 +1122,8 @@ function menu_state(angle)
 			lib3d.render_props(cam.pos[1],cam.pos[2],cam.pos[3],table.unpack(cam.m))
 
 			if not starting then
-				_game_title:draw(10,6)
-				-- snow on title
-				srand(13)
-				local t=time()
-				local w,h=_game_title:getSize()
-				gfx.setColor(gfx.kColorWhite)
-				for i=0,128 do
-					local a,s=rnd(),2+rnd()
-					local u,v,x0=s*cos(a),s*abs(4*sin(a)),rnd(w)
-					local x,y=flr(x0+t*u)%w,flr(t*v)%h
-					snowflake:draw(10+x,6+y)
-				end		
 
+				_game_title_anim:drawImage((frame_t%#_game_title_anim)+1,10,6)
 				print_small("by FReDS72",10,60)
 			end
 
@@ -2137,13 +2128,14 @@ function _init()
 	_boost_sfx = playdate.sound.sampleplayer.new("sounds/boost")
 
 	_game_over = gfx.image.new("images/game_over")
-	_game_title = gfx.image.new("images/game_title")
 	_dir_icon = gfx.image.new("images/checkpoint_lock")
 	_mountain_icon = gfx.image.new("images/mountain_icon")
 
 	_warning_small = gfx.image.new("images/warning_small")
 	_warning_avalanche = gfx.image.new("images/warning_avalanche")
 	_warning_skiier = gfx.image.new("images/warning_skiier")
+
+	_game_title_anim = playdate.graphics.imagetable.new("images/generated/game_title")
 
 	-- inverse lookup tables
 	_store_by_name = {}

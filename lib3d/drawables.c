@@ -14,10 +14,12 @@ typedef struct {
 typedef struct {
     union {
         struct {
+            // low bits
             uint16_t i;
+            // high bits (???)
             uint16_t key;
         };
-        int v;
+        uint32_t v;
     };
 } Sortable;
 
@@ -26,8 +28,8 @@ static Sortable _sortables[MAX_DRAWABLES];
 
 // compare 2 drawables
 static int cmp_sortable(const void* a, const void* b) {
-    const int x = ((Sortable*)a)->key;
-    const int y = ((Sortable*)b)->key;
+    const uint32_t x = ((Sortable*)a)->v;
+    const uint32_t y = ((Sortable*)b)->v;
     return x > y ? -1 : x == y ? 0 : 1;
 }
 
@@ -37,12 +39,13 @@ void reset_drawables() {
 
 Drawable* pop_drawable(const float sortkey) {
     const int i = _drawables.n++;
-    // pack everything into a int32
-    _sortables[i] = (Sortable){ .i = i, .key = (uint16_t)(sortkey * 256.0f) };
+    // pack everything into a int32    
+    _sortables[i] = (Sortable){ .i = i, .key = (uint16_t)(max(0.f,sortkey) * 256.0f) };
     return &_drawables.all[i];
 }
 
 void draw_drawables(uint8_t* bitmap) {
+    BEGIN_BLOCK("draw_drawables");
     if (_drawables.n > 0) {
         BEGIN_BLOCK("qsort");
         qsort(_sortables, (size_t)_drawables.n, sizeof(Sortable), cmp_sortable);
@@ -55,6 +58,7 @@ void draw_drawables(uint8_t* bitmap) {
             drawable->draw(drawable, bitmap);
         }
     }
+    END_BLOCK();
 }
 
 void drawables_init(PlaydateAPI* playdate) {
