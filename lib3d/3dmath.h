@@ -7,6 +7,11 @@
 #define MAT4x4 16
 #define VEC3 3
 
+#ifndef max
+    #define max(a,b) (((a) > (b)) ? (a) : (b))
+    #define min(a,b) (((a) < (b)) ? (a) : (b))
+#endif // !max
+
 // misc. math typedefs
 typedef struct {
   union {

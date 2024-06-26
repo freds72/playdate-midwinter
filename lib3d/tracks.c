@@ -642,7 +642,7 @@ static int update_track(Track *track,int warmup)
       if (_section_director.active_section) {
           track->width = _section_director.active_section->width;
 
-          memset(_tracks.pattern, ' ', GROUND_SIZE);
+          memset(_tracks.pattern, ' ', GROUND_WIDTH);
           if (_section_director.t < _section_director.max_len) {
               const int ii = (int)(track->x / GROUND_CELL_SIZE);
               track->imin = ii - track->width / 2;
@@ -737,8 +737,8 @@ void make_tracks(const int xmin, const int xmax, GroundParams params, Tracks **o
   _tracks.max_tracks = params.num_tracks;
   _tracks.n = 0;
   _tracks.twist = params.twist;
-  memset(_tracks.pattern, ' ', GROUND_SIZE);
-  _tracks.pattern[GROUND_SIZE] = 0;
+  memset(_tracks.pattern, ' ', GROUND_WIDTH);
+  _tracks.pattern[GROUND_WIDTH] = 0;
 
   // section director
   _section_director.seq = 0;

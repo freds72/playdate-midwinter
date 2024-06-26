@@ -38,6 +38,10 @@ local _inputs={
 }
 local _input=_inputs[true]
 
+-- ground limits
+local _ground_width = 32*4
+local _ground_height = 48*4
+
 -- some "pico-like" helpers
 function cls(c)
   gfx.clear(c or gfx.kColorBlack)
@@ -417,7 +421,7 @@ function make_body(p,angle)
 			-- add(debug_vectors,{f=f,p=p,c=11,scale=t})
 
 			v_add(forces,f)
-			torque=torque+t
+			torque+=t
 		end,
 		boost=function(self,b)
 			boost=b
@@ -1413,7 +1417,7 @@ end
 -- generic static prop
 local make_static_actor=function(id,x,sfx_name,update)
 	return function(lane)
-		local pos={x or (lane+0.5)*4,-16,30.5*4}
+		local pos={x or (lane+0.5)*4,-16,_ground_height - 2}
 		local y=_ground:find_face(pos)
 		pos[2]=y
 		-- sfx?
@@ -1541,7 +1545,7 @@ local command_handlers={
 		}
 	end,
 	-- (tele)cabin
-	t=make_static_actor(models.PROP_CABINS,15.5*4),
+	t=make_static_actor(models.PROP_CABINS,_ground_width/2),
 	-- hot air balloon
 	h=make_static_actor(models.PROP_BALLOON),
 	-- ufo

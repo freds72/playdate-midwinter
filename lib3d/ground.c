@@ -51,7 +51,7 @@ typedef struct {
     float center;
 
     // tile
-    GroundTile tiles[GROUND_SIZE];
+    GroundTile tiles[GROUND_HEIGHT];
 } GroundSlice;
 
 // active slices + misc "globals"
@@ -66,7 +66,7 @@ typedef struct {
     // active tracks
     Tracks* tracks;
 
-    GroundSlice* slices[GROUND_SIZE];
+    GroundSlice* slices[GROUND_HEIGHT];
 } Ground;
 
 #define PROP_FLAG_HITABLE   1
@@ -111,7 +111,7 @@ static struct {
 static float _raycast_angles[RAYCAST_PRECISION];
 
 // global buffer to store slices
-static GroundSlice _slices_buffer[GROUND_SIZE];
+static GroundSlice _slices_buffer[GROUND_HEIGHT];
 // active ground
 static Ground _ground;
 
@@ -144,7 +144,7 @@ static void mesh_slice(int j) {
     Point3d sn = { .x = 0, .y = GROUND_CELL_SIZE, .z = s0->y - s1->y };
     v_normz(sn.v);
 
-    for (int i = 0; i < GROUND_SIZE - 1; ++i) {
+    for (int i = 0; i < GROUND_WIDTH - 1; ++i) {
         GroundTile* t0 = &s0->tiles[i];
         const Point3d v0 = { .v = {(float)(i * GROUND_CELL_SIZE),t0->h + s0->y,(float)(j * GROUND_CELL_SIZE)} };
         // v1-v0
@@ -191,15 +191,15 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
 
     // generate height
     uint32_t shadow_mask = 0;
-    for (int i = 0; i < GROUND_SIZE; ++i) {
+    for (int i = 0; i < GROUND_WIDTH; ++i) {
         GroundTile* tile = &slice->tiles[i];
-        tile->h = (perlin2d((16.f * i) / GROUND_SIZE, _ground.noise_y_offset, 0.25f, 4)) * 4.f * active_params.slope;
+        tile->h = (perlin2d((16.f * i) / GROUND_WIDTH, _ground.noise_y_offset, 0.25f, 4)) * 4.f * active_params.slope;
         tile->prop_id = 0;
     }
 
     _ground.noise_y_offset += (active_params.slope + randf()) / 4.f;
 
-    int imin = 3, imax = GROUND_SIZE - 3;
+    int imin = 3, imax = GROUND_WIDTH - 3;
     float main_track_x = GROUND_CELL_SIZE * (imin + imax) / 2.f;
     int is_checkpoint = 0;
     Tracks* tracks = _ground.tracks;    
@@ -220,7 +220,7 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
                     }
                 }
 
-                for (int i = i1 + 1; i < GROUND_SIZE - 2; i++) {
+                for (int i = i1 + 1; i < GROUND_WIDTH - 2; i++) {
                     GroundTile* tile = &slice->tiles[i];
                     if (randf() > active_params.props_rate) {
                         tile->prop_id = trees[randi(num_trees)];
@@ -288,14 +288,14 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
 
     // side walls
     slice->tiles[0].h = 15.f + 5.f * randf();
-    slice->tiles[GROUND_SIZE - 1].h = 15.f + 5.f * randf();
+    slice->tiles[GROUND_WIDTH - 1].h = 15.f + 5.f * randf();
     if (active_params.tight_mode) {
         for (int i = 1; i < imin - 1; i++) {
             slice->tiles[i].h = slice->tiles[0].h;
             slice->tiles[i].prop_id = 0;
         }
-        for (int i = GROUND_SIZE - 2; i > imax + 1; i--) {
-            slice->tiles[i].h = slice->tiles[GROUND_SIZE - 1].h;
+        for (int i = GROUND_WIDTH - 2; i > imax + 1; i--) {
+            slice->tiles[i].h = slice->tiles[GROUND_WIDTH - 1].h;
             slice->tiles[i].prop_id = 0;
         }
         imin--;
@@ -306,7 +306,7 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
     else
     {
         imin = 2;
-        imax = GROUND_SIZE - 2;
+        imax = GROUND_WIDTH - 2;
     }
 
     // apply props shadows
@@ -335,18 +335,18 @@ void make_ground(GroundParams params) {
     _ground.slice_id = 0;
     _ground.slice_y = 0;
     _ground.noise_y_offset = 16.f * randf();
-    _ground.plyr_z_index = GROUND_SIZE / 2 - 1;
+    _ground.plyr_z_index = (GROUND_HEIGHT / 2) - 1;
     _ground.max_pz = 0;
 
     // init track generator
-    make_tracks(4 * GROUND_CELL_SIZE, (GROUND_SIZE - 5)*GROUND_CELL_SIZE, params, &_ground.tracks);
+    make_tracks(4 * GROUND_CELL_SIZE, (GROUND_WIDTH - 5)*GROUND_CELL_SIZE, params, &_ground.tracks);
 
-    for (int i = 0; i < GROUND_SIZE; ++i) {
+    for (int i = 0; i < GROUND_HEIGHT; ++i) {
         // reset slices
         _ground.slices[i] = &_slices_buffer[i];
         make_slice(_ground.slices[i], -i * params.slope, 1);
     }
-    for (int i = 0; i < GROUND_SIZE - 1; ++i) {
+    for (int i = 0; i < GROUND_HEIGHT - 1; ++i) {
         mesh_slice(i);
     }
 }
@@ -370,16 +370,16 @@ void update_ground(Point3d* p, int* slice_id, char** pattern, Point3d* offset) {
         const float old_y = old_slice->y;
         offset->y -= old_y;
         // drop slice 0
-        for (int i = 1; i < GROUND_SIZE; ++i) {
+        for (int i = 1; i < GROUND_HEIGHT; ++i) {
             _ground.slices[i - 1] = _ground.slices[i];
             _ground.slices[i - 1]->y -= old_y;
         }
         // move shifted slices back to top
-        _ground.slices[GROUND_SIZE - 1] = old_slice;        
+        _ground.slices[GROUND_HEIGHT - 1] = old_slice;        
 
         // use previous baseline
-        make_slice(old_slice, _ground.slices[GROUND_SIZE - 2]->y - active_params.slope * (randf() + 0.5f), 0);
-        mesh_slice(GROUND_SIZE - 2);
+        make_slice(old_slice, _ground.slices[GROUND_HEIGHT - 2]->y - active_params.slope * (randf() + 0.5f), 0);
+        mesh_slice(GROUND_HEIGHT - 2);
     }
     // update y offset
     if (p->z > _ground.max_pz) {
@@ -407,7 +407,7 @@ int get_face(Point3d pos, Point3d* nout, float* yout) {
     // z slice
     int i = (int)(pos.x / GROUND_CELL_SIZE), j = (int)(pos.z / GROUND_CELL_SIZE);
     // outside ground?
-    if (i < 0 || i >= GROUND_SIZE || j < 0 || j >= GROUND_SIZE) {
+    if (i < 0 || i >= GROUND_WIDTH || j < 0 || j >= GROUND_HEIGHT) {
         END_FUNC();
         return 0;
     }
@@ -449,7 +449,7 @@ void get_track_info(Point3d pos, float* xmin, float* xmax, float* z, int* checkp
 
     // find nearest checkpoint
     float x = _ground.slices[j + 2]->center, y = 2;
-    for (int k = j + 2; k < j + 10 && k < GROUND_SIZE; ++k) {
+    for (int k = j + 2; k < j + 10 && k < GROUND_HEIGHT; ++k) {
         GroundSlice* s = _ground.slices[k];
         if (s->is_checkpoint) {
             x = s->center;
@@ -467,7 +467,7 @@ void get_props(Point3d pos, PropInfo** info, int* nout) {
     const int ii = (int)(pos.x / GROUND_CELL_SIZE);
     int i0 = ii - 4, i1 = ii + 4;
     if (i0 < 0) i0 = 0;
-    if (i1 > GROUND_SIZE) i1 = GROUND_SIZE;
+    if (i1 > GROUND_WIDTH) i1 = GROUND_WIDTH;
 
     const int j0 = (int)(pos.z / GROUND_CELL_SIZE) + 1;
     _props_info.n = 0;
@@ -510,7 +510,7 @@ void collide(Point3d pos, float radius, int* hit_type)
     *hit_type = 0;
 
     // out of track
-    if (i0 <= 0 || i0 >= GROUND_SIZE - 2) {
+    if (i0 <= 0 || i0 >= GROUND_WIDTH - 2) {
         *hit_type = 2;
         END_FUNC();
         return;
@@ -521,10 +521,10 @@ void collide(Point3d pos, float radius, int* hit_type)
 
     // check all 9 cells(overkill but faster)
     for (int j = j0 - 1; j < j0 + 2; j++) {
-        if (j >= 0 && j < GROUND_SIZE) {
+        if (j >= 0 && j < GROUND_HEIGHT) {
             GroundSlice* s0 = _ground.slices[j];
             for (int i = i0 - 1; i < i0 + 2; i++) {
-                if (i >= 0 && i < GROUND_SIZE) {
+                if (i >= 0 && i < GROUND_WIDTH) {
                     GroundTile* t0 = &s0->tiles[i];
                     int id = t0->prop_id;
                     // collidable actor ?
@@ -1337,7 +1337,7 @@ static void collect_tri(const Point2di v0, const Point2di v1, const Point2di v2,
     }
 }
 
-static void collect_tiles(uint32_t visible_tiles[GROUND_SIZE], const Point3d pos, float base_angle) {
+static void collect_tiles(uint32_t visible_tiles[GROUND_HEIGHT], const Point3d pos, float base_angle) {
     BEGIN_FUNC();
 
     float x = pos.x / GROUND_CELL_SIZE, y = pos.z / GROUND_CELL_SIZE;
@@ -1382,7 +1382,7 @@ static void collect_tiles(uint32_t visible_tiles[GROUND_SIZE], const Point3d pos
                 mapy += mapdy;
             }
             // out of range?
-            if ((mapx | mapy) & 0xffffffe0) break;
+            if (mapx&~(GROUND_WIDTH-1) || mapy<0 || mapy >= GROUND_HEIGHT) break;
 
             visible_tiles[mapy] |= 1 << mapx;
         }
@@ -1397,12 +1397,12 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
     BEGIN_FUNC();
 
     // cache lines
-    CameraPoint c0[GROUND_SIZE];
-    CameraPoint c1[GROUND_SIZE];
+    CameraPoint c0[GROUND_WIDTH];
+    CameraPoint c1[GROUND_WIDTH];
 
     CameraPoint* cache[2] = { c0, c1 };
     // reset cache
-    for (int i = 0; i < GROUND_SIZE; ++i) {
+    for (int i = 0; i < GROUND_WIDTH; ++i) {
         c0[i].outcode = -1;
         c1[i].outcode = -1;
     }
@@ -1412,17 +1412,17 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
 
     // collect visible tiles
     // visible tiles encoded as 1 bit per cell
-    uint32_t tiles[GROUND_SIZE] = { 0 };
+    uint32_t tiles[GROUND_HEIGHT] = { 0 };
     collect_tiles(tiles, cam_pos, cam_angle);
 
     // transform
     reset_drawables();
-    for (int j = 0; j < GROUND_SIZE - 1; ++j) {
+    for (int j = 0; j < GROUND_HEIGHT - 1; ++j) {
         // const uint32_t visible_tiles = tiles[j];
         const uint32_t visible_tiles = tiles[j];
         // slightly alter shading of even/odd slices
         const float shading_band = SHADING_CONTRAST * (0.5f + 0.5f * ((j + _z_offset) & 1));
-        for (int i = 0; i < GROUND_SIZE; ++i) {
+        for (int i = 0; i < GROUND_HEIGHT; ++i) {
             // is the tile bit enabled?
             if (visible_tiles & (1 << i)) {
                 GroundSlice* s0 = _ground.slices[j];
@@ -1503,7 +1503,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
         CameraPoint* tmp = cache[0];
         cache[0] = cache[1];
         cache[1] = tmp;
-        for (int i = 0; i < GROUND_SIZE; ++i) {
+        for (int i = 0; i < GROUND_WIDTH; ++i) {
             tmp[i].outcode = -1;
         }
     }
