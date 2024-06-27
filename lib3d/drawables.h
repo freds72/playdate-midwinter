@@ -4,8 +4,6 @@
 #include <pd_api.h>
 #include "3dmath.h"
 
-#define Z_NEAR 0.5f
-#define Z_FAR 64.f
 #define MAX_DRAWABLES 2048
 
 typedef struct {

@@ -232,9 +232,9 @@ Section _endless_sections[] = {
         .seq = {.min = 10, .max = INT_MAX },
         .timelines = {
             {.timeline = "T..TT.T.T.." },
-            {.timeline = "T....CC.D.T.T.T.T" },
-            {.timeline = "........CC.D.T.T." },
-            {.timeline = ".....G.T.T..CC..." },
+            {.timeline = "T....C..D.T.T.T.T" },
+            {.timeline = "...C........D.T.T" },
+            {.timeline = "C....G.T.T....CC." },
             {.timeline = "G.T.....T..T.T.T." },
             {.timeline = NULL }
         }
@@ -244,6 +244,7 @@ Section _endless_sections[] = {
         .random = 0,
         .seq = {.min = 10, .max = INT_MAX },
         .timelines = {
+            {.timeline = "..T..T.T.T." },
             {.timeline = "T..TT.T.T.....C.C" },
             {.timeline = "D.T.T.......G.T.T" },
             {.timeline = "........G.T.T.TT." },
@@ -334,21 +335,39 @@ Section _endless_sections[] = {
             {.timeline = ".....B............C...."},
             {.timeline = NULL }
         }
-    }
-};
-
-// test
-Section _test_sections[] = {
+    },
+    // 1x skidoo
+    {
+        .random = 1,
+        .seq = {.min = 17, .max = INT_MAX },
+        .timelines = {
+            {.timeline = ".............."},
+            {.timeline = ".............."},
+            {.timeline = ".............K"},
+            {.timeline = NULL }
+        }
+    },
+    // 2x skidoo
     {
         .random = 0,
-        .seq = {.min = 0, .max = INT_MAX },
+        .seq = {.min = 17, .max = INT_MAX },
         .timelines = {
-            {.timeline = "..." },
-            {.timeline = "..."},
-            {.timeline = "..."},
-            {.timeline = ".u."},
-            {.timeline = "..."},
-            {.timeline = "..." },
+            {.timeline = ".............."},
+            {.timeline = ".............K"},
+            {.timeline = ".............."},
+            {.timeline = ".............K"},
+            {.timeline = ".............."},
+            {.timeline = NULL }
+        }
+    },
+    // skidoo + snowball
+    {
+        .random = 0,
+        .seq = {.min = 20, .max = INT_MAX },
+        .timelines = {
+            {.timeline = "....B..........."},
+            {.timeline = ".............K.."},
+            {.timeline = "....B..........."},
             {.timeline = NULL }
         }
     }
@@ -411,67 +430,7 @@ Section _race_sections[] = {
             {.timeline = "...." },
             {.timeline = NULL }
         }
-    },
-    /*
-    // accel pad + trees
-    {
-        .random = 1,
-        .seq = {.min = 4, .max = 24 },
-        .timelines = {
-            {.timeline = ".T...T.T." },
-            {.timeline = "." },
-            {.timeline = "...T.." },
-            {.timeline = "." },
-            {.timeline = "T...J" },
-            {.timeline = "." },
-            {.timeline = "..T.." },
-            {.timeline = NULL }
-        }
-    },
-    // accel pad + trees
-    {
-        .random = 1,
-        .seq = {.min = 10, .max = INT_MAX },
-        .timelines = {
-            {.timeline = ".T" },
-            {.timeline = "." },
-            {.timeline = ".T." },
-            {.timeline = "." },
-            {.timeline = "...J." },
-            {.timeline = "." },
-            {.timeline = "..T.." },
-            {.timeline = NULL }
-        }
-    },
-    // 1x accel pad + hazard
-    {
-        .random = 1,
-        .seq = {.min = 4, .max = INT_MAX },
-        .timelines = {
-            {.timeline = "." },
-            {.timeline = "." },
-            {.timeline = "...W..R..J....." },
-            {.timeline = "." },
-            {.timeline = ".......W..R..J." },
-            {.timeline = "." },
-            {.timeline = NULL }
-        }
-    },
-    // 1x accel pad + cows
-    {
-        .random = 1,
-        .seq = {.min = 12, .max = INT_MAX },
-        .timelines = {
-            {.timeline = "." },
-            {.timeline = ".....M.." },
-            {.timeline = "...M..J....." },
-            {.timeline = "." },
-            {.timeline = ".......M..J." },
-            {.timeline = "." },
-            {.timeline = NULL }
-        }
     }
-    */
 };
 
 Section _race_section_start = {
@@ -503,6 +462,24 @@ Section _endless_section_start = {
         {.timeline = NULL }
     }
 };
+
+
+// test
+Section _test_sections[] = {
+    {
+        .random = 0,
+        .seq = {.min = 0, .max = INT_MAX },
+        .timelines = {
+            {.timeline = "...............K" },
+            {.timeline = ".............."},
+            {.timeline = ".............K.."},
+            {.timeline = ".............."},
+            {.timeline = "...............K" },
+            {.timeline = NULL }
+        }
+    }
+};
+
 
 typedef struct {
     // number of sections

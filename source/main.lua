@@ -40,7 +40,7 @@ local _input=_inputs[true]
 
 -- ground limits
 local _ground_width = 32*4
-local _ground_height = 48*4
+local _ground_height = 40*4
 
 -- some "pico-like" helpers
 function cls(c)
@@ -1540,6 +1540,40 @@ local command_handlers={
 				m[14]=pos[2]+1.25
 				m[15]=pos[3]
 				self.m = m
+				return true
+			end
+		}
+	end,
+	-- skidoo
+	K=function(lane)
+		local pos={(lane+0.5)*4,-16,_ground_height-2}
+		-- sfx?
+		return {
+			id = models.PROP_SKIDOO,
+			pos = pos,
+			update=function(self)
+				local pos=self.pos
+				-- move upward!!
+				pos[3]-=0.25
+
+				-- update
+				local newy,newn=_ground:find_face(pos)
+				-- out of bound: kill actor
+				if not newy then return end
+				
+				-- orientation matrix
+				local m = make_m_from_v(newn)
+				m[13]=pos[1]
+				m[14]=newy
+				m[15]=pos[3]
+				self.m = m
+	
+				-- spawn particles
+				if rnd()>0.2 then
+					local v=m_x_v(m,v_lerp(vgroups.SKIDOO_LTRACK,vgroups.SKIDOO_RTRACK,rnd()))					
+					lib3d.spawn_particle(0, table.unpack(v))
+				end
+
 				return true
 			end
 		}
