@@ -1003,7 +1003,7 @@ function menu_state(angle)
 		{state=play_state,loc=vgroups.MOUNTAIN_RED_TRACK,help=function()
 			return "Death Canyon\nHow far can you go?\nBest: ".._save_state.best_2.."m"
 		end
-		,params={hp=1,name="Biquettes",dslot=2,slope=2,twist=4,num_tracks=1,tight_mode=1,props_rate=1,track_type=3,min_cooldown=4,max_cooldown=8}},
+		,params={hp=1,name="Biquettes",dslot=2,slope=2,twist=4,num_tracks=1,tight_mode=1,props_rate=1,track_type=1,min_cooldown=4,max_cooldown=8}},
 		{state=race_state,loc=vgroups.MOUNTAIN_BLACK_TRACK,help=function()
 			return "Endless Race\nTake over mania!\nBest: ".._save_state.best_3.."m"
 		end,params={hp=1,name="Chamois",dslot=3,slope=2.25,twist=6,num_tracks=1,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=4,max_cooldown=12}},
