@@ -4,8 +4,7 @@
 #include <pd_api.h>
 #include "3dmath.h"
 
-#define Z_NEAR 0.5f
-#define Z_FAR 64.f
+#define MAX_DRAWABLES 2048
 
 typedef struct {
     // texture type
@@ -17,17 +16,6 @@ typedef struct {
     // clipped points in camera space
     Point3du pts[5];
 } DrawableFace;
-
-typedef struct {
-    int material;
-    int angle;
-    Point3d pos;
-} DrawableProp;
-
-typedef struct {
-    int frame;
-    Point3d pos;
-} DrawableCoin;
 
 typedef struct {    
     union {
@@ -52,19 +40,13 @@ typedef struct Drawable_s {
     draw_drawable draw;
     union {
         DrawableFace face;
-        DrawableProp prop;
-        DrawableCoin coin;
         DrawableParticle particle;
     };
 } Drawable;
 
-#define MAX_DRAWABLES 2048
-typedef struct {
-    int n;
-    // arbitrary limit
-    Drawable all[MAX_DRAWABLES];
-} Drawables;
-
 void drawables_init(PlaydateAPI* playdate);
+void reset_drawables();
+Drawable* pop_drawable(const float sortkey);
+void draw_drawables(uint8_t* bitmap);
 
 #endif

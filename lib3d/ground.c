@@ -15,6 +15,7 @@
 #include "drawables.h"
 #include "ground_limits.h"
 #include "spall.h"
+#include "simd.h"
 
 static PlaydateAPI* pd;
 
@@ -50,7 +51,7 @@ typedef struct {
     float center;
 
     // tile
-    GroundTile tiles[GROUND_SIZE];
+    GroundTile tiles[GROUND_HEIGHT];
 } GroundSlice;
 
 // active slices + misc "globals"
@@ -65,7 +66,7 @@ typedef struct {
     // active tracks
     Tracks* tracks;
 
-    GroundSlice* slices[GROUND_SIZE];
+    GroundSlice* slices[GROUND_HEIGHT];
 } Ground;
 
 #define PROP_FLAG_HITABLE   1
@@ -97,7 +98,7 @@ typedef struct {
     // property id
     int id;
     // transformation matrix
-    float m[16];
+    float m[MAT4x4];
 } RenderProp;
 
 static struct {
@@ -106,11 +107,11 @@ static struct {
 } _render_props;
 
 // raycasting angles
-#define RAYCAST_PRECISION 196
+#define RAYCAST_PRECISION 256
 static float _raycast_angles[RAYCAST_PRECISION];
 
 // global buffer to store slices
-static GroundSlice _slices_buffer[GROUND_SIZE];
+static GroundSlice _slices_buffer[GROUND_HEIGHT];
 // active ground
 static Ground _ground;
 
@@ -143,9 +144,9 @@ static void mesh_slice(int j) {
     Point3d sn = { .x = 0, .y = GROUND_CELL_SIZE, .z = s0->y - s1->y };
     v_normz(sn.v);
 
-    for (int i = 0; i < GROUND_SIZE - 1; ++i) {
+    for (int i = 0; i < GROUND_WIDTH - 1; ++i) {
         GroundTile* t0 = &s0->tiles[i];
-        const Point3d v0 = { .v = {(float)i * GROUND_CELL_SIZE,t0->h + s0->y,(float)j * GROUND_CELL_SIZE} };
+        const Point3d v0 = { .v = {(float)(i * GROUND_CELL_SIZE),t0->h + s0->y,(float)(j * GROUND_CELL_SIZE)} };
         // v1-v0
         const Point3d u1 = { .v = {(float)GROUND_CELL_SIZE,s0->tiles[i + 1].h + s0->y - v0.y,0.f} };
         // v2-v0
@@ -176,7 +177,7 @@ static void mesh_slice(int j) {
 
 static void make_slice(GroundSlice* slice, float y, int warmup) {
     // BEGIN_FUNC();
-    static int trees[] = { PROP_TREE0,PROP_TREE0,PROP_TREE1,PROP_TREE1,PROP_TREE2,PROP_TREE3,PROP_TREE3,PROP_TREE4,PROP_TREE4,PROP_TREE4,PROP_TREE5,PROP_TREE5,PROP_TREE5 };
+    static int trees[] = { PROP_TREE0,PROP_TREE0,PROP_TREE1,PROP_TREE1,PROP_TREE2,PROP_TREE3,PROP_TREE3,PROP_TREE4,PROP_TREE4,PROP_TREE4,PROP_TREE5,PROP_TREE5,PROP_TREE5,PROP_LOG };
     static int num_trees = sizeof(trees) / sizeof(PROP_TREE0);
 
     // smooth altitude changes
@@ -190,15 +191,15 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
 
     // generate height
     uint32_t shadow_mask = 0;
-    for (int i = 0; i < GROUND_SIZE; ++i) {
+    for (int i = 0; i < GROUND_WIDTH; ++i) {
         GroundTile* tile = &slice->tiles[i];
-        tile->h = (perlin2d((16.f * i) / GROUND_SIZE, _ground.noise_y_offset, 0.25f, 4)) * 4.f * active_params.slope;
+        tile->h = (perlin2d((16.f * i) / GROUND_WIDTH, _ground.noise_y_offset, 0.25f, 4)) * 4.f * active_params.slope;
         tile->prop_id = 0;
     }
 
     _ground.noise_y_offset += (active_params.slope + randf()) / 4.f;
 
-    int imin = 3, imax = GROUND_SIZE - 3;
+    int imin = 3, imax = GROUND_WIDTH - 3;
     float main_track_x = GROUND_CELL_SIZE * (imin + imax) / 2.f;
     int is_checkpoint = 0;
     Tracks* tracks = _ground.tracks;    
@@ -219,7 +220,7 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
                     }
                 }
 
-                for (int i = i1 + 1; i < GROUND_SIZE - 2; i++) {
+                for (int i = i1 + 1; i < GROUND_WIDTH - 2; i++) {
                     GroundTile* tile = &slice->tiles[i];
                     if (randf() > active_params.props_rate) {
                         tile->prop_id = trees[randi(num_trees)];
@@ -243,6 +244,8 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
                     case 'M': prop_id = PROP_COW; prop_t = randf(); break;
                     case 'J': prop_id = PROP_JUMPPAD; break;
                     case 'S': prop_id = PROP_START; break;
+                    case 'D': prop_id = PROP_GORIGHT; break;
+                    case 'G': prop_id = PROP_GOLEFT; break;
                     case 'C': prop_id = PROP_COIN; break;
                         // hole
                     case 'O': slice->tiles[i].h = -4.f; break;
@@ -265,6 +268,7 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
                     slice->tiles[i].prop_id = prop_id;
                     slice->tiles[i].prop_t = prop_t;
                     slice->tracks_mask |= 1 << i;
+                    slice->is_checkpoint = i % 8 == 0;
                 }
             }
             else {
@@ -284,14 +288,14 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
 
     // side walls
     slice->tiles[0].h = 15.f + 5.f * randf();
-    slice->tiles[GROUND_SIZE - 1].h = 15.f + 5.f * randf();
+    slice->tiles[GROUND_WIDTH - 1].h = 15.f + 5.f * randf();
     if (active_params.tight_mode) {
         for (int i = 1; i < imin - 1; i++) {
             slice->tiles[i].h = slice->tiles[0].h;
             slice->tiles[i].prop_id = 0;
         }
-        for (int i = GROUND_SIZE - 2; i > imax + 1; i--) {
-            slice->tiles[i].h = slice->tiles[GROUND_SIZE - 1].h;
+        for (int i = GROUND_WIDTH - 2; i > imax + 1; i--) {
+            slice->tiles[i].h = slice->tiles[GROUND_WIDTH - 1].h;
             slice->tiles[i].prop_id = 0;
         }
         imin--;
@@ -302,7 +306,7 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
     else
     {
         imin = 2;
-        imax = GROUND_SIZE - 2;
+        imax = GROUND_WIDTH - 2;
     }
 
     // apply props shadows
@@ -331,18 +335,18 @@ void make_ground(GroundParams params) {
     _ground.slice_id = 0;
     _ground.slice_y = 0;
     _ground.noise_y_offset = 16.f * randf();
-    _ground.plyr_z_index = GROUND_SIZE / 2 - 1;
+    _ground.plyr_z_index = (GROUND_HEIGHT / 2) - 1;
     _ground.max_pz = 0;
 
     // init track generator
-    make_tracks(4 * GROUND_CELL_SIZE, (GROUND_SIZE - 5)*GROUND_CELL_SIZE, params, &_ground.tracks);
+    make_tracks(4 * GROUND_CELL_SIZE, (GROUND_WIDTH - 5)*GROUND_CELL_SIZE, params, &_ground.tracks);
 
-    for (int i = 0; i < GROUND_SIZE; ++i) {
+    for (int i = 0; i < GROUND_HEIGHT; ++i) {
         // reset slices
         _ground.slices[i] = &_slices_buffer[i];
         make_slice(_ground.slices[i], -i * params.slope, 1);
     }
-    for (int i = 0; i < GROUND_SIZE - 1; ++i) {
+    for (int i = 0; i < GROUND_HEIGHT - 1; ++i) {
         mesh_slice(i);
     }
 }
@@ -356,7 +360,7 @@ void update_ground(Point3d* p, int* slice_id, char** pattern, Point3d* offset) {
     offset->v[1] = 0.f;
     offset->v[2] = 0.f;
     float pz;
-    // todo: make sure to handle faster than 1 tile moves
+    // handles faster than 1 tile moves
     while ((pz = p->z / GROUND_CELL_SIZE) > _ground.plyr_z_index) {
         // shift back
         p->z -= GROUND_CELL_SIZE;
@@ -366,16 +370,16 @@ void update_ground(Point3d* p, int* slice_id, char** pattern, Point3d* offset) {
         const float old_y = old_slice->y;
         offset->y -= old_y;
         // drop slice 0
-        for (int i = 1; i < GROUND_SIZE; ++i) {
+        for (int i = 1; i < GROUND_HEIGHT; ++i) {
             _ground.slices[i - 1] = _ground.slices[i];
             _ground.slices[i - 1]->y -= old_y;
         }
         // move shifted slices back to top
-        _ground.slices[GROUND_SIZE - 1] = old_slice;        
+        _ground.slices[GROUND_HEIGHT - 1] = old_slice;        
 
         // use previous baseline
-        make_slice(old_slice, _ground.slices[GROUND_SIZE - 2]->y - active_params.slope * (randf() + 0.5f), 0);
-        mesh_slice(GROUND_SIZE - 2);
+        make_slice(old_slice, _ground.slices[GROUND_HEIGHT - 2]->y - active_params.slope * (randf() + 0.5f), 0);
+        mesh_slice(GROUND_HEIGHT - 2);
     }
     // update y offset
     if (p->z > _ground.max_pz) {
@@ -403,7 +407,7 @@ int get_face(Point3d pos, Point3d* nout, float* yout) {
     // z slice
     int i = (int)(pos.x / GROUND_CELL_SIZE), j = (int)(pos.z / GROUND_CELL_SIZE);
     // outside ground?
-    if (i < 0 || i >= GROUND_SIZE || j < 0 || j >= GROUND_SIZE) {
+    if (i < 0 || i >= GROUND_WIDTH || j < 0 || j >= GROUND_HEIGHT) {
         END_FUNC();
         return 0;
     }
@@ -445,7 +449,7 @@ void get_track_info(Point3d pos, float* xmin, float* xmax, float* z, int* checkp
 
     // find nearest checkpoint
     float x = _ground.slices[j + 2]->center, y = 2;
-    for (int k = j + 2; k < j + 10 && k < GROUND_SIZE; ++k) {
+    for (int k = j + 2; k < j + 10 && k < GROUND_HEIGHT; ++k) {
         GroundSlice* s = _ground.slices[k];
         if (s->is_checkpoint) {
             x = s->center;
@@ -463,7 +467,7 @@ void get_props(Point3d pos, PropInfo** info, int* nout) {
     const int ii = (int)(pos.x / GROUND_CELL_SIZE);
     int i0 = ii - 4, i1 = ii + 4;
     if (i0 < 0) i0 = 0;
-    if (i1 > GROUND_SIZE) i1 = GROUND_SIZE;
+    if (i1 > GROUND_WIDTH) i1 = GROUND_WIDTH;
 
     const int j0 = (int)(pos.z / GROUND_CELL_SIZE) + 1;
     _props_info.n = 0;
@@ -506,7 +510,7 @@ void collide(Point3d pos, float radius, int* hit_type)
     *hit_type = 0;
 
     // out of track
-    if (i0 <= 0 || i0 >= GROUND_SIZE - 2) {
+    if (i0 <= 0 || i0 >= GROUND_WIDTH - 2) {
         *hit_type = 2;
         END_FUNC();
         return;
@@ -517,10 +521,10 @@ void collide(Point3d pos, float radius, int* hit_type)
 
     // check all 9 cells(overkill but faster)
     for (int j = j0 - 1; j < j0 + 2; j++) {
-        if (j >= 0 && j < GROUND_SIZE) {
+        if (j >= 0 && j < GROUND_HEIGHT) {
             GroundSlice* s0 = _ground.slices[j];
             for (int i = i0 - 1; i < i0 + 2; i++) {
-                if (i >= 0 && i < GROUND_SIZE) {
+                if (i >= 0 && i < GROUND_WIDTH) {
                     GroundTile* t0 = &s0->tiles[i];
                     int id = t0->prop_id;
                     // collidable actor ?
@@ -777,20 +781,21 @@ void ground_init(PlaydateAPI* playdate) {
 
     // raycasting angles
     for(int i=0;i<RAYCAST_PRECISION;++i) {
-        float t = 2.f * (((float)i) / RAYCAST_PRECISION - 0.5f);
-        _raycast_angles[i] = atan2f(Z_NEAR, Z_NEAR * t * 2.f) - PI / 2.f;
+        // 1.5f to overshoot 
+        float t = 1.5f * (((float)i) / RAYCAST_PRECISION - 0.5f);
+        _raycast_angles[i] = atan2f(MAX_TILE_DIST, MAX_TILE_DIST * t * 2.f) - PI / 2.f;
     }
-
 
     // props config (todo: get from lua?)
 
-    // pine tree
+    // forest stuff
     _props_properties[PROP_TREE0 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f};
     _props_properties[PROP_TREE1 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
     _props_properties[PROP_TREE2 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.f };
     _props_properties[PROP_TREE3 - 1] = (PropProperties){ .flags = 0, .radius = 1.8f };
     _props_properties[PROP_TREE4 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
     _props_properties[PROP_TREE5 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
+    _props_properties[PROP_LOG - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
     // checkpoint flags
     _props_properties[PROP_CHECKPOINT_LEFT - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
     _props_properties[PROP_CHECKPOINT_RIGHT - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
@@ -835,13 +840,6 @@ int ground_load_assets_async() {
 // todo: move to settings?
 #define SHADING_CONTRAST 1.5f
 
-// visible tiles encoded as 1 bit per cell
-static uint32_t _visible_tiles[GROUND_SIZE];
-
-// stores all things that are going to be drawn
-static Drawables _drawables;
-static Drawable* _sortables[MAX_DRAWABLES];
-
 // cache entry (transformed point in camera space)
 typedef struct {
     Point3du p;
@@ -856,31 +854,24 @@ typedef struct {
     CameraPoint* cache;
 } GroundSliceCoord;
 
-// compare 2 drawables
-static int cmp_drawable(const void* a, const void* b) {
-    const float x = (*(Drawable**)a)->key;
-    const float y = (*(Drawable**)b)->key;
-    return x < y ? -1 : x == y ? 0 : 1;
-}
-
 // clip polygon against near-z
-static int z_poly_clip(const float znear, Point3du* in, int n, Point3du* out) {
+static int z_poly_clip(const float z, const float flip, Point3du* in, int n, Point3du* out) {
     BEGIN_FUNC();
     Point3du v0 = in[n - 1];
-    float d0 = v0.z - znear;
+    float d0 = flip * (v0.z - z);
     int nout = 0;
     for (int i = 0; i < n; i++) {
         Point3du v1 = in[i];
         int side = d0 > 0;
         if (side) out[nout++] = (Point3du){ .v = { v0.x, v0.y, v0.z }, .u = v0.u, .light = v0.light };
-        const float d1 = v1.z - znear;
+        const float d1 = flip * (v1.z - z);
         if ((d1 > 0) != side) {
             // clip!
             const float t = d0 / (d0 - d1);
             out[nout++] = (Point3du){ .v = {
                 lerpf(v0.x,v1.x,t),
                 lerpf(v0.y,v1.y,t),
-                znear},
+                z},
                 .u = lerpf(v0.u,v1.u,t),
                 .light = lerpf(v0.light,v1.light,t)
             };
@@ -910,7 +901,13 @@ static void draw_tile(Drawable* drawable, uint8_t* bitmap) {
         shading *= pts[i].light;
         if (shading > 15.f) shading = 15.f;
         if (shading < 0.f) shading = 0.f;
-        pts[i].u = shading;
+
+        float dist = Z_FAR - pts[i].z - 2*GROUND_CELL_SIZE;
+        float dist_shading = dist / (2.0f * GROUND_CELL_SIZE);
+        if (dist_shading > 1.f) dist_shading = 1.f;
+        if (dist_shading < 0.f) dist_shading = 0.f;
+
+        pts[i].u = shading * dist_shading;
     }
 
     // 
@@ -924,6 +921,7 @@ static void draw_tile(Drawable* drawable, uint8_t* bitmap) {
         x0 = x1, y0 = y1;
     }
     */
+
     // END_FUNC();
 }
 
@@ -958,13 +956,13 @@ static void draw_face(Drawable* drawable, uint8_t* bitmap) {
     Point3du* pts = face->pts;
     for (int i = 0; i < n; ++i) {
         // project 
-        float w = 1.f / pts[i].z;
-        pts[i].x = 199.5f + 199.5f * w * pts[i].x;
-        pts[i].y = 119.5f - 199.5f * w * pts[i].y;
+        const float w = 199.5f / pts[i].z;
+        pts[i].x = 199.5f +  w * pts[i].x;
+        pts[i].y = 119.5f -  w * pts[i].y;
     }
 
     // 
-    float dist = drawable->key - 12.f * GROUND_CELL_SIZE;
+    float dist = drawable->key - (MAX_TILE_DIST*0.707f - 2.f) * GROUND_CELL_SIZE;
     float shading = dist / (2.f * GROUND_CELL_SIZE);
     if (shading > 1.f) shading = 1.f;
     if (shading < 0.f) shading = 0.f;    
@@ -988,14 +986,14 @@ static void draw_face(Drawable* drawable, uint8_t* bitmap) {
 
 
 // push a face to the drawing list
-static void push_tile(const GroundFace* f, const float* m, GroundSliceCoord* coords, int n, const float light, const int is_danger) {
+static void push_tile(const GroundFace* f, const float m[MAT4x4], GroundSliceCoord* coords, int n, const float light, const int is_danger) {
     BEGIN_FUNC();
 
     Point3du tmp[4];
 
     // transform
     int outcode = 0xfffffff, is_clipped_near = 0;
-    float min_key = FLT_MIN;
+    float min_key = -FLT_MAX;
     for (int i = 0; i < n; ++i) {
         // check cache entry
         GroundSliceCoord c = coords[i];
@@ -1005,12 +1003,16 @@ static void push_tile(const GroundFace* f, const float* m, GroundSliceCoord* coo
         if (cp->outcode == -1) {
             Point3du* res = &cp->p;
             // compute point  
-            Point3d p = { .v = {(float)c.i * GROUND_CELL_SIZE, c.h + c.y, (float)c.j * GROUND_CELL_SIZE} };
+            Point3d p = { .v = {(float)(c.i * GROUND_CELL_SIZE), c.h + c.y, (float)(c.j * GROUND_CELL_SIZE)} };
             // project using active matrix
             m_x_v(m, p.v, res->v);
-            int code = res->z > Z_NEAR ? OUTCODE_IN : OUTCODE_NEAR;
-            if (res->x > res->z) code |= OUTCODE_RIGHT;
-            if (-res->x > res->z) code |= OUTCODE_LEFT;
+            
+            const int code =
+                ((Flint) { .f = Z_FAR - res->z  }.i & 0x80000000) >> 31 |
+                ((Flint) { .f = res->z - Z_NEAR }.i & 0x80000000) >> 30 |
+                ((Flint) { .f = res->z - res->x }.i & 0x80000000) >> 29 |
+                ((Flint) { .f = res->z + res->x }.i & 0x80000000) >> 28;
+
             cp->outcode = code;
 
             // light
@@ -1030,13 +1032,16 @@ static void push_tile(const GroundFace* f, const float* m, GroundSliceCoord* coo
 
     // visible?
     if (outcode == 0) {
-        Drawable* drawable = &_drawables.all[_drawables.n++];
+        Drawable* drawable = pop_drawable(min_key);
         drawable->draw = is_danger ?draw_blinking_tile: draw_tile;
         drawable->key = min_key;
         DrawableFace* face = &drawable->face;
         face->material = f->flags & GROUNDFACE_FLAG_MATERIAL_MASK;
         if (is_clipped_near & OUTCODE_NEAR) {
-            face->n = z_poly_clip(Z_NEAR, tmp, n, face->pts);
+            face->n = z_poly_clip(Z_NEAR, 1.0f, tmp, n, face->pts);
+        }
+        else if (is_clipped_near & OUTCODE_FAR) {
+            face->n = z_poly_clip(Z_FAR, -1.f, tmp, n, face->pts);
         }
         else {
             face->n = n;
@@ -1073,14 +1078,17 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float m
             // transform
             int outcode = 0xfffffff, is_clipped_near = 0;
             float min_key = FLT_MAX;
-            float max_key = FLT_MIN;
+            float max_key = -FLT_MAX;
             for (int i = 0; i < n; ++i) {
                 Point3du* res = &tmp[i];
                 // project using active matrix
                 m_x_v(m, f->vertices[i].v, res->v);
-                int code = res->z > Z_NEAR ? OUTCODE_IN : OUTCODE_NEAR;
-                if (res->x > res->z) code |= OUTCODE_RIGHT;
-                if (-res->x > res->z) code |= OUTCODE_LEFT;
+
+                int code =
+                    ((Flint) { .f = res->z - Z_NEAR }.i & 0x80000000) >> 30 |
+                    ((Flint) { .f = res->z - res->x }.i & 0x80000000) >> 29 |
+                    ((Flint) { .f = res->z + res->x }.i & 0x80000000) >> 28;
+
                 if (res->z < min_key) min_key = res->z;
                 if (res->z > max_key) max_key = res->z;
                 outcode &= code;
@@ -1091,14 +1099,15 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float m
 
             // visible?
             if (outcode == 0) {
-                Drawable* drawable = &_drawables.all[_drawables.n++];
+                const float sortkey = f->flags & FACE_FLAG_LARGE ? max_key : min_key;
+                Drawable* drawable = pop_drawable(sortkey);
                 drawable->draw = draw_face;
-                drawable->key = f->flags & FACE_FLAG_LARGE ?max_key:min_key;
+                drawable->key = sortkey;
                 DrawableFace* face = &drawable->face;
                 face->flags = f->flags;
                 face->material = f->material;
                 if (is_clipped_near & OUTCODE_NEAR) {
-                    face->n = z_poly_clip(Z_NEAR, tmp, n, face->pts);
+                    face->n = z_poly_clip(Z_NEAR, 1.0f, tmp, n, face->pts);
                 }
                 else {
                     face->n = n;
@@ -1140,7 +1149,7 @@ int render_sky(float* m, uint8_t* screen) {
     Point3d p = { .v = { 0.f, -n.z / n.y, 1.f } };
 
     float w = 199.5f / p.z;
-    float y0 = 169.5f - w * p.y;
+    float y0 = 109.5f - w * p.y;
 
     // horizon 'normal'
     n.z = 0;
@@ -1179,17 +1188,163 @@ int render_sky(float* m, uint8_t* screen) {
     return angle;
 }
 
-static void collect_tiles(const Point3d pos, float base_angle) {
+#define stepXSize 8
+
+typedef struct {
+    union {
+        int16_t v[8];
+        uint32_t word[4];
+    };
+} Vec8i;
+
+typedef struct {
+    Vec8i oneStepX;
+    Vec8i oneStepY;
+} Edge;
+
+static inline Vec8i make_vec(const int16_t a) {
+    return (Vec8i) {
+        .v = {
+        a,
+        a,
+        a,
+        a,
+        a,
+        a,
+        a,
+        a }
+    };
+}
+
+static Vec8i edge_init(Edge* edge, const Point2di* v0, const Point2di* v1, const Point2di* origin)
+{
+    // Edge setup
+    int16_t A = v0->y - v1->y, B = v1->x - v0->x;
+    int16_t C = v0->x * v1->y - v0->y * v1->x;
+
+    // Step deltas
+    edge->oneStepX = make_vec(A * stepXSize);
+    edge->oneStepY = make_vec(B);
+
+    // x/y values for initial pixel block
+    Vec8i x = (Vec8i){
+        .v = {
+        origin->x + 7,
+        origin->x + 6,
+        origin->x + 5,
+        origin->x + 4,
+        origin->x + 3,
+        origin->x + 2,
+        origin->x + 1,
+        origin->x + 0 }
+    };
+    Vec8i y = make_vec(origin->y);
+
+    // Edge function values at origin
+    Vec8i out;
+    for (int i = 0; i < 8; ++i) {
+        out.v[i] = A * x.v[i] + B * y.v[i] + C;
+    }
+    return out;
+}
+
+static inline uint8_t vec_mask(const Vec8i a, const Vec8i b, const Vec8i c) {
+    uint8_t out = 0;
+    for (int i = 0; i < 8; ++i) {
+        out |= (~((a.v[i] | b.v[i] | c.v[i]) >> 31)) & (0x80 >> i);
+    }
+    return out;
+}
+
+static inline Vec8i vec_inc(Vec8i a, Vec8i b) {
+#ifdef  TARGET_PLAYDATE
+    return (Vec8i) {
+        .word = {
+__SADD16(a.word[0], b.word[0]),
+__SADD16(a.word[1], b.word[1]),
+__SADD16(a.word[2], b.word[2]),
+__SADD16(a.word[3], b.word[3]) }
+    };
+#else
+    Vec8i out;
+    for (int i = 0; i < 8; ++i) {
+        out.v[i] = a.v[i] + b.v[i];
+    }
+    return out;
+#endif //  TARGET_PLAYDATE
+}
+
+static int min3(int a, int b, int c) {
+    if (a < b) b = a;
+    if (c < b) b = c;
+    return b;
+}
+static int max3(int a, int b, int c) {
+    if (a > b) b = a;
+    if (c > b) b = c;
+    return b;
+}
+
+static void collect_tri(const Point2di v0, const Point2di v1, const Point2di v2, uint8_t* bitmap) {
+    // Compute triangle bounding box
+    int16_t minX = min3(v0.x, v1.x, v2.x);
+    int16_t minY = min3(v0.y, v1.y, v2.y);
+    int16_t maxX = max3(v0.x, v1.x, v2.x);
+    int16_t maxY = max3(v0.y, v1.y, v2.y);
+
+    // Clip against screen bounds
+    if (minX < 0) minX = 0;
+    if (minY < 0) minY = 0;
+    if (maxX > 31) maxX = 31;
+    if (maxY > 32) maxY = 32;
+
+    // align to uint8 boundaries
+    minX = 8 * (minX / 8);
+    maxX = 8 * (maxX / 8) + 1;
+
+    // Barycentric coordinates at minX/minY corner
+    Point2di p = (Point2di){ .v = {minX, minY} };
+    Edge e01, e12, e20;
+
+    // Triangle setup
+    Vec8i w0_row = edge_init(&e12, &v1, &v2, &p);
+    Vec8i w1_row = edge_init(&e20, &v2, &v0, &p);
+    Vec8i w2_row = edge_init(&e01, &v0, &v1, &p);
+
+    // Rasterize
+    bitmap += (minX >> 3) + minY * 4;
+    for (int y = minY; y < maxY; y ++, bitmap += 4) {
+        uint8_t* bitmap_row = bitmap;
+        // Barycentric coordinates at start of row
+        Vec8i w0 = w0_row;
+        Vec8i w1 = w1_row;
+        Vec8i w2 = w2_row;
+        for (int x = minX; x < maxX; x += stepXSize, bitmap_row++) {
+            // If p is on or inside all edges, render pixel.
+            uint8_t mask = vec_mask(w0, w1, w2);
+            if (mask) {
+                *bitmap_row = ((*bitmap_row) & ~mask) | mask;
+            }
+            // One step to the right            
+            w0 = vec_inc(w0, e12.oneStepX);
+            w1 = vec_inc(w1, e20.oneStepX);
+            w2 = vec_inc(w2, e01.oneStepX);
+        }
+        // One row step        
+        w0_row = vec_inc(w0_row, e12.oneStepY);
+        w1_row = vec_inc(w1_row, e20.oneStepY);
+        w2_row = vec_inc(w2_row, e01.oneStepY);
+    }
+}
+
+static void collect_tiles(uint32_t visible_tiles[GROUND_HEIGHT], const Point3d pos, float base_angle) {
     BEGIN_FUNC();
 
     float x = pos.x / GROUND_CELL_SIZE, y = pos.z / GROUND_CELL_SIZE;
     int32_t x0 = (int)x, y0 = (int)y;
 
-    // reset tiles
-    memset((uint8_t*)_visible_tiles, 0, sizeof(uint32_t) * GROUND_SIZE);
-
     // current tile is always in
-    _visible_tiles[y0] |= 1 << x0;
+    visible_tiles[y0] |= 1 << x0;
 
     for (int i = 0; i < RAYCAST_PRECISION; ++i) {
         float angle = base_angle + _raycast_angles[i];
@@ -1216,7 +1371,8 @@ static void collect_tiles(const Point3d pos, float base_angle) {
             disty = (mapy + 1 - y) * ddy;
         }
 
-        for (int dist = 0; dist < MAX_TILE_DIST; ++dist) {
+        const float dist_max = ((float)MAX_TILE_DIST) / cosf(_raycast_angles[i]);        
+        while(distx* distx + disty* disty < dist_max * dist_max) {
             if (distx < disty) {
                 distx += ddx;
                 mapx += mapdx;
@@ -1226,9 +1382,9 @@ static void collect_tiles(const Point3d pos, float base_angle) {
                 mapy += mapdy;
             }
             // out of range?
-            if ( (mapx | mapy) & 0xffffffe0 ) break;
+            if (mapx&~(GROUND_WIDTH-1) || mapy<0 || mapy >= GROUND_HEIGHT) break;
 
-            _visible_tiles[mapy] |= 1 << mapx;
+            visible_tiles[mapy] |= 1 << mapx;
         }
     }
 
@@ -1241,12 +1397,12 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
     BEGIN_FUNC();
 
     // cache lines
-    static CameraPoint c0[GROUND_SIZE];
-    static CameraPoint c1[GROUND_SIZE];
+    CameraPoint c0[GROUND_WIDTH];
+    CameraPoint c1[GROUND_WIDTH];
 
     CameraPoint* cache[2] = { c0, c1 };
     // reset cache
-    for (int i = 0; i < GROUND_SIZE; ++i) {
+    for (int i = 0; i < GROUND_WIDTH; ++i) {
         c0[i].outcode = -1;
         c1[i].outcode = -1;
     }
@@ -1255,21 +1411,24 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
     render_sky(m, bitmap);
 
     // collect visible tiles
-    _drawables.n = 0;
-    collect_tiles(cam_pos, cam_angle);
+    // visible tiles encoded as 1 bit per cell
+    uint32_t tiles[GROUND_HEIGHT] = { 0 };
+    collect_tiles(tiles, cam_pos, cam_angle);
 
     // transform
-    for (int j = 0; j < GROUND_SIZE - 1; ++j) {
-        uint32_t visible_tiles = _visible_tiles[j];
+    reset_drawables();
+    for (int j = 0; j < GROUND_HEIGHT - 1; ++j) {
+        // const uint32_t visible_tiles = tiles[j];
+        const uint32_t visible_tiles = tiles[j];
         // slightly alter shading of even/odd slices
         const float shading_band = SHADING_CONTRAST * (0.5f + 0.5f * ((j + _z_offset) & 1));
-        for (int i = 0; i < GROUND_SIZE; ++i) {
+        for (int i = 0; i < GROUND_HEIGHT; ++i) {
             // is the tile bit enabled?
             if (visible_tiles & (1 << i)) {
                 GroundSlice* s0 = _ground.slices[j];
                 GroundTile* t0 = &s0->tiles[i];
                 GroundSlice* s1 = _ground.slices[j + 1];
-                const Point3d v0 = {.v = {(float)i * GROUND_CELL_SIZE,         t0->h + s0->y,       (float)j * GROUND_CELL_SIZE}};                
+                const Point3d v0 = {.v = {(float)(i * GROUND_CELL_SIZE),         t0->h + s0->y,       (float)(j * GROUND_CELL_SIZE)}};                
 
                 // camera to face point
                 const Point3d cv = { .x = v0.x - cam_pos.x,.y = v0.y - cam_pos.y,.z = v0.z - cam_pos.z };
@@ -1344,7 +1503,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
         CameraPoint* tmp = cache[0];
         cache[0] = cache[1];
         cache[1] = tmp;
-        for (int i = 0; i < GROUND_SIZE; ++i) {
+        for (int i = 0; i < GROUND_WIDTH; ++i) {
             tmp[i].outcode = -1;
         }
     }
@@ -1358,22 +1517,30 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
     _render_props.n = 0;
 
     // particles?
-    push_particles(&_drawables, cam_pos, m);
+    push_particles(cam_pos, m);
 
     // sort & renders back to front
-    if (_drawables.n > 0) {        
-        for (int i = 0; i < _drawables.n; ++i) {
-            _sortables[i] = &_drawables.all[i];
-        }
-        BEGIN_BLOCK("qsort");
-        qsort(_sortables, (size_t)_drawables.n, sizeof(Drawable*), cmp_drawable);
-        END_BLOCK();
+    draw_drawables(bitmap);
 
-        // rendering
-        for (int k = _drawables.n - 1; k >= 0; --k) {
-            _sortables[k]->draw(_sortables[k], bitmap);
+    /*
+    uint32_t* dst = (uint32_t*)bitmap;
+    for (int i = 0; i < 32; i++,dst+=LCD_ROWSIZE/sizeof(uint32_t)) {
+        *dst = swap(tiles[i]);
+    }
+    */
+
+    // dither gradient
+    /*
+    for (int j = 0; j < 32; j++) {
+        uint8_t* dst = bitmap + j * LCD_ROWSIZE;
+        uint8_t* src = _dither_ramps + j*16*8;
+        for (int i = 0; i < 16; i++) {
+            *dst++ = *src++;
+            *dst++ = *src++;
+            src += 6;
         }
     }
+    */
     END_FUNC();
 }
 
@@ -1382,7 +1549,7 @@ void render_props(Point3d cam_pos, float* m, uint8_t* bitmap) {
     BEGIN_FUNC();
 
     // "free" props?
-    _drawables.n = 0;
+    reset_drawables();
     for (int i = 0; i < _render_props.n; ++i) {
         RenderProp* prop = &_render_props.props[i];
         push_and_transform_threeD_model(prop->id, cam_pos, m, prop->m);
@@ -1391,22 +1558,10 @@ void render_props(Point3d cam_pos, float* m, uint8_t* bitmap) {
     _render_props.n = 0;
 
     // particles?
-    push_particles(&_drawables, cam_pos, m);
+    push_particles(cam_pos, m);
 
     // sort & renders back to front
-    if (_drawables.n > 0) {
-        for (int i = 0; i < _drawables.n; ++i) {
-            _sortables[i] = &_drawables.all[i];
-        }
-        BEGIN_BLOCK("qsort");
-        qsort(_sortables, (size_t)_drawables.n, sizeof(Drawable*), cmp_drawable);
-        END_BLOCK();
-
-        // rendering
-        for (int k = _drawables.n - 1; k >= 0; --k) {
-            _sortables[k]->draw(_sortables[k], bitmap);
-        }
-    }
+    draw_drawables(bitmap);
 
     END_FUNC();
 }
