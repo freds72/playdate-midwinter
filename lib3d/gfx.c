@@ -39,12 +39,12 @@ static void drawFragment(uint32_t* row, int x1, int x2, uint32_t color)
 
     // Operate on 32 bits at a time
 
-    int startbit = x1 & 31;
-    uint32_t startmask = swap((1 << (32 - startbit)) - 1);
-    int endbit = x2 & 31;
-    uint32_t endmask = swap(((1 << endbit) - 1) << (32 - endbit));
+    const int startbit = x1 & 31;
+    const uint32_t startmask = swap((1 << (32 - startbit)) - 1);
+    const int endbit = x2 & 31;
+    const uint32_t endmask = swap(((1 << endbit) - 1) << (32 - endbit));
 
-    int col = x1 / 32;
+    const int col = x1 / 32;
     uint32_t* p = row + col;
 
     if (col == x2 / 32)
@@ -313,31 +313,23 @@ void polyfill(const Point3du* verts, const int n, uint32_t* dither, uint32_t* bi
         // maybe update to next vert
         while (ly < y) {
             const Point3du* p0 = &verts[lj];
-            lj++;
-            if (lj >= n) lj = 0;
+            lj = (lj + 1) % n;
             const Point3du* p1 = &verts[lj];
             const float y0 = p0->y, y1 = p1->y;
-            const float dy = y1 - y0;
             ly = (int)y1;
-            lx = __TOFIXED16(p0->x);
-            ldx = __TOFIXED16((p1->x - p0->x) / dy);
+            ldx = __TOFIXED16((p1->x - p0->x) / (y1 - y0));
             //sub - pixel correction
-            const float cy = y - y0;
-            lx += (int)(cy * ldx);
+            lx = __TOFIXED16(p0->x) + (int)((y - y0) * ldx);
         }
         while (ry < y) {
             const Point3du* p0 = &verts[rj];
-            rj--;
-            if (rj < 0) rj = n - 1;
+            rj = (rj + n - 1) % n;
             const Point3du* p1 = &verts[rj];
             const float y0 = p0->y, y1 = p1->y;
-            const float dy = y1 - y0;
             ry = (int)y1;
-            rx = __TOFIXED16(p0->x);
-            rdx = __TOFIXED16((p1->x - p0->x) / dy);
+            rdx = __TOFIXED16((p1->x - p0->x) / (y1 - y0));
             //sub - pixel correction
-            const float cy = y - y0;
-            rx += (int)(cy * rdx);
+            rx = __TOFIXED16(p0->x) + (int)((y - y0) * rdx);
         }
 
         drawFragment(bitmap + y * LCD_ROWSIZE32, lx>>16, rx>>16, dither[y&31]);
@@ -380,8 +372,7 @@ void texfill(const Point3du* verts, const int n, uint8_t* dither_ramp, uint8_t* 
         // maybe update to next vert
         while (ly < y) {
             const Point3du* p0 = &verts[lj];
-            lj++;
-            if (lj >= n) lj = 0;
+            lj=(lj+1)%n;
             const Point3du* p1 = &verts[lj];
             const float y0 = p0->y, y1 = p1->y;
             const float dy = y1 - y0;
@@ -397,20 +388,17 @@ void texfill(const Point3du* verts, const int n, uint8_t* dither_ramp, uint8_t* 
         }
         while (ry < y) {
             const Point3du* p0 = &verts[rj];
-            rj--;
-            if (rj < 0) rj = n - 1;
+            rj = (rj + n - 1) % n;
             const Point3du* p1 = &verts[rj];
             const float y0 = p0->y, y1 = p1->y;
             const float dy = y1 - y0;
             ry = (int)y1;
-            rx = __TOFIXED16(p0->x);
-            ru = __TOFIXED16(p0->u);
             rdx = __TOFIXED16((p1->x - p0->x) / dy);
             rdu = __TOFIXED16((p1->u - p0->u) / dy);
             //sub - pixel correction
             const float cy = y - y0;
-            rx += (int)(cy * rdx);
-            ru += (int)(cy * rdu);
+            rx = __TOFIXED16(p0->x) + (int)(cy * rdx);
+            ru = __TOFIXED16(p0->u) + (int)(cy * rdu);
         }
         drawTextureFragment(bitmap + y * LCD_ROWSIZE, lx >> 16, rx >> 16, lu, ru, dither_ramp + (y & 31) * 8 * 16);
 
@@ -439,10 +427,10 @@ static void drawAlphaFragment(uint32_t* row, int x1, int x2, uint32_t color, uin
 
     // Operate on 32 bits at a time
 
-    int startbit = x1 & 31;
-    uint32_t startmask = swap((1 << (32 - startbit)) - 1);
-    int endbit = x2 & 31;
-    uint32_t endmask = swap(((1 << endbit) - 1) << (32 - endbit));
+    const int startbit = x1 & 31;
+    const uint32_t startmask = swap((1 << (32 - startbit)) - 1);
+    const int endbit = x2 & 31;
+    const uint32_t endmask = swap(((1 << endbit) - 1) << (32 - endbit));
 
     int col = x1 / 32;
     uint32_t* p = row + col;
@@ -510,31 +498,23 @@ void alphafill(const Point3du* verts, const int n, uint32_t color, uint32_t* alp
         // maybe update to next vert
         while (ly < y) {
             const Point3du* p0 = &verts[lj];
-            lj++;
-            if (lj >= n) lj = 0;
+            lj=(lj+1)%n;
             const Point3du* p1 = &verts[lj];
             const float y0 = p0->y, y1 = p1->y;
-            const float dy = y1 - y0;
             ly = (int)y1;
-            lx = __TOFIXED16(p0->x);
-            ldx = __TOFIXED16((p1->x - p0->x) / dy);
+            ldx = __TOFIXED16((p1->x - p0->x) / (y1 - y0));
             //sub - pixel correction
-            const float cy = y - y0;
-            lx += (int)(cy * ldx);
+            lx = __TOFIXED16(p0->x) + (int)((y - y0) * ldx);
         }
         while (ry < y) {
             const Point3du* p0 = &verts[rj];
-            rj--;
-            if (rj < 0) rj = n - 1;
+            rj = (rj + n - 1) % n;
             const Point3du* p1 = &verts[rj];
             const float y0 = p0->y, y1 = p1->y;
-            const float dy = y1 - y0;
             ry = (int)y1;
-            rx = __TOFIXED16(p0->x);
-            rdx = __TOFIXED16((p1->x - p0->x) / dy);
+            rdx = __TOFIXED16((p1->x - p0->x) / (y1 - y0));
             //sub - pixel correction
-            const float cy = y - y0;
-            rx += (int)(cy * rdx);
+            rx = __TOFIXED16(p0->x) + (int)((y - y0) * rdx);
         }
 
         drawAlphaFragment(bitmap + y*LCD_ROWSIZE32, lx >> 16, rx >> 16, color, alpha[y & 31]);

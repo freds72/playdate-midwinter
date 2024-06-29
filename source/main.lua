@@ -539,7 +539,7 @@ end
 
 function make_plyr(p,on_trick)
 	local body=make_body(p)
-
+	
 	local body_update=body.update	
 	local hit_ttl,jump_ttl=8,0
 	
@@ -549,6 +549,7 @@ function make_plyr(p,on_trick)
 	local reverse_t,air_t=0,0
 
 	body.distance = 0
+	body.invert_ttl = 0
 	body.on_coin=function() end
 	body.control=function(self)	
 		local da=0
@@ -559,6 +560,10 @@ function make_plyr(p,on_trick)
 			local change, acceleratedChange = playdate.getCrankChange()
 			local flip = _save_state.flip_crank and -1 or 1
 			da = flip * acceleratedChange
+		end
+		-- inverted controls?
+		if self.invert_ttl>0 then
+			da = -da
 		end
 
 		if self.on_ground then
@@ -590,7 +595,7 @@ function make_plyr(p,on_trick)
 
 	body.update=function(self)
 		hit_ttl-=1
-
+		self.invert_ttl-=1
 		-- collision detection
 		local pos,angle,_,velocity=self:get_pos()
 		if not spin_prev then
@@ -675,7 +680,7 @@ function make_plyr(p,on_trick)
 	return body
 end
 
-function make_jinx(id,pos,velocity,effect)
+function make_jinx(id,pos,velocity,params)
 	local base_angle=rnd()
 	return {
 		id=id,
@@ -702,14 +707,14 @@ function make_jinx(id,pos,velocity,effect)
 			-- distance to player
 			if _plyr then
 				local dist=v_len(make_v(pos,_plyr.pos))
-				if dist<3 then
-					-- effect()
+				if dist<params.radius then
+					params.effect()
 					return
 				end
 			end
 
-			if rnd()>0.1 then
-				lib3d.spawn_particle(1, table.unpack(pos))
+			if params.particle and rnd()>0.1 then
+				lib3d.spawn_particle(params.particle, table.unpack(pos))
 			end
 	
 			local m=self.m
@@ -733,6 +738,41 @@ function make_npc(p,cam)
 	local sfx=_ski_sfx:copy()
 	sfx:play(0)
 
+	-- all jinxes
+	local jinxes={
+		-- dynamite
+		function(pos)
+			add(_actors,make_jinx(models.PROP_DYNAMITE, pos, {0,2,-0.1}, {
+				particle=1,
+				radius=3,
+				effect=function()
+					_dynamite_sfx:play(1)
+					if _plyr then _plyr.dead=true end
+				end}
+			))
+		end,
+		-- reverse!
+		function(pos)
+			add(_actors,make_jinx(models.PROP_INVERT, pos, {0,2,-0.1}, {
+				radius=2,
+				effect=function()
+					if _plyr then 
+						_invert_sfx:play(1)
+						_plyr.invert_ttl=30 
+					end
+				end}
+			))
+		end,
+		-- coin!
+		function(pos)
+			add(_actors,make_jinx(models.PROP_COIN, pos, {0,2,-0.1}, {
+				radius=2,
+				effect=function()
+					if _plyr then _plyr.on_coin(1) end
+				end}
+			))
+		end,
+	}
 	-- distance to player
 	body.dist = 0
 	body.update=function(self)
@@ -765,10 +805,7 @@ function make_npc(p,cam)
 			jinx_ttl-=1
 			if self.on_ground and dist>24 and jinx_ttl<0 then
 				do_async(function()
-					add(_actors,make_jinx(models.PROP_DYNAMITE, v_clone(pos), {0,2,-0.1}, function()
-						print("boom!")
-						if _plyr then _plyr.dead=true end
-					end))
+					pick(jinxes)(v_clone(pos))
 				end)
 				jinx_ttl = 90 + rnd(90)
 			end
@@ -966,7 +1003,7 @@ function menu_state(angle)
 		{state=play_state,loc=vgroups.MOUNTAIN_RED_TRACK,help=function()
 			return "Death Canyon\nHow far can you go?\nBest: ".._save_state.best_2.."m"
 		end
-		,params={hp=1,name="Biquettes",dslot=2,slope=2,twist=4,num_tracks=1,tight_mode=1,props_rate=1,track_type=1,min_cooldown=4,max_cooldown=8}},
+		,params={hp=1,name="Biquettes",dslot=2,slope=2,twist=4,num_tracks=1,tight_mode=1,props_rate=1,track_type=3,min_cooldown=4,max_cooldown=8}},
 		{state=race_state,loc=vgroups.MOUNTAIN_BLACK_TRACK,help=function()
 			return "Endless Race\nTake over mania!\nBest: ".._save_state.best_3.."m"
 		end,params={hp=1,name="Chamois",dslot=3,slope=2.25,twist=6,num_tracks=1,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=4,max_cooldown=12}},
@@ -1548,9 +1585,12 @@ function make_command_handlers(custom)
 			}
 		end,
 		-- skidoo
-		K=function(lane)
+		K=function(lane,cam)
 			local pos={(lane+0.5)*4,-16,_ground_height-2}
-			-- sfx?
+			-- sfx
+			local sfx = _skidoo_sfx:copy()
+			sfx:setOffset(rnd())
+			sfx:play(0)
 			return {
 				id = models.PROP_SKIDOO,
 				pos = pos,
@@ -1562,7 +1602,10 @@ function make_command_handlers(custom)
 					-- update
 					local newy,newn=_ground:find_face(pos)
 					-- out of bound: kill actor
-					if not newy then return end
+					if not newy then 
+						sfx:stop()
+						return 
+					end
 					
 					-- orientation matrix
 					local m = make_m_from_v(newn)
@@ -1576,6 +1619,11 @@ function make_command_handlers(custom)
 						local v=m_x_v(m,v_lerp(vgroups.SKIDOO_LTRACK,vgroups.SKIDOO_RTRACK,rnd()))					
 						lib3d.spawn_particle(0, table.unpack(v))
 					end
+
+					-- distance to camera
+					local dist=v_len(make_v(self.pos,cam.pos))
+					if dist<32 then dist=32 end
+					sfx:setVolume(32/dist)
 
 					return true
 				end
@@ -2178,6 +2226,9 @@ function _init()
 	_treehit_sfx = playdate.sound.sampleplayer.new("sounds/tree-impact-1")
 	_button_click = playdate.sound.sampleplayer.new("sounds/ui_button_click")
 	_boost_sfx = playdate.sound.sampleplayer.new("sounds/boost")
+	_invert_sfx = playdate.sound.sampleplayer.new("sounds/invert_jinx")
+	_dynamite_sfx = playdate.sound.sampleplayer.new("sounds/dynamite_jinx")
+	_skidoo_sfx = playdate.sound.sampleplayer.new("sounds/skidoo")
 
 	_game_over = gfx.image.new("images/game_over")
 	_dir_icon = gfx.image.new("images/checkpoint_lock")
