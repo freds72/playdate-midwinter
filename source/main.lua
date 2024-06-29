@@ -1415,8 +1415,8 @@ end
 -- -----------------------------	
 -- command handlers
 -- generic static prop
-local make_static_actor=function(id,x,sfx_name,update)
-	return function(lane)
+function make_static_actor(id,x,sfx_name,update)
+	return function(lane,cam)
 		local pos={x or (lane+0.5)*4,-16,_ground_height - 2}
 		local y=_ground:find_face(pos)
 		pos[2]=y
@@ -1437,7 +1437,7 @@ local make_static_actor=function(id,x,sfx_name,update)
 			update=function(self)
 				local pos=self.pos
 				-- out of landscape?
-				if pos[3]<0 then
+				if pos[3]<0.5 then
 					if sfx then
 						sfx:stop()
 					end
@@ -1451,7 +1451,7 @@ local make_static_actor=function(id,x,sfx_name,update)
 				end
 				-- if sound
 				if sfx then
-					local d=v_len(make_v(pos,_plyr.pos))
+					local d=v_len(make_v(pos,cam.pos))
 					if d<16 then d=16 end
 					sfx:setVolume(16/d)
 				end
@@ -1463,139 +1463,143 @@ local make_static_actor=function(id,x,sfx_name,update)
 		}
 	end	
 end
-local command_handlers={
-	-- snowball!!
-	B=function(lane)
-		local y_velocity,z_velocity = 0,1.5
-		local y_force,on_ground = 0
-		local base_angle = rnd()
-		local pos={(lane+0.5)*4,0,0.5}
-		local prev_pos=v_clone(pos)
-		-- helper
-		local function v2_sqrlen(x,z,b)
-			local dx,dz=b[1]-x,b[3]-z
-			return dx*dx+dz*dz
-		end
-		return {
-			id=models.PROP_SNOWBALL,
-			pos=pos,
-			warning=lane,
-			shift=function(self,offset)
-				-- shift
-				v_add(pos,offset)
-				v_add(prev_pos,offset)
-			end,
-			update=function(self)
-				-- gravity
-				y_force = -4
-				if on_ground then
-					-- todo: shake?
-					-- force += 4
-					-- y_force += 0.5
-				end
-				y_velocity+=y_force*0.5/30
-				prev_pos=v_clone(prev_pos)
-				pos[2]+=y_velocity
-				pos[3]+=z_velocity
-				y_force=0
 
-				-- capsule collision with player
-				if _plyr then
-					local plyr_x,plyr_z=_plyr.pos[1],_plyr.pos[3]
-					-- kill warning if past player
-					if pos[3]-plyr_z>4 then
-						self.warning = nil
-					end
-					if v2_sqrlen(plyr_x,plyr_z,pos)<2.25 or 
-						v2_sqrlen(plyr_x,plyr_z,prev_pos)<2.25 or 
-						(plyr_x<pos[1]+1.5 and plyr_x>pos[1]-1.5 
-						and plyr_z<pos[3] and plyr_z>prev_pos[3]) then
-						_plyr.dead = true
-					end
-				end
-				
-				-- update
-				local newy,newn=_ground:find_face(pos)
-				-- out of bound: kill actor
-				if not newy then return end
-
-				on_ground = nil
-				if pos[2]<=newy then
-					pos[2]=newy
-					on_ground = true
-					y_velocity = 0
-				end
-				-- shadow plane projection matrix
-				local m = make_m_from_v(newn)
-				m[13]=pos[1]
-				-- avoid z-fighting
-				m[14]=newy+0.1
-				m[15]=pos[3]
-				self.m_shadow = m
-
-				-- roll!!!
-				local m = make_m_x_rot(base_angle-4*time())
-				m[13]=pos[1]
-				-- offset with ball radius
-				m[14]=pos[2]+1.25
-				m[15]=pos[3]
-				self.m = m
-				return true
+-- custom provides additional commands (optional)
+function make_command_handlers(custom)
+	return setmetatable({
+		-- snowball!!
+		B=function(lane)
+			local y_velocity,z_velocity = 0,1.5
+			local y_force,on_ground = 0
+			local base_angle = rnd()
+			local pos={(lane+0.5)*4,0,0.5}
+			local prev_pos=v_clone(pos)
+			-- helper
+			local function v2_sqrlen(x,z,b)
+				local dx,dz=b[1]-x,b[3]-z
+				return dx*dx+dz*dz
 			end
-		}
-	end,
-	-- skidoo
-	K=function(lane)
-		local pos={(lane+0.5)*4,-16,_ground_height-2}
-		-- sfx?
-		return {
-			id = models.PROP_SKIDOO,
-			pos = pos,
-			update=function(self)
-				local pos=self.pos
-				-- move upward!!
-				pos[3]-=0.25
+			return {
+				id=models.PROP_SNOWBALL,
+				pos=pos,
+				warning=lane,
+				shift=function(self,offset)
+					-- shift
+					v_add(pos,offset)
+					v_add(prev_pos,offset)
+				end,
+				update=function(self)
+					-- gravity
+					y_force = -4
+					if on_ground then
+						-- todo: shake?
+						-- force += 4
+						-- y_force += 0.5
+					end
+					y_velocity+=y_force*0.5/30
+					prev_pos=v_clone(prev_pos)
+					pos[2]+=y_velocity
+					pos[3]+=z_velocity
+					y_force=0
 
-				-- update
-				local newy,newn=_ground:find_face(pos)
-				-- out of bound: kill actor
-				if not newy then return end
-				
-				-- orientation matrix
-				local m = make_m_from_v(newn)
-				m[13]=pos[1]
-				m[14]=newy
-				m[15]=pos[3]
-				self.m = m
-	
-				-- spawn particles
-				if rnd()>0.2 then
-					local v=m_x_v(m,v_lerp(vgroups.SKIDOO_LTRACK,vgroups.SKIDOO_RTRACK,rnd()))					
-					lib3d.spawn_particle(0, table.unpack(v))
+					-- capsule collision with player
+					if _plyr then
+						local plyr_x,plyr_z=_plyr.pos[1],_plyr.pos[3]
+						-- kill warning if past player
+						if pos[3]-plyr_z>4 then
+							self.warning = nil
+						end
+						if v2_sqrlen(plyr_x,plyr_z,pos)<2.25 or 
+							v2_sqrlen(plyr_x,plyr_z,prev_pos)<2.25 or 
+							(plyr_x<pos[1]+1.5 and plyr_x>pos[1]-1.5 
+							and plyr_z<pos[3] and plyr_z>prev_pos[3]) then
+							_plyr.dead = true
+						end
+					end
+					
+					-- update
+					local newy,newn=_ground:find_face(pos)
+					-- out of bound: kill actor
+					if not newy then return end
+
+					on_ground = nil
+					if pos[2]<=newy then
+						pos[2]=newy
+						on_ground = true
+						y_velocity = 0
+					end
+					-- shadow plane projection matrix
+					local m = make_m_from_v(newn)
+					m[13]=pos[1]
+					-- avoid z-fighting
+					m[14]=newy+0.1
+					m[15]=pos[3]
+					self.m_shadow = m
+
+					-- roll!!!
+					local m = make_m_x_rot(base_angle-4*time())
+					m[13]=pos[1]
+					-- offset with ball radius
+					m[14]=pos[2]+1.25
+					m[15]=pos[3]
+					self.m = m
+					return true
 				end
+			}
+		end,
+		-- skidoo
+		K=function(lane)
+			local pos={(lane+0.5)*4,-16,_ground_height-2}
+			-- sfx?
+			return {
+				id = models.PROP_SKIDOO,
+				pos = pos,
+				update=function(self)
+					local pos=self.pos
+					-- move upward!!
+					pos[3]-=0.25
 
-				return true
-			end
-		}
-	end,
-	-- (tele)cabin
-	t=make_static_actor(models.PROP_CABINS,_ground_width/2),
-	-- hot air balloon
-	h=make_static_actor(models.PROP_BALLOON),
-	-- ufo
-	u=make_static_actor(models.PROP_UFO,nil,"_ufo_sfx"),
-	-- eagles
-	a=make_static_actor(models.PROP_EAGLES,nil,"_eagle_sfx"),
-	-- heli
-	e=make_static_actor(models.PROP_HELO,nil,"_helo_sfx",function(pos)
-		-- move toward player
-		pos[3]-=1
-		-- get current height
-		local ny=_ground:find_face(pos)
-		-- wooble over ground
-		pos[2] = ny + 16 + 2*cos(time())
-	end)
-}
+					-- update
+					local newy,newn=_ground:find_face(pos)
+					-- out of bound: kill actor
+					if not newy then return end
+					
+					-- orientation matrix
+					local m = make_m_from_v(newn)
+					m[13]=pos[1]
+					m[14]=newy
+					m[15]=pos[3]
+					self.m = m
+		
+					-- spawn particles
+					if rnd()>0.2 then
+						local v=m_x_v(m,v_lerp(vgroups.SKIDOO_LTRACK,vgroups.SKIDOO_RTRACK,rnd()))					
+						lib3d.spawn_particle(0, table.unpack(v))
+					end
+
+					return true
+				end
+			}
+		end,
+		-- (tele)cabin
+		t=make_static_actor(models.PROP_CABINS,_ground_width/2),
+		-- hot air balloon
+		h=make_static_actor(models.PROP_BALLOON),
+		-- ufo
+		u=make_static_actor(models.PROP_UFO,nil,"_ufo_sfx"),
+		-- eagles
+		a=make_static_actor(models.PROP_EAGLES,nil,"_eagle_sfx"),
+		-- heli
+		e=make_static_actor(models.PROP_HELO,nil,"_helo_sfx",function(pos)
+			-- move toward player
+			pos[3]-=1
+			-- get current height
+			local ny=_ground:find_face(pos)
+			-- wooble over ground
+			pos[2] = ny + 16 + 2*cos(time())
+		end)
+	},{__index=custom or {}})
+end
 
 -- -------------------------
 -- bench mode
@@ -1656,6 +1660,9 @@ function play_state(params,help_ttl)
 		
 	-- create cam (or grab from caller)
 	local cam=params.cam or make_cam()
+
+	-- command handler
+	local handlers = make_command_handlers(params.commands)
 	-- 
 	_ski_sfx:play(0)
 
@@ -1744,8 +1751,9 @@ function play_state(params,help_ttl)
 				if prev_slice_id~=slice_id then
 					for i=1,#commands do
 						local c=string.sub(commands,i,i)
-						if command_handlers[c] then
-							local actor=command_handlers[c](i-1)
+						local cmd=handlers[c]
+						if cmd then
+							local actor=cmd(i-1,cam)
 							if actor then
 								add(_actors,actor)
 							end
@@ -1949,22 +1957,28 @@ function race_state(params)
 				return true
 			end
 		}
-	end	
-	command_handlers.n = function(lane)
-		-- run helo sequence only once
-		if params.skip_helo then return end
-		params.skip_helo = true
-		if droping_in then return end
-		return make_helo(lane,cam)
 	end
-	command_handlers.p = function(lane)
-		if dropped then return end
-		dropped=true
-		local y=0
-		if _plyr then y=_plr.pos[2]+12 end
-		npc=make_npc({(lane+0.5)*4,y,4},cam)
-		return npc
-	end
+
+	-- custom command handlers
+	params.commands = {
+		-- Nelicopter :)
+		n = function(lane,cam)
+			-- run helo sequence only once
+			if params.skip_helo then return end
+			params.skip_helo = true
+			if droping_in then return end
+			return make_helo(lane,cam)
+		end,
+		-- nPc
+		p = function(lane,cam)
+			if dropped then return end
+			dropped=true
+			local y=0
+			if _plyr then y=_plr.pos[2]+12 end
+			npc=make_npc({(lane+0.5)*4,y,4},cam)
+			return npc
+		end
+	}
 	-- use main "play" state for core loop
 	params.cam = cam
 	local play_update,play_draw=play_state(params)

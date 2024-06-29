@@ -39,21 +39,13 @@ void make_v(const Point3d a, const Point3d b, Point3d* out) {
 }
 
 void v_normz(float* v) {
-    float b, c, x;
-    union {
-        float 	f;
-        int 	i;
-    } a;
-
-    x = v[0] * v[0];
-    x += v[1] * v[1];
-    x += v[2] * v[2];
+    const float x = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
 
     //fast invsqrt approx
-    a.f = x;
+    Flint a = { .f = x };
     a.i = 0x5F3759DF - (a.i >> 1);		//VRSQRTE
-    c = x * a.f;
-    b = (3.0f - c * a.f) * 0.5f;		//VRSQRTS
+    float c = x * a.f;
+    float b = (3.0f - c * a.f) * 0.5f;		//VRSQRTS
     a.f *= b;
     c = x * a.f;
     b = (3.0f - c * a.f) * 0.5f;
@@ -64,7 +56,7 @@ void v_normz(float* v) {
     v[2] *= a.f;
 }
 
-void v_cross(const float* a, const float* b, float* out) {
+void v_cross(const float* restrict a, const float* restrict b, float* restrict out) {
     const float ax = a[0], ay = a[1], az = a[2];
     const float bx = b[0], by = b[1], bz = b[2];
     out[0] = ay * bz - az * by;
@@ -125,14 +117,14 @@ void m_inv_x_v(const float* restrict m, const float* restrict v, float* restrict
     out[2] = m[8] * x + m[9] * y + m[10] * z;
 }
 
-float v_dot(const float* a, const float* b) {
+float v_dot(const float* restrict a, const float* restrict b) {
     return
         a[0] * b[0]
         + a[1] * b[1]
         + a[2] * b[2];
 }
 
-void v_lerp(const Point3d* a, const Point3d* b, const float t, Point3d* out) {
+void v_lerp(const Point3d* restrict a, const Point3d* restrict b, const float t, Point3d* restrict out) {
     out->x = lerpf(a->x, b->x, t);
     out->y = lerpf(a->y, b->y, t);
     out->z = lerpf(a->z, b->z, t);

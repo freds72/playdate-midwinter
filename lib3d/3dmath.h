@@ -47,7 +47,7 @@ typedef struct {
             float z;
         };
         // values array
-        float v[3];
+        float v[VEC3];
     };
     float u;
     float light;
@@ -104,9 +104,9 @@ inline int lerpi(const int a, const int b, const float t) {
 }
 
 void make_v(const Point3d a, Point3d b, Point3d* out);
-float v_dot(const float* a, const float* b);
+float v_dot(const float* restrict a, const float* restrict b);
 void v_normz(float* a);
-void v_cross(const float* a, const float* b, float* out);
+void v_cross(const float* restrict a, const float* restrict b, float* restrict out);
 void m_x_v(const float* restrict m, const float* restrict v, float* restrict out);
 // matrix multiply
 void m_x_m(const float* restrict a, const float* restrict b, float* restrict out);
@@ -117,6 +117,6 @@ void m_x_y_rot(const float* restrict a, const float angle, float* restrict out);
 // matrix vector multiply invert
 // inc.position
 void m_inv_x_v(const float* restrict m, const float* restrict v, float* restrict out);
-void v_lerp(const Point3d* a, const Point3d* b, const float t, Point3d* out);
+void v_lerp(const Point3d* restrict a, const Point3d* restrict b, const float t, Point3d* restrict out);
 
 #endif
