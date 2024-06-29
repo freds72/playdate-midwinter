@@ -313,7 +313,9 @@ void polyfill(const Point3du* verts, const int n, uint32_t* dither, uint32_t* bi
         // maybe update to next vert
         while (ly < y) {
             const Point3du* p0 = &verts[lj];
-            lj = (lj + 1) % n;
+            // lj = (lj + 1) % n;
+            lj++;
+            if (lj >= n) lj = 0;
             const Point3du* p1 = &verts[lj];
             const float y0 = p0->y, y1 = p1->y;
             ly = (int)y1;
@@ -323,7 +325,9 @@ void polyfill(const Point3du* verts, const int n, uint32_t* dither, uint32_t* bi
         }
         while (ry < y) {
             const Point3du* p0 = &verts[rj];
-            rj = (rj + n - 1) % n;
+            // rj = (rj + n - 1) % n;
+            rj--;
+            if (rj < 0) rj = n - 1;
             const Point3du* p1 = &verts[rj];
             const float y0 = p0->y, y1 = p1->y;
             ry = (int)y1;
@@ -372,7 +376,8 @@ void texfill(const Point3du* verts, const int n, uint8_t* dither_ramp, uint8_t* 
         // maybe update to next vert
         while (ly < y) {
             const Point3du* p0 = &verts[lj];
-            lj=(lj+1)%n;
+            lj++;
+            if (lj >= n) lj = 0;
             const Point3du* p1 = &verts[lj];
             const float y0 = p0->y, y1 = p1->y;
             const float dy = y1 - y0;
@@ -388,7 +393,8 @@ void texfill(const Point3du* verts, const int n, uint8_t* dither_ramp, uint8_t* 
         }
         while (ry < y) {
             const Point3du* p0 = &verts[rj];
-            rj = (rj + n - 1) % n;
+            rj--;
+            if (rj < 0) rj = n - 1;
             const Point3du* p1 = &verts[rj];
             const float y0 = p0->y, y1 = p1->y;
             const float dy = y1 - y0;
@@ -493,12 +499,13 @@ void alphafill(const Point3du* verts, const int n, uint32_t color, uint32_t* alp
     int lj = mini, rj = mini;
     int ly = -1, ry = -1;
     int lx = 0, ldx = 0, rx = 0, rdx = 0;
-    
+
     for (int y = (int)miny; y < maxy; y++) {
         // maybe update to next vert
         while (ly < y) {
             const Point3du* p0 = &verts[lj];
-            lj=(lj+1)%n;
+            lj++;
+            if (lj >= n) lj = 0;
             const Point3du* p1 = &verts[lj];
             const float y0 = p0->y, y1 = p1->y;
             ly = (int)y1;
@@ -508,7 +515,8 @@ void alphafill(const Point3du* verts, const int n, uint32_t color, uint32_t* alp
         }
         while (ry < y) {
             const Point3du* p0 = &verts[rj];
-            rj = (rj + n - 1) % n;
+            rj--;
+            if (rj < 0) rj = n - 1;
             const Point3du* p1 = &verts[rj];
             const float y0 = p0->y, y1 = p1->y;
             ry = (int)y1;
@@ -517,7 +525,7 @@ void alphafill(const Point3du* verts, const int n, uint32_t color, uint32_t* alp
             rx = __TOFIXED16(p0->x) + (int)((y - y0) * rdx);
         }
 
-        drawAlphaFragment(bitmap + y*LCD_ROWSIZE32, lx >> 16, rx >> 16, color, alpha[y & 31]);
+        drawAlphaFragment(bitmap + y * LCD_ROWSIZE32, lx >> 16, rx >> 16, color, alpha[y & 31]);
 
         lx += ldx;
         rx += rdx;
