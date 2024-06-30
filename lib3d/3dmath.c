@@ -38,7 +38,7 @@ void make_v(const Point3d a, const Point3d b, Point3d* out) {
     out->z = b.z - a.z;
 }
 
-void v_normz(float* v) {
+float v_normz(float* v) {
     const float x = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
 
     //fast invsqrt approx
@@ -54,6 +54,8 @@ void v_normz(float* v) {
     v[0] *= a.f;
     v[1] *= a.f;
     v[2] *= a.f;
+
+    return a.f;
 }
 
 void v_cross(const float* restrict a, const float* restrict b, float* restrict out) {
@@ -124,10 +126,10 @@ float v_dot(const float* restrict a, const float* restrict b) {
         + a[2] * b[2];
 }
 
-void v_lerp(const Point3d* restrict a, const Point3d* restrict b, const float t, Point3d* restrict out) {
-    out->x = lerpf(a->x, b->x, t);
-    out->y = lerpf(a->y, b->y, t);
-    out->z = lerpf(a->z, b->z, t);
+void v_lerp(const float* restrict a, const float* restrict b, const float t, float* restrict out) {
+    out[0] = lerpf(a[0], b[0], t);
+    out[1] = lerpf(a[1], b[1], t);
+    out[2] = lerpf(a[2], b[2], t);
 }
 
 void m_x_y_rot(const float* restrict a, const float angle, float* restrict out) {

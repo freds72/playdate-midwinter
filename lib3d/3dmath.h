@@ -105,7 +105,8 @@ inline int lerpi(const int a, const int b, const float t) {
 
 void make_v(const Point3d a, Point3d b, Point3d* out);
 float v_dot(const float* restrict a, const float* restrict b);
-void v_normz(float* a);
+// returns 1/len
+float v_normz(float* a);
 void v_cross(const float* restrict a, const float* restrict b, float* restrict out);
 void m_x_v(const float* restrict m, const float* restrict v, float* restrict out);
 // matrix multiply
@@ -117,6 +118,6 @@ void m_x_y_rot(const float* restrict a, const float angle, float* restrict out);
 // matrix vector multiply invert
 // inc.position
 void m_inv_x_v(const float* restrict m, const float* restrict v, float* restrict out);
-void v_lerp(const Point3d* restrict a, const Point3d* restrict b, const float t, Point3d* restrict out);
+void v_lerp(const float* restrict a, const float* restrict b, const float t, float* restrict out);
 
 #endif

@@ -34,14 +34,14 @@ static float smooth_inter(float x, float y, float s)
 
 static float noise2d(float x, float y)
 {
-    int x_int = (int)x;
-    int y_int = (int)y;
-    float x_frac = x - x_int;
-    float y_frac = y - y_int;
-    int s = noise2(x_int, y_int);
-    int t = noise2(x_int + 1, y_int);
-    int u = noise2(x_int, y_int + 1);
-    int v = noise2(x_int + 1, y_int + 1);
+    const int x_int = (int)x;
+    const int y_int = (int)y;
+    const float x_frac = x - x_int;
+    const float y_frac = y - y_int;
+    const float s = (float)noise2(x_int, y_int);
+    const float t = (float)noise2(x_int + 1, y_int);
+    const float u = (float)noise2(x_int, y_int + 1);
+    const float v = (float)noise2(x_int + 1, y_int + 1);
     float low = smooth_inter(s, t, x_frac);
     float high = smooth_inter(u, v, x_frac);
     return smooth_inter(low, high, y_frac);

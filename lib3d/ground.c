@@ -481,10 +481,10 @@ void get_props(Point3d pos, PropInfo** info, int* nout) {
                 PropInfo* info = &_props_info.props[_props_info.n++];
                 info->type = prop_id;                
                 v_lerp(
-                    &(Point3d) { {.v = { (float)i * GROUND_CELL_SIZE,         t0->h + s0->y,       (float)j * GROUND_CELL_SIZE } } },
-                    &(Point3d) { {.v = { (float)(i + 1) * GROUND_CELL_SIZE,   s1->tiles[i + 1].h + s1->y,   (float)(j + 1) * GROUND_CELL_SIZE } } },
+                    (float[VEC3]){ (float)i * GROUND_CELL_SIZE,         t0->h + s0->y,       (float)j * GROUND_CELL_SIZE },
+                    (float[VEC3]){ (float)(i + 1) * GROUND_CELL_SIZE,   s1->tiles[i + 1].h + s1->y,   (float)(j + 1) * GROUND_CELL_SIZE },
                     t0->prop_t,
-                    &info->pos);
+                    info->pos.v);
                 info->pos.z += 2.f;
             }
         }
@@ -536,7 +536,7 @@ void collide(Point3d pos, float radius, int* hit_type)
                             Point3d v0 = (Point3d){ .v = {(float)(i * GROUND_CELL_SIZE),t0->h + s0->y,(float)(j * GROUND_CELL_SIZE)} };
                             Point3d v2 = (Point3d){ .v = {(float)((i + 1) * GROUND_CELL_SIZE),s0->tiles[i + 1].h + s0->y,(float)((j + 1) * GROUND_CELL_SIZE)} };
                             Point3d res;
-                            v_lerp(&v0, &v2, t0->prop_t, &res);
+                            v_lerp(v0.v, v2.v, t0->prop_t, res.v);
                             make_v(pos, res, &res);
                             if (res.x * res.x + res.z * res.z < radius + props->radius * props->radius) {
                                 if (props->flags & PROP_FLAG_COIN) {
@@ -976,7 +976,7 @@ static void draw_face(Drawable* drawable, uint8_t* bitmap) {
         for (int i = 0; i < n; ++i) {
             Point3du* p1 = &pts[i];
             if (p0->u) {
-                pd->graphics->drawLine(p0->x, p0->y, p1->x, p1->y, 1, kColorBlack);
+                pd->graphics->drawLine((int)p0->x, (int)p0->y, (int)p1->x, (int)p1->y, 1, kColorBlack);
             }
             p0 = p1;
         }

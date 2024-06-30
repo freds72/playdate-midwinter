@@ -15,18 +15,13 @@
 #include "gfx.h"
 #include "particles.h"
 #include "drawables.h"
+#include "lua3dmath.h"
 #include "spall.h"
 
 #ifdef SPALL_COLLECT
 SpallProfile spall_ctx;
 SpallBuffer  spall_buffer;
 #endif
-
-// helper macros
-#define C_TO_LUA(s, name, type) \
-	do {if ( strcmp(arg, #name) == 0 ) { pd->lua->push ## type (s->name); return 1; } } while(0)
-#define LUA_TO_C(s, name, type) \
-	do {if ( strcmp(arg, #name) == 0 ) { p->name = pd->lua->getArg ## type (argc++); } } while(0)
 
 #define REGISTER_LUA_FUNC(func) \
 	do {\
@@ -36,7 +31,7 @@ SpallBuffer  spall_buffer;
 
 static PlaydateAPI* pd = NULL;
 
-static void* getArgObject(int n, char* type)
+void* getArgObject(int n, char* type)
 {
 	void* obj = pd->lua->getArgObject(n, type, NULL);
 	
@@ -46,9 +41,11 @@ static void* getArgObject(int n, char* type)
 	return obj;
 }
 
+// ************************
+// Ground Params
+// ************************
 static GroundParams* getGroundParams(int n)			{ return getArgObject(n, "lib3d.GroundParams"); }
 
-/// Ground Params
 static int ground_params_new(lua_State* L)
 {
 	GroundParams* p = lib3d_malloc(sizeof(GroundParams));
@@ -417,6 +414,7 @@ void lib3d_register(PlaydateAPI* playdate)
 	tracks_init(playdate);
 	particles_init(playdate);
 	drawables_init(playdate);
+	lua3dmath_init(playdate);
 
 	REGISTER_LUA_FUNC(make_ground);
 	REGISTER_LUA_FUNC(render_ground);

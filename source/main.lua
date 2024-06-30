@@ -217,15 +217,6 @@ function m_x_m(a,b)
 			a11*b14+a12*b24+a13*b34+a14,a21*b14+a22*b24+a23*b34+a24,a31*b14+a32*b24+a33*b34+a34,1
 		}
 end
-function make_m_z_rot(angle)
-	local c,s=cos(angle),-sin(angle)
-	return {
-		c,-s,0,0,
-		s,c,0,0,
-		0,0,1,0,
-		0,0,0,1
-	}
-end
 
 function make_m_x_rot(angle)
 	local c,s=cos(angle),-sin(angle)
@@ -926,8 +917,9 @@ function loading_state()
 				coroutine.yield()
 			end
 		end
-		next_state(menu_state)
+		--next_state(menu_state)
 		--next_state(bench_state)
+		next_state(vec3_test)
 	end)
 
 	return 
@@ -1667,6 +1659,35 @@ function bench_state()
 		-- draw
 		function()
 			_ground:draw(cam)
+		end
+end
+
+function vec3_test()
+	local vecs={}
+	return
+		-- update
+		function()
+			if playdate.buttonJustReleased(playdate.kButtonA) then
+				add(vecs,lib3d.Vec3.new(rnd(),rnd(),rnd()))
+			end
+			if playdate.buttonJustReleased(playdate.kButtonB) then
+				table.remove(vecs)
+			end
+		end,
+		-- draw
+		function()
+			cls(gfx.kColorWhite)
+			local out=lib3d.Vec3.new()
+			local y=0
+			for i=1,#vecs do
+				local v=vecs[i]
+				print_small(v[1].." "..v[2].." "..v[3],2,y,gfx.kColorBlack);
+				lib3d.Vec3.add(out,v,-1)
+				y+=11
+			end
+			print_small("--------------------------",2,y,gfx.kColorBlack);
+			y+=11
+			print_small(out[1].." "..out[2].." "..out[3],2,y,gfx.kColorBlack);
 		end
 end
 
