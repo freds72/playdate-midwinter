@@ -1505,7 +1505,14 @@ function bench_state()
 	v_normz(u)
 	print("normz ok")
 	cam:track(pos,0,u,1,1)
-	print("cam track ok:"..cam.pos[1].." "..cam.pos[2].." "..cam.pos[3])
+	
+	for j=0,3 do
+		local s=""
+		for i=0,3 do
+			s=s.." "..cam.m[j*4+i+1]
+		end
+		print(s)
+	end
 
 	return 
 		-- update

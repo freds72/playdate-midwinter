@@ -161,7 +161,7 @@ static int lib3d_get_start_pos(lua_State* L) {
 	Point3d* p = pop_vec3();
     get_start_pos(p);
 
-	pd->lua->pushObject(p, "lib3d.Vec3", 0);
+	pushArgVec3(p);
     return 1;
 }
 
@@ -182,7 +182,7 @@ static int lib3d_get_face(lua_State* L) {
 
 		pd->lua->pushFloat(y);
 
-		pd->lua->pushObject(n, "lib3d.Vec3", 0);
+		pushArgVec3(n);
 
 		// arg count
 		return 2;

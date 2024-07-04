@@ -7,6 +7,9 @@ static PlaydateAPI* pd = NULL;
 Point3d* getArgVec3(int n)	{ return getArgObject(n, "lib3d.Vec3"); }
 Mat4* getArgMat4(int n) { return getArgObject(n, "lib3d.Mat4"); }
 
+void pushArgVec3(Point3d* p) { pd->lua->pushObject(p, "lib3d.Vec3", 0); }
+void pushArgMat4(Mat4* p) { pd->lua->pushObject(p, "lib3d.Mat4", 0); }
+
 static const Point3d v_up = { .v = { 0.f, 1.0f , 0.f } };
 
 /// allocation
@@ -20,7 +23,7 @@ static int vec3_new(lua_State* L)
 		p->v[i] = pd->lua->getArgFloat(i+1);
 	}
 
-	pd->lua->pushObject(p, "lib3d.Vec3", 0);
+	pushArgVec3(p);
 	return 1;
 }
 
@@ -65,7 +68,7 @@ static int vec3_clone(lua_State* L) {
 	Point3d* p = pop_vec3();
 	*p = *self;
 
-	pd->lua->pushObject(p, "lib3d.Vec3", 0);
+	pushArgVec3(p);
 	return 1;
 }
 
@@ -135,7 +138,7 @@ static int vec3_lerp(lua_State* L) {
 
 	v_lerp(*a, *b, scale, p);
 
-	pd->lua->pushObject(p, "lib3d.Vec3", 0);
+	pushArgVec3(p);
 	return 1;
 }
 
@@ -176,7 +179,7 @@ static int mat4_new(lua_State* L)
 		*p[i] = pd->lua->getArgFloat(i + 1);
 	}
 
-	pd->lua->pushObject(p, "lib3d.Mat4", 0);
+	pushArgMat4(p);
 	return 1;
 }
 
@@ -196,7 +199,7 @@ static int mat4_index(lua_State* L)
 	}
 	else {
 		// keep 1-base
-		pd->lua->pushFloat(*p[i-1]);
+		pd->lua->pushFloat((*p)[i - 1]);
 	}
 
 	return 1;
@@ -223,7 +226,7 @@ static int mat4_m_x_v(lua_State* L) {
 
 	m_x_v(*m, *v, p);
 
-	pd->lua->pushObject(p, "lib3d.Vec3", 0);
+	pushArgVec3(p);
 	return 1;
 }
 
@@ -235,7 +238,7 @@ static int mat4_m_x_m(lua_State* L) {
 
 	m_x_m(*a, *b, *p);
 
-	pd->lua->pushObject(p, "lib3d.Mat4", 0);
+	pushArgMat4(p);
 	return 1;
 }
 
@@ -251,7 +254,7 @@ static int mat4_m_x_rot(lua_State* L) {
 		0.f,0.f,0.f,1.f
 	}, sizeof(Mat4));
 
-	pd->lua->pushObject(p, "lib3d.Mat4", 0);
+	pushArgMat4(p);
 	return 1;
 }
 
@@ -267,7 +270,7 @@ static int mat4_m_y_rot(lua_State* L) {
 		0.f , 0.f, 0.f, 1.f
 	}, sizeof(Mat4));
 
-	pd->lua->pushObject(p, "lib3d.Mat4", 0);
+	pushArgMat4(p);
 	return 1;
 }
 
@@ -290,7 +293,7 @@ static int mat4_from_v_angle(lua_State* L) {
 		0.f, 0.f, 0.f, 1.f
 	}, sizeof(Mat4));
 
-	pd->lua->pushObject(p, "lib3d.Mat4", 0);
+	pushArgMat4(p);
 	return 1;
 }
 
@@ -312,7 +315,7 @@ static int mat4_from_v(lua_State* L) {
 		0.f, 0.f, 0.f, 1.f
 	}, sizeof(Mat4));
 
-	pd->lua->pushObject(p, "lib3d.Mat4", 0);
+	pushArgMat4(p);
 	return 1;
 }
 
@@ -340,7 +343,7 @@ static int mat4_lookat(lua_State* L) {
 		0.f, 0.f, 0.f, 1.f
 	}, sizeof(Mat4));
 
-	pd->lua->pushObject(p, "lib3d.Mat4", 0);
+	pushArgMat4(p);
 	return 1;
 }
 
@@ -348,17 +351,17 @@ static int mat4_inv(lua_State* L) {
 	Mat4* m = getArgMat4(1);
 	float tmp;
 
-	tmp = *m[4];
-	*m[4] = *m[1];
-	*m[1] = tmp;
+	tmp =     (*m)[4];
+	(*m)[4] = (*m)[1];
+	(*m)[1] = tmp;
 
-	tmp = *m[8];
-	*m[8] = *m[2];
-	*m[2] = tmp;
+	tmp =     (*m)[8];
+	(*m)[8] = (*m)[2];
+	(*m)[2] = tmp;
 
-	tmp = *m[9];
-	*m[9] = *m[6];
-	*m[6] = tmp;
+	tmp =     (*m)[9];
+	(*m)[9] = (*m)[6];
+	(*m)[6] = tmp;
 
 	return 0;
 }
@@ -369,11 +372,11 @@ static int mat4_right(lua_State* L) {
 	Mat4* m = getArgMat4(argc++);
 
 	Point3d* p = pop_vec3();
-	p->v[0] = *m[0];
-	p->v[1] = *m[1];
-	p->v[2] = *m[2];
+	p->v[0] = (*m)[0];
+	p->v[1] = (*m)[1];
+	p->v[2] = (*m)[2];
 
-	pd->lua->pushObject(p, "lib3d.Vec3", 0);
+	pushArgVec3(p);
 	return 1;
 }
 
@@ -382,11 +385,11 @@ static int mat4_up(lua_State* L) {
 	Mat4* m = getArgMat4(argc++);
 
 	Point3d* p = pop_vec3();
-	p->v[0] = *m[4];
-	p->v[1] = *m[5];
-	p->v[2] = *m[6];
+	p->v[0] = (*m)[4];
+	p->v[1] = (*m)[5];
+	p->v[2] = (*m)[6];
 
-	pd->lua->pushObject(p, "lib3d.Vec3", 0);
+	pushArgVec3(p);
 	return 1;
 }
 
@@ -395,11 +398,11 @@ static int mat4_fwd(lua_State* L) {
 	Mat4* m = getArgMat4(argc++);
 
 	Point3d* p = pop_vec3();
-	p->v[0] = *m[8];
-	p->v[1] = *m[9];
-	p->v[2] = *m[10];
+	p->v[0] = (*m)[8];
+	p->v[1] = (*m)[9];
+	p->v[2] = (*m)[10];
 
-	pd->lua->pushObject(p, "lib3d.Vec3", 0);
+	pushArgVec3(p);
 	return 1;
 }
 
@@ -416,7 +419,7 @@ static int mat4_m_x_translate(lua_State* L) {
 		-v->x, -v->y, -v->z, 1.f
 	}, *p);
 
-	pd->lua->pushObject(p, "lib3d.Mat4", 0);
+	pushArgMat4(p);
 	return 1;
 }
 
