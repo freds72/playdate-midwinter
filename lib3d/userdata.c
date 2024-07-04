@@ -45,20 +45,20 @@ static void push_float(FloatPool* pool, float* p) {
 }
 
 // api
-float* pop_vec3() {
-    return pop_float(&vec3_pool);
+Point3d* pop_vec3() {
+    return (Point3d*)pop_float(&vec3_pool);
 }
 
-void push_vec3(float* p) {
-    push_float(&vec3_pool, p);
+void push_vec3(Point3d* p) {
+    push_float(&vec3_pool, (float*)p);
 }
 
-float* pop_mat4() {
-    return pop_float(&mat4_pool);
+Mat4* pop_mat4() {
+    return (Mat4*)pop_float(&mat4_pool);
 }
 
-void push_mat4(float* p) {
-    push_float(&mat4_pool, p);
+void push_mat4(Mat4* p) {
+    push_float(&mat4_pool, (float*)p);
 }
 
 // init module

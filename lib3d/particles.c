@@ -75,7 +75,7 @@ Emitter _emitters[] = {
 };
 
 // activate a new particle from emitter id
-void spawn_particle(int id, Point3d pos) {
+void spawn_particle(int id, const Point3d pos) {
     Emitter* emitter = &_emitters[id];
     ParticlesPool* pool = &emitter->pool;
     Particle* p = &pool->particles[pool->tail++];
@@ -99,7 +99,7 @@ void spawn_particle(int id, Point3d pos) {
 }
 
 // update all particles
-void update_particles(Point3d offset) {
+void update_particles(const Point3d offset) {
     // go over all emitters
     for(int i=0;i<sizeof(_emitters)/sizeof(Emitter);i++) {
         Emitter* emitter = &_emitters[i];
@@ -155,7 +155,7 @@ static void draw_particle(Drawable* drawable, uint8_t* bitmap) {
     END_FUNC();
 }
 
-void push_particles(Point3d cam_pos, float* m) {
+void push_particles(const Point3d cam_pos, const Mat4 m) {
     for(int i=0;i<sizeof(_emitters)/sizeof(Emitter);i++) {
         Emitter* emitter = &_emitters[i];
         ParticlesPool* pool = &emitter->pool;
@@ -166,7 +166,7 @@ void push_particles(Point3d cam_pos, float* m) {
             it &= PARTICLE_RING_MOD_SIZE;
             // active?
             if (p->t > 0) {
-                m_x_v(m, p->pos.v, res.v);
+                m_x_v(m, p->pos, &res);
                 // visible?
                 if (res.z > Z_NEAR && res.z < (float)(GROUND_CELL_SIZE * MAX_TILE_DIST)) {
                     Drawable* drawable = pop_drawable(res.z);

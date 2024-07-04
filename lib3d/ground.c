@@ -142,7 +142,7 @@ static void mesh_slice(int j) {
 
     // base slope normal
     Point3d sn = { .x = 0, .y = GROUND_CELL_SIZE, .z = s0->y - s1->y };
-    v_normz(sn.v);
+    v_normz(&sn);
 
     for (int i = 0; i < GROUND_WIDTH - 1; ++i) {
         GroundTile* t0 = &s0->tiles[i];
@@ -155,14 +155,14 @@ static void mesh_slice(int j) {
         const Point3d u3 = { .v = {0.f,s1->tiles[i].h + s1->y - v0.y,(float)GROUND_CELL_SIZE} };
 
         Point3d n0, n1;
-        v_cross(u3.v, u2.v, n0.v);
-        v_cross(u2.v, u1.v, n1.v);
-        v_normz(n0.v);
-        v_normz(n1.v);
+        v_cross(u3, u2, &n0);
+        v_cross(u2, u1, &n1);
+        v_normz(&n0);
+        v_normz(&n1);
         GroundFace* f0 = &t0->f0;
         f0->n = n0;
         f0->flags = n0.y < 0.75f ? GROUNDFACE_FLAG_ROCK : GROUNDFACE_FLAG_SNOW;
-        if (v_dot(n0.v, n1.v) < 0.999f) {
+        if (v_dot(n0, n1) < 0.999f) {
             GroundFace* f1 = &t0->f1;
             f1->n = n1;
             f1->flags = n1.y < 0.75f ? GROUNDFACE_FLAG_ROCK : GROUNDFACE_FLAG_SNOW;;
@@ -351,19 +351,19 @@ void make_ground(GroundParams params) {
     }
 }
 
-void update_ground(Point3d* p, int* slice_id, char** pattern, Point3d* offset) {
+void update_ground(const Point3d p, int* slice_id, char** pattern, Point3d* offset) {
     BEGIN_FUNC();
 
+    // TODO: FIX!!!
     // prevent going up slope!
-    if (p->z < 8 * GROUND_CELL_SIZE) p->z = 8 * GROUND_CELL_SIZE;
-    offset->v[0] = 0.f;
-    offset->v[1] = 0.f;
-    offset->v[2] = 0.f;
-    float pz;
+    float pz = p.z;
+    if (pz < 8 * GROUND_CELL_SIZE) pz = 8 * GROUND_CELL_SIZE;
+    *offset = (Point3d){ .v = {0} };
+
     // handles faster than 1 tile moves
-    while ((pz = p->z / GROUND_CELL_SIZE) > _ground.plyr_z_index) {
+    while ( pz/ GROUND_CELL_SIZE > _ground.plyr_z_index ) {
         // shift back
-        p->z -= GROUND_CELL_SIZE;
+        pz -= GROUND_CELL_SIZE;
         offset->z -= GROUND_CELL_SIZE;
         _ground.max_pz -= GROUND_CELL_SIZE;
         GroundSlice* old_slice = _ground.slices[0];
@@ -382,8 +382,8 @@ void update_ground(Point3d* p, int* slice_id, char** pattern, Point3d* offset) {
         mesh_slice(GROUND_HEIGHT - 2);
     }
     // update y offset
-    if (p->z > _ground.max_pz) {
-        _ground.max_pz = (int)p->z;
+    if (pz > _ground.max_pz) {
+        _ground.max_pz = (int)pz;
     }
 
     // update particles (inc. world shifting)
@@ -396,12 +396,12 @@ void update_ground(Point3d* p, int* slice_id, char** pattern, Point3d* offset) {
 }
 
 void get_start_pos(Point3d* out) {
-    out->x = _ground.slices[_ground.plyr_z_index]->center;
-    out->y = 0;
-    out->z = (float)_ground.plyr_z_index * GROUND_CELL_SIZE;
+    out->v[0] = _ground.slices[_ground.plyr_z_index]->center;
+    out->v[1] = 0;
+    out->v[2] = (float)_ground.plyr_z_index * GROUND_CELL_SIZE;
 }
 
-int get_face(Point3d pos, Point3d* nout, float* yout) {
+int get_face(const Point3d pos, Point3d* nout, float* yout) {
     BEGIN_FUNC();
 
     // z slice
@@ -422,12 +422,14 @@ int get_face(Point3d pos, Point3d* nout, float* yout) {
 
     // intersection point
     Point3d ptOnFace;
-    make_v((Point3d) { .v = {(float)i * GROUND_CELL_SIZE, t0->h + s0->y, (float)j * GROUND_CELL_SIZE} }, pos, &ptOnFace);
+    make_v((Point3d) { .v = {(float)i * GROUND_CELL_SIZE, t0->h + s0->y, (float)j * GROUND_CELL_SIZE} }, pos, & ptOnFace);
          
     // height
-    *yout = pos.y - v_dot(ptOnFace.v, f->n.v) / f->n.y;
+    *yout = pos.y - v_dot(ptOnFace, f->n) / f->n.y;
     // face normal
-    *nout = f->n;
+    nout->v[0] = f->n.v[0];
+    nout->v[1] = f->n.v[1];
+    nout->v[2] = f->n.v[2];
 
     END_FUNC();
 
@@ -435,7 +437,7 @@ int get_face(Point3d pos, Point3d* nout, float* yout) {
 }
 
 // get slice extents
-void get_track_info(Point3d pos, float* xmin, float* xmax, float* z, int* checkpoint, float* angleout) {
+void get_track_info(const Point3d pos, float* xmin, float* xmax, float* z, int* checkpoint, float* angleout) {
     BEGIN_FUNC();
 
     int j = (int)(pos.z / GROUND_CELL_SIZE);
@@ -481,10 +483,10 @@ void get_props(Point3d pos, PropInfo** info, int* nout) {
                 PropInfo* info = &_props_info.props[_props_info.n++];
                 info->type = prop_id;                
                 v_lerp(
-                    (float[VEC3]){ (float)i * GROUND_CELL_SIZE,         t0->h + s0->y,       (float)j * GROUND_CELL_SIZE },
-                    (float[VEC3]){ (float)(i + 1) * GROUND_CELL_SIZE,   s1->tiles[i + 1].h + s1->y,   (float)(j + 1) * GROUND_CELL_SIZE },
+                    (Point3d){ .v = {(float)i * GROUND_CELL_SIZE,         t0->h + s0->y,       (float)j * GROUND_CELL_SIZE } },
+                    (Point3d){ .v = {(float)(i + 1) * GROUND_CELL_SIZE,   s1->tiles[i + 1].h + s1->y,   (float)(j + 1) * GROUND_CELL_SIZE } },
                     t0->prop_t,
-                    info->pos.v);
+                    &info->pos);
                 info->pos.z += 2.f;
             }
         }
@@ -494,13 +496,13 @@ void get_props(Point3d pos, PropInfo** info, int* nout) {
 }
 
 // clear checkpoint
-void clear_checkpoint(Point3d pos) {
+void clear_checkpoint(const Point3d pos) {
     int j = (int)(pos.z / GROUND_CELL_SIZE);
     GroundSlice* s0 = _ground.slices[j];
     s0->is_checkpoint = 0;
 }
 
-void collide(Point3d pos, float radius, int* hit_type)
+void collide(const Point3d pos, float radius, int* hit_type)
 {
     BEGIN_FUNC();
     // z slice
@@ -536,7 +538,7 @@ void collide(Point3d pos, float radius, int* hit_type)
                             Point3d v0 = (Point3d){ .v = {(float)(i * GROUND_CELL_SIZE),t0->h + s0->y,(float)(j * GROUND_CELL_SIZE)} };
                             Point3d v2 = (Point3d){ .v = {(float)((i + 1) * GROUND_CELL_SIZE),s0->tiles[i + 1].h + s0->y,(float)((j + 1) * GROUND_CELL_SIZE)} };
                             Point3d res;
-                            v_lerp(v0.v, v2.v, t0->prop_t, res.v);
+                            v_lerp(v0, v2, t0->prop_t, &res);
                             make_v(pos, res, &res);
                             if (res.x * res.x + res.z * res.z < radius + props->radius * props->radius) {
                                 if (props->flags & PROP_FLAG_COIN) {
@@ -895,6 +897,7 @@ static void draw_tile(Drawable* drawable, uint8_t* bitmap) {
         float w = 1.f / pts[i].z;
         pts[i].x = 199.5f + 199.5f * w * pts[i].x;
         pts[i].y = 119.5f - 199.5f * w * pts[i].y;
+
         // works ok
         float shading = face->material == GROUNDFACE_FLAG_SNOW ? 4.0f * pts[i].u + 8.f * w : 6.0f + 4.0f * pts[i].u + 4.f * w;
         // attenuation
@@ -986,7 +989,7 @@ static void draw_face(Drawable* drawable, uint8_t* bitmap) {
 
 
 // push a face to the drawing list
-static void push_tile(const GroundFace* f, const float m[MAT4x4], GroundSliceCoord* coords, int n, const float light, const int is_danger) {
+static void push_tile(const GroundFace* f, const Mat4 m, GroundSliceCoord* coords, int n, const float light, const int is_danger) {
     BEGIN_FUNC();
 
     Point3du tmp[4];
@@ -1005,7 +1008,7 @@ static void push_tile(const GroundFace* f, const float m[MAT4x4], GroundSliceCoo
             // compute point  
             Point3d p = { .v = {(float)(c.i * GROUND_CELL_SIZE), c.h + c.y, (float)(c.j * GROUND_CELL_SIZE)} };
             // project using active matrix
-            m_x_v(m, p.v, res->v);
+            m_x_v(m, p, (Point3d*)res);
             
             const int code =
                 ((Flint) { .f = Z_FAR - res->z  }.i & 0x80000000) >> 31 |
@@ -1064,7 +1067,7 @@ void add_render_prop(int id, const float* m) {
     memcpy(p->m, m, MAT4x4 * sizeof(float));
 }
 
-static void push_threeD_model(const int prop_id, const Point3d cv, const float m[MAT4x4]) {
+static void push_threeD_model(const int prop_id, const Point3d cv, const Mat4 m) {
     BEGIN_FUNC();
 
     Point3du tmp[4];
@@ -1072,7 +1075,7 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float m
     for (int j = 0; j < model->face_count; ++j) {
         ThreeDFace* f = &model->faces[j];
         // visible?
-        if ( v_dot(f->n.v, cv.v) > f->cp) {
+        if ( v_dot(f->n, cv) > f->cp) {
             // vert count
             int n = f->flags & FACE_FLAG_QUAD?4:3;
             // transform
@@ -1082,7 +1085,7 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float m
             for (int i = 0; i < n; ++i) {
                 Point3du* res = &tmp[i];
                 // project using active matrix
-                m_x_v(m, f->vertices[i].v, res->v);
+                m_x_v(m, f->vertices[i], (Point3d*)res);
 
                 int code =
                     ((Flint) { .f = res->z - Z_NEAR }.i & 0x80000000) >> 30 |
@@ -1121,7 +1124,7 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const float m
     END_FUNC();
 }
 
-static void push_and_transform_threeD_model(const int prop_id, const Point3d cam_pos, const float* cam_m, const float* m) {
+static void push_and_transform_threeD_model(const int prop_id, const Point3d cam_pos, const Mat4 cam_m, const Mat4 m) {
     BEGIN_FUNC();
 
     // TODO: support for rotate flags?
@@ -1130,14 +1133,14 @@ static void push_and_transform_threeD_model(const int prop_id, const Point3d cam
 
     // cam pos in 3d model space
     Point3d inv_cam_pos;
-    m_inv_x_v(m, cam_pos.v, inv_cam_pos.v);
+    m_inv_x_v(m, cam_pos, &inv_cam_pos);
 
     push_threeD_model(prop_id, inv_cam_pos, mvv);
 
     END_FUNC();
 }
 
-int render_sky(float* m, uint8_t* screen) {
+int render_sky(const Mat4 m, uint8_t* screen) {
     BEGIN_FUNC();
 
     uint32_t* bitmap = (uint32_t*)screen;
@@ -1153,7 +1156,7 @@ int render_sky(float* m, uint8_t* screen) {
 
     // horizon 'normal'
     n.z = 0;
-    v_normz(n.v);
+    v_normz(&n);
     int angle = (int)(90.0f + 180.0f * atan2f(n.y, n.x) / PI);
     if (angle < _scaled_image_min_angle) angle = _scaled_image_min_angle;
     if (angle > _scaled_image_max_angle) angle = _scaled_image_max_angle;
@@ -1186,155 +1189,6 @@ int render_sky(float* m, uint8_t* screen) {
     END_FUNC();
 
     return angle;
-}
-
-#define stepXSize 8
-
-typedef struct {
-    union {
-        int16_t v[8];
-        uint32_t word[4];
-    };
-} Vec8i;
-
-typedef struct {
-    Vec8i oneStepX;
-    Vec8i oneStepY;
-} Edge;
-
-static inline Vec8i make_vec(const int16_t a) {
-    return (Vec8i) {
-        .v = {
-        a,
-        a,
-        a,
-        a,
-        a,
-        a,
-        a,
-        a }
-    };
-}
-
-static Vec8i edge_init(Edge* edge, const Point2di* v0, const Point2di* v1, const Point2di* origin)
-{
-    // Edge setup
-    int16_t A = v0->y - v1->y, B = v1->x - v0->x;
-    int16_t C = v0->x * v1->y - v0->y * v1->x;
-
-    // Step deltas
-    edge->oneStepX = make_vec(A * stepXSize);
-    edge->oneStepY = make_vec(B);
-
-    // x/y values for initial pixel block
-    Vec8i x = (Vec8i){
-        .v = {
-        origin->x + 7,
-        origin->x + 6,
-        origin->x + 5,
-        origin->x + 4,
-        origin->x + 3,
-        origin->x + 2,
-        origin->x + 1,
-        origin->x + 0 }
-    };
-    Vec8i y = make_vec(origin->y);
-
-    // Edge function values at origin
-    Vec8i out;
-    for (int i = 0; i < 8; ++i) {
-        out.v[i] = A * x.v[i] + B * y.v[i] + C;
-    }
-    return out;
-}
-
-static inline uint8_t vec_mask(const Vec8i a, const Vec8i b, const Vec8i c) {
-    uint8_t out = 0;
-    for (int i = 0; i < 8; ++i) {
-        out |= (~((a.v[i] | b.v[i] | c.v[i]) >> 31)) & (0x80 >> i);
-    }
-    return out;
-}
-
-static inline Vec8i vec_inc(Vec8i a, Vec8i b) {
-#ifdef  TARGET_PLAYDATE
-    return (Vec8i) {
-        .word = {
-__SADD16(a.word[0], b.word[0]),
-__SADD16(a.word[1], b.word[1]),
-__SADD16(a.word[2], b.word[2]),
-__SADD16(a.word[3], b.word[3]) }
-    };
-#else
-    Vec8i out;
-    for (int i = 0; i < 8; ++i) {
-        out.v[i] = a.v[i] + b.v[i];
-    }
-    return out;
-#endif //  TARGET_PLAYDATE
-}
-
-static int min3(int a, int b, int c) {
-    if (a < b) b = a;
-    if (c < b) b = c;
-    return b;
-}
-static int max3(int a, int b, int c) {
-    if (a > b) b = a;
-    if (c > b) b = c;
-    return b;
-}
-
-static void collect_tri(const Point2di v0, const Point2di v1, const Point2di v2, uint8_t* bitmap) {
-    // Compute triangle bounding box
-    int16_t minX = min3(v0.x, v1.x, v2.x);
-    int16_t minY = min3(v0.y, v1.y, v2.y);
-    int16_t maxX = max3(v0.x, v1.x, v2.x);
-    int16_t maxY = max3(v0.y, v1.y, v2.y);
-
-    // Clip against screen bounds
-    if (minX < 0) minX = 0;
-    if (minY < 0) minY = 0;
-    if (maxX > 31) maxX = 31;
-    if (maxY > 32) maxY = 32;
-
-    // align to uint8 boundaries
-    minX = 8 * (minX / 8);
-    maxX = 8 * (maxX / 8) + 1;
-
-    // Barycentric coordinates at minX/minY corner
-    Point2di p = (Point2di){ .v = {minX, minY} };
-    Edge e01, e12, e20;
-
-    // Triangle setup
-    Vec8i w0_row = edge_init(&e12, &v1, &v2, &p);
-    Vec8i w1_row = edge_init(&e20, &v2, &v0, &p);
-    Vec8i w2_row = edge_init(&e01, &v0, &v1, &p);
-
-    // Rasterize
-    bitmap += (minX >> 3) + minY * 4;
-    for (int y = minY; y < maxY; y ++, bitmap += 4) {
-        uint8_t* bitmap_row = bitmap;
-        // Barycentric coordinates at start of row
-        Vec8i w0 = w0_row;
-        Vec8i w1 = w1_row;
-        Vec8i w2 = w2_row;
-        for (int x = minX; x < maxX; x += stepXSize, bitmap_row++) {
-            // If p is on or inside all edges, render pixel.
-            uint8_t mask = vec_mask(w0, w1, w2);
-            if (mask) {
-                *bitmap_row = ((*bitmap_row) & ~mask) | mask;
-            }
-            // One step to the right            
-            w0 = vec_inc(w0, e12.oneStepX);
-            w1 = vec_inc(w1, e20.oneStepX);
-            w2 = vec_inc(w2, e01.oneStepX);
-        }
-        // One row step        
-        w0_row = vec_inc(w0_row, e12.oneStepY);
-        w1_row = vec_inc(w1_row, e20.oneStepY);
-        w2_row = vec_inc(w2_row, e01.oneStepY);
-    }
 }
 
 static void collect_tiles(uint32_t visible_tiles[GROUND_HEIGHT], const Point3d pos, float base_angle) {
@@ -1393,7 +1247,7 @@ static void collect_tiles(uint32_t visible_tiles[GROUND_HEIGHT], const Point3d p
 
 // render ground
 
-void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_t blink, uint8_t * bitmap) {
+void render_ground(const Point3d cam_pos, const float cam_tau_angle, const Mat4 m, uint32_t blink, uint8_t * bitmap) {
     BEGIN_FUNC();
 
     // cache lines
@@ -1435,7 +1289,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
                 const GroundFace* f0 = &t0->f0;
                 const int is_danger = blink & (1 << i);
                 if (f0->flags & GROUNDFACE_FLAG_QUAD) {
-                    if (v_dot(f0->n.v, cv.v) < 0.f)
+                    if (v_dot(f0->n, cv) < 0.f)
                     {
                         push_tile(f0, m, (GroundSliceCoord[]) {
                             { .h = s0->tiles[i].h,   .y = s0->y, .i = i,     .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
@@ -1446,7 +1300,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
                     }
                 }
                 else {
-                    if (v_dot(f0->n.v, cv.v) < 0.f)
+                    if (v_dot(f0->n, cv) < 0.f)
                     {
                         push_tile(f0, m, (GroundSliceCoord[]) {
                             { .h = s0->tiles[i].h,     .y = s0->y, .i = i,      .j = j,     .cache = cache[0], .mask = s1->tracks_mask },
@@ -1455,7 +1309,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
                         }, 3, shading_band, is_danger);
                     }
                     const GroundFace* f1 = &t0->f1;
-                    if (v_dot(f1->n.v, cv.v) < 0.f)
+                    if (v_dot(f1->n, cv) < 0.f)
                     {
                         push_tile(f1, m, (GroundSliceCoord[]) {
                             { .h = s0->tiles[i].h,   .y = s0->y, .i = i,     .j = j,     .cache = cache[0], .mask = s1->tracks_mask},
@@ -1474,25 +1328,25 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
                         .z = v0.z + GROUND_CELL_SIZE * t
                     };
                     Point3d res;
-                    m_x_v(m, pos.v, res.v);
+                    m_x_v(m, pos, &res);
                     if (res.z > Z_NEAR && res.z < (float)(GROUND_CELL_SIZE * MAX_TILE_DIST)) {
                         Point3d cv;
-                        float mmvm[MAT4x4];
+                        Mat4 mmvm;
                         // adjust matrix to project into position
                         if (_props_properties[prop_id - 1].flags & PROP_FLAG_Y_ROTATE) {
-                            float tmp[MAT4x4] = {
+                            Mat4 tmp = {
                                 1.f,0.f,0.f,0.f,
                                 0.f,1.f,0.f,0.f,
                                 0.f,0.f,1.f,0.f,
                                 pos.x,pos.y,pos.z,1.f };
                             m_x_y_rot(tmp, pd->system->getElapsedTime(), mmvm);
-                            m_inv_x_v(mmvm, cam_pos.v, cv.v);
+                            m_inv_x_v(mmvm, cam_pos, &cv);
                             m_x_m(m, mmvm, tmp);
                             push_threeD_model(prop_id, cv, tmp);
                         }
                         else {
                             cv = (Point3d){.x = cam_pos.x - pos.x,.y = cam_pos.y - pos.y,.z = cam_pos.z - pos.z};
-                            m_x_translate(m, pos.v, mmvm);
+                            m_x_translate(m, pos, mmvm);
                             push_threeD_model(prop_id, cv, mmvm);
                         }
                     }
@@ -1545,7 +1399,7 @@ void render_ground(Point3d cam_pos, const float cam_tau_angle, float* m, uint32_
 }
 
 // render "free" props without ground (for title screen say)
-void render_props(Point3d cam_pos, float* m, uint8_t* bitmap) {
+void render_props(const Point3d cam_pos, const Mat4 m, uint8_t* bitmap) {
     BEGIN_FUNC();
 
     // "free" props?

@@ -12,8 +12,8 @@
 
 void particles_init(PlaydateAPI* playdate);
 void clear_particles();
-void spawn_particle(int id, Point3d pos);
-void update_particles(Point3d offset);
-void push_particles(Point3d cam_pos, float* m);
+void spawn_particle(int id, const Point3d pos);
+void update_particles(const Point3d offset);
+void push_particles(const Point3d cam_pos, const Mat4 m);
 
 #endif
