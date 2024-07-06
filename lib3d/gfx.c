@@ -4,6 +4,8 @@
 #include "spall.h"
 #include "gfx.h"
 
+// float32 display ptr width
+#define LCD_ROWSIZE32 (LCD_ROWSIZE/4)
 
 static PlaydateAPI* pd = NULL;
 
@@ -11,14 +13,23 @@ void gfx_init(PlaydateAPI* playdate) {
     pd = playdate;
 }
 
-#define LCD_ROWSIZE32 (LCD_ROWSIZE/4)
 
-static inline void _drawMaskPattern(uint32_t* p, uint32_t mask, uint32_t color)
+#if TARGET_PLAYDATE
+static __attribute__((always_inline))
+#else
+static __forceinline
+#endif
+inline void _drawMaskPattern(uint32_t* p, uint32_t mask, uint32_t color)
 {
     *p = (*p & ~mask) | (color & mask);
 }
 
-static inline void _drawMaskPatternOpaque(uint32_t* p, uint32_t color)
+#if TARGET_PLAYDATE
+static __attribute__((always_inline))
+#else
+static __forceinline
+#endif
+inline void _drawMaskPatternOpaque(uint32_t* p, uint32_t color)
 {
     *p = color;
 }
@@ -136,7 +147,7 @@ static void drawTextureFragment(uint8_t* row, int x1, int x2, int lu, int ru, ui
 
         if (startbit > 0)
         {
-            *p = (*p & ~startmask) | ((*(dither_ramp + (lu >> 16) * 8 + ((x/8) & 3))) & startmask);
+            *p = (*p & ~startmask) | ((*(dither_ramp + (lu >> 16) * 8 + ((x>>3) & 3))) & startmask);
             x += (8 - startbit);
             lu += du;
             p++;
@@ -144,7 +155,7 @@ static void drawTextureFragment(uint8_t* row, int x1, int x2, int lu, int ru, ui
 
         while (x + 8 <= x2)
         {
-            *(p++) = *(dither_ramp + (lu >> 16) * 8 + ((x / 8) & 3));
+            *(p++) = *(dither_ramp + (lu >> 16) * 8 + ((x >>3) & 3));
             lu += du;
             x += 8;
         }
@@ -152,136 +163,8 @@ static void drawTextureFragment(uint8_t* row, int x1, int x2, int lu, int ru, ui
         if (endbit > 0) {
             // the last block of 8 pixels can overflow into negative territory
             if (lu < 0) lu = 0;           
-            *p = (*p & ~endmask) | ((*(dither_ramp + (lu >> 16) * 8 + ((x/8) % 4))) & endmask);
+            *p = (*p & ~endmask) | ((*(dither_ramp + (lu >> 16) * 8 + ((x>>3) & 3))) & endmask);
         }
-    }
-}
-
-// todo: http://www.sunshine2k.de/coding/java/TriangleRasterization/TriangleRasterization.html
-
-static inline void sortTri(Point3du** p1, Point3du** p2, Point3du** p3)
-{
-    float y1 = (*p1)->y, y2 = (*p2)->y, y3 = (*p3)->y;
-
-    if (y1 <= y2 && y1 < y3)
-    {
-        if (y3 < y2) // 1,3,2
-        {
-            Point3du* tmp = *p2;
-            *p2 = *p3;
-            *p3 = tmp;
-        }
-    }
-    else if (y2 < y1 && y2 < y3)
-    {
-        Point3du* tmp = *p1;
-        *p1 = *p2;
-
-        if (y3 < y1) // 2,3,1
-        {
-            *p2 = *p3;
-            *p3 = tmp;
-        }
-        else // 2,1,3
-            *p2 = tmp;
-    }
-    else
-    {
-        Point3du* tmp = *p1;
-        *p1 = *p3;
-
-        if (y1 < y2) // 3,1,2
-        {
-            *p3 = *p2;
-            *p2 = tmp;
-        }
-        else // 3,2,1
-            *p3 = tmp;
-    }
-}
-
-static void fillRange(int y, int endy, int32_t* x1p, int32_t dx1, int32_t* x2p, int32_t dx2, uint32_t pattern[32],uint32_t *bitmap)
-{
-    int32_t x1 = *x1p, x2 = *x2p;
-
-    if (endy < 0)
-    {
-        int dy = endy - y;
-        *x1p = x1 + dy * dx1;
-        *x2p = x2 + dy * dx2;
-        return;
-    }
-
-    if (y < 0)
-    {
-        x1 -= y * dx1;
-        x2 -= y * dx2;
-        y = 0;
-    }
-
-    while (y < endy)
-    {
-        drawFragment(bitmap + y * LCD_ROWSIZE32, (x1 >> 16), (x2 >> 16) + 1, pattern[y & 31]);
-
-        x1 += dx1;
-        x2 += dx2;
-        ++y;
-    }
-
-    *x1p = x1;
-    *x2p = x2;
-}
-
-static inline int32_t slope(float x1, float y1, float x2, float y2)
-{
-    float dx = x2 - x1;
-    float dy = y2 - y1;
-
-    if (dy < 1)
-        return dx * (1 << 16);
-    else
-        return dx / dy * (1 << 16);
-}
-
-// from Playdate C examples
-// created by Dave Hayden on 10/20/15.
-void trifill(Point3du* verts, uint32_t* dither, uint32_t* bitmap)
-{
-    // sort by y coord
-    Point3du* p1 = verts, * p2 = verts + 1, * p3 = verts + 2;
-    sortTri(&p1,&p2,&p3);
-
-    int endy = p3->y;
-    if (endy >= LCD_ROWS) endy = LCD_ROWS;
-
-    if (p1->y > LCD_ROWS || endy < 0) return ;
-
-    int32_t x1 = p1->x * (1 << 16);
-    int32_t x2 = x1;
-
-    int32_t sb = slope(p1->x, p1->y, p2->x, p2->y);
-    int32_t sc = slope(p1->x, p1->y, p3->x, p3->y);
-
-    int32_t dx1 = sb;
-    if (dx1 > sc) dx1 = sc;
-    int32_t dx2 = sb;
-    if (dx2 < sc) dx2 = sc;
-
-    int midy = p2->y; 
-    if (midy >= LCD_ROWS) midy = LCD_ROWS;
-    fillRange(p1->y, midy, &x1, dx1, &x2, dx2, dither, bitmap);
-
-    int dx = slope(p2->x, p2->y, p3->x, p3->y);
-
-    if (sb < sc)
-    {
-        x1 = p2->x * (1 << 16);
-        fillRange(p2->y, endy, &x1, dx, &x2, dx2, dither, bitmap);
-    }
-    else
-    {
-        x2 = p2->x * (1 << 16);
-        fillRange(p2->y, endy, &x1, dx1, &x2, dx, dither, bitmap);
     }
 }
 

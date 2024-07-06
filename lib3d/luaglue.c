@@ -15,18 +15,13 @@
 #include "gfx.h"
 #include "particles.h"
 #include "drawables.h"
+#include "lua3dmath.h"
 #include "spall.h"
 
 #ifdef SPALL_COLLECT
 SpallProfile spall_ctx;
 SpallBuffer  spall_buffer;
 #endif
-
-// helper macros
-#define C_TO_LUA(s, name, type) \
-	do {if ( strcmp(arg, #name) == 0 ) { pd->lua->push ## type (s->name); return 1; } } while(0)
-#define LUA_TO_C(s, name, type) \
-	do {if ( strcmp(arg, #name) == 0 ) { p->name = pd->lua->getArg ## type (argc++); } } while(0)
 
 #define REGISTER_LUA_FUNC(func) \
 	do {\
@@ -36,7 +31,7 @@ SpallBuffer  spall_buffer;
 
 static PlaydateAPI* pd = NULL;
 
-static void* getArgObject(int n, char* type)
+void* getArgObject(int n, char* type)
 {
 	void* obj = pd->lua->getArgObject(n, type, NULL);
 	
@@ -46,9 +41,11 @@ static void* getArgObject(int n, char* type)
 	return obj;
 }
 
+// ************************
+// Ground Params
+// ************************
 static GroundParams* getGroundParams(int n)			{ return getArgObject(n, "lib3d.GroundParams"); }
 
-/// Ground Params
 static int ground_params_new(lua_State* L)
 {
 	GroundParams* p = lib3d_malloc(sizeof(GroundParams));
@@ -123,11 +120,7 @@ static int lib3d_render_ground(lua_State* L)
 {
 	int argc = 1;
 	// cam pos
-	Point3d pos;
-	for (int i = 0; i < 3; ++i) {
-		// Get it's value.        
-		pos.v[i] = pd->lua->getArgFloat(argc++);
-	}
+	Point3d* cam_pos = getArgVec3(argc++);
 	// cam angle
 	const float tau_angle = pd->lua->getArgFloat(argc++);
 
@@ -135,16 +128,16 @@ static int lib3d_render_ground(lua_State* L)
 	uint32_t blink = pd->lua->getArgInt(argc++);
 	
 	// camera matrix
-    float m[16];
-
-    for (int i = 0; i < 16; ++i) {
-        // Get it's value.        
-        m[i] = pd->lua->getArgFloat(argc++);
-    }
+	Mat4* m = getArgMat4(argc++);
 
     uint8_t* bitmap = pd->graphics->getFrame();
 
-	render_ground(pos, tau_angle, m, blink, bitmap);
+	render_ground(*cam_pos, tau_angle, *m, blink, bitmap);
+
+	// get userdata stats
+	// int vlen, vmax, mlen, mmax;
+	// userdata_stats(&vlen, &vmax, &mlen, &mmax);
+	// pd->system->logToConsole("vec pool: %i/%i matrix pool: %i/%i", vlen, vmax, mlen, mmax);
 
     pd->graphics->markUpdatedRows(0, LCD_ROWS - 1);
 
@@ -155,23 +148,14 @@ static int lib3d_render_props(lua_State* L)
 {
 	int argc = 1;
 	// cam pos
-	Point3d pos;
-	for (int i = 0; i < 3; ++i) {
-		// Get it's value.        
-		pos.v[i] = pd->lua->getArgFloat(argc++);
-	}
+	Point3d* pos = getArgVec3(argc++);
 
 	// camera matrix
-	float m[16];
-
-	for (int i = 0; i < 16; ++i) {
-		// Get it's value.        
-		m[i] = pd->lua->getArgFloat(argc++);
-	}
+	Mat4* m = getArgMat4(argc++);
 
 	uint8_t* bitmap = pd->graphics->getFrame();
 
-	render_props(pos, m, bitmap);
+	render_props(*pos, *m, bitmap);
 
 	pd->graphics->markUpdatedRows(0, LCD_ROWS - 1);
 
@@ -179,12 +163,11 @@ static int lib3d_render_props(lua_State* L)
 }
 
 static int lib3d_get_start_pos(lua_State* L) {
-    Point3d out;
-    get_start_pos(&out);
-    for(int i=0;i<3;++i) {
-        pd->lua->pushFloat(out.v[i]);
-    }
-    return 3;
+	Point3d* p = pop_vec3();
+    get_start_pos(p);
+
+	pushArgVec3(p);
+    return 1;
 }
 
 static int lib3d_make_ground(lua_State* L) {
@@ -196,36 +179,28 @@ static int lib3d_make_ground(lua_State* L) {
 }
 
 static int lib3d_get_face(lua_State* L) {
-	Point3d pos;
-	for (int i = 0; i < 3; ++i) {
-		pos.v[i] = pd->lua->getArgFloat(i+1);
-	}
+	Point3d* pos = getArgVec3(1);
 
-	Point3d n;
+	Point3d *n = pop_vec3();
 	float y;
-	if (get_face(pos, &n, &y)) {
+	if (get_face(*pos, n, &y)) {
 
 		pd->lua->pushFloat(y);
 
-		pd->lua->pushFloat(n.x);
-		pd->lua->pushFloat(n.y);
-		pd->lua->pushFloat(n.z);
+		pushArgVec3(n);
 
 		// arg count
-		return 4;
+		return 2;
 	}
 	return 0;
 }
 
 static int lib3d_get_track_info(lua_State* L) {
-	Point3d pos;
-	for (int i = 0; i < 3; ++i) {
-		pos.v[i] = pd->lua->getArgFloat(i + 1);
-	}
+	Point3d* pos = getArgVec3(1);
 	
 	float xmin, xmax,z,angle;
 	int is_checkpoint;
-	get_track_info(pos, &xmin, &xmax, &z, &is_checkpoint,&angle);
+	get_track_info(*pos, &xmin, &xmax, &z, &is_checkpoint,&angle);
 	
 	pd->lua->pushFloat(xmin);
 	pd->lua->pushFloat(xmax);
@@ -236,79 +211,47 @@ static int lib3d_get_track_info(lua_State* L) {
 	return 5;
 }
 
-static int lib3d_get_props(lua_State* L) {
-	Point3d pos;
-	for (int i = 0; i < 3; ++i) {
-		pos.v[i] = pd->lua->getArgFloat(i + 1);
-	}
-	int n = 0;
-	PropInfo* props;
-	get_props(pos, &props, &n);
-	for (int i = 0; i < n; ++i) {
-		PropInfo* prop = &props[i];
-		pd->lua->pushInt(prop->type);
-		pd->lua->pushFloat(prop->pos.x);
-		pd->lua->pushFloat(prop->pos.y);
-		pd->lua->pushFloat(prop->pos.z);
-	}
-	return n * 4;
-}
-
 static int lib3d_clear_checkpoint(lua_State* L) {
-	Point3d pos;
-	for (int i = 0; i < 3; ++i) {
-		pos.v[i] = pd->lua->getArgFloat(i + 1);
-	}
+	Point3d* pos = getArgVec3(1);
 
-	clear_checkpoint(pos);
+	clear_checkpoint(*pos);
 
 	return 0;
 }
 
 static int lib3d_update_ground(lua_State* L) {
-	Point3d pos;
-	for (int i = 0; i < 3; ++i) {
-		pos.v[i] = pd->lua->getArgFloat(i + 1);
-	}
+	Point3d* pos = getArgVec3(1);
 
 	int slice_id;
 	char* pattern;
-	Point3d offset;
-	update_ground(&pos, &slice_id, &pattern,&offset);
+	Point3d* offset = pop_vec3();;
+	update_ground(*pos, &slice_id, &pattern, offset);
 
-	pd->lua->pushFloat(pos.z);
 	pd->lua->pushInt(slice_id);
 	pd->lua->pushString(pattern);
-	pd->lua->pushFloat(offset.x);
-	pd->lua->pushFloat(offset.y);
-	pd->lua->pushFloat(offset.z);
+	pushArgVec3(offset);
 
-	return 6;
+	return 3;
 }
 
 static int lib3d_add_render_prop(lua_State* L) {
 	int argc = 1;
 	const int id = pd->lua->getArgInt(argc++);
-	float m[MAT4x4];
-	for (int i = 0; i < MAT4x4; ++i) {
-		m[i] = pd->lua->getArgFloat(argc++);
-	}
+	Mat4* m = getArgMat4(argc++);
 
-	add_render_prop(id, m);
+	add_render_prop(id, *m);
 
 	return 0;
 }
 
 static int lib3d_collide(lua_State* L) {
 	int argc = 1;
-	Point3d pos;
-	for (int i = 0; i < 3; ++i) {
-		pos.v[i] = pd->lua->getArgFloat(argc++);
-	}
+
+	Point3d* pos = getArgVec3(argc++);
 	float radius = pd->lua->getArgFloat(argc++);
 
 	int out = 0;
-	collide(pos, radius, &out);
+	collide(*pos, radius, &out);
 
 	pd->lua->pushInt(out);
 	return 1;
@@ -330,9 +273,21 @@ static int lib3d_spawn_particle(lua_State* L) {
 	int argc = 1;
 	int id = pd->lua->getArgInt(argc++);
 	Point3d pos;
-	for (int i = 0; i < 3; ++i) {
-		pos.v[i] = pd->lua->getArgFloat(argc++);
+	if (pd->lua->getArgCount() == 2) {
+		// standard mode
+		Point3d* v = getArgVec3(argc++);
+		pos = *v;
 	}
+	else {
+		// local matrix + lerp a b
+		Mat4* m = getArgMat4(argc++);
+		Point3d* a = getArgVec3(argc++);
+		Point3d* b = getArgVec3(argc++);
+		Point3d tmp;
+		v_lerp(*a, *b, randf(), &tmp);
+		m_x_v(*m, tmp, &pos);
+	}
+
 	spawn_particle(id, pos);
 
 	return 0;
@@ -417,6 +372,7 @@ void lib3d_register(PlaydateAPI* playdate)
 	tracks_init(playdate);
 	particles_init(playdate);
 	drawables_init(playdate);
+	lua3dmath_init(playdate);
 
 	REGISTER_LUA_FUNC(make_ground);
 	REGISTER_LUA_FUNC(render_ground);
@@ -425,14 +381,13 @@ void lib3d_register(PlaydateAPI* playdate)
 	REGISTER_LUA_FUNC(get_face);
 	REGISTER_LUA_FUNC(clear_checkpoint);
 	REGISTER_LUA_FUNC(get_track_info);
-	REGISTER_LUA_FUNC(get_props);
 	REGISTER_LUA_FUNC(add_render_prop);
 	REGISTER_LUA_FUNC(collide);
 	REGISTER_LUA_FUNC(load_assets_async);
 	REGISTER_LUA_FUNC(update_ground);
 	REGISTER_LUA_FUNC(spawn_particle);
 	REGISTER_LUA_FUNC(clear_particles);
-
+	
 	if (!pd->lua->registerClass("lib3d.GroundParams", lib3D_GroundParams, NULL, 0, &err))
 		pd->system->logToConsole("%s:%i: registerClass failed, %s", __FILE__, __LINE__, err);	
 }

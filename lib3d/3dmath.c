@@ -33,13 +33,13 @@ void shuffle(int* array, size_t n)
 
 // vector helpers
 void make_v(const Point3d a, const Point3d b, Point3d* out) {
-    out->x = b.x - a.x;
-    out->y = b.y - a.y;
-    out->z = b.z - a.z;
+    out->v[0] = b.v[0] - a.v[0];
+    out->v[1] = b.v[1] - a.v[1];
+    out->v[2] = b.v[2] - a.v[2];
 }
 
-void v_normz(float* v) {
-    const float x = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+float v_normz(Point3d* v) {
+    const float x = v->x * v->x + v->y * v->y + v->z * v->z;
 
     //fast invsqrt approx
     Flint a = { .f = x };
@@ -51,28 +51,23 @@ void v_normz(float* v) {
     b = (3.0f - c * a.f) * 0.5f;
     a.f *= b;
 
-    v[0] *= a.f;
-    v[1] *= a.f;
-    v[2] *= a.f;
+    v->v[0] *= a.f;
+    v->v[1] *= a.f;
+    v->v[2] *= a.f;
+
+    return a.f;
 }
 
-void v_cross(const float* restrict a, const float* restrict b, float* restrict out) {
-    const float ax = a[0], ay = a[1], az = a[2];
-    const float bx = b[0], by = b[1], bz = b[2];
-    out[0] = ay * bz - az * by;
-    out[1] = az * bx - ax * bz;
-    out[2] = ax * by - ay * bx;
+void v_cross(const Point3d a, const Point3d b, Point3d* out) {
+    const float ax = a.v[0], ay = a.v[1], az = a.v[2];
+    const float bx = b.v[0], by = b.v[1], bz = b.v[2];
+    out->v[0] = ay * bz - az * by;
+    out->v[1] = az * bx - ax * bz;
+    out->v[2] = ax * by - ay * bx;
 }
 
-void m_x_v(const float* restrict m, const float* restrict v, float* restrict out) {
-    const float x = v[0], y = v[1], z = v[2];
-    out[0] = m[0] * x + m[4] * y + m[8] * z + m[12];
-    out[1] = m[1] * x + m[5] * y + m[9] * z + m[13];
-    out[2] = m[2] * x + m[6] * y + m[10] * z + m[14];
-}
-
-void m_x_m(const float* restrict a, const float* restrict b, float* restrict out) {
-    const float a11 = a[0], a12 = a[4], a13 = a[8], a21 = a[1], a22 = a[5], a23 = a[9], a31 = a[2], a32 = a[6], a33 = a[10];
+void m_x_m(const Mat4 a, const Mat4 b, Mat4 out) {
+    const float a11 = a[0], a12 = a[4], a13 = a[8], a21 = a[1],  a22 = a[5], a23 = a[9], a31 = a[2], a32 = a[6],  a33 = a[10];
     const float b11 = b[0], b12 = b[4], b13 = b[8], b14 = b[12], b21 = b[1], b22 = b[5], b23 = b[9], b24 = b[13], b31 = b[2], b32 = b[6], b33 = b[10], b34 = b[14];
 
     out[0] = a11 * b11 + a12 * b21 + a13 * b31;
@@ -96,41 +91,34 @@ void m_x_m(const float* restrict a, const float* restrict b, float* restrict out
     out[15] = 1.f;
 }
 
-void m_x_translate(const float* restrict a, const float* restrict pos, float* restrict out) {
+void m_x_translate(const Mat4 a, const Point3d pos, Mat4 out) {
     for (int i = 0; i < 12; i += 4) {
-        out[i] = a[i];
+        out[i] =     a[i];
         out[i + 1] = a[i + 1];
         out[i + 2] = a[i + 2];
         out[i + 3] = a[i + 3];
     }
 
-    const float x = pos[0], y = pos[1], z = pos[2];
+    const float x = pos.x, y = pos.y, z = pos.z;
     out[12] = a[0] * x + a[4] * y + a[8] * z + a[12];
     out[13] = a[1] * x + a[5] * y + a[9] * z + a[13];
     out[14] = a[2] * x + a[6] * y + a[10] * z + a[14];
 }
 
-void m_inv_x_v(const float* restrict m, const float* restrict v, float* restrict out) {
-    const float x = v[0] - m[12], y = v[1] - m[13], z = v[2] - m[14];
-    out[0] = m[0] * x + m[1] * y + m[2] * z;
-    out[1] = m[4] * x + m[5] * y + m[6] * z;
-    out[2] = m[8] * x + m[9] * y + m[10] * z;
+void m_inv_x_v(const Mat4 m, const Point3d v, Point3d* out) {
+    const float x = v.x - m[12], y = v.y - m[13], z = v.z - m[14];
+    out->v[0] = m[0] * x + m[1] * y + m[2] * z;
+    out->v[1] = m[4] * x + m[5] * y + m[6] * z;
+    out->v[2] = m[8] * x + m[9] * y + m[10] * z;
 }
 
-float v_dot(const float* restrict a, const float* restrict b) {
-    return
-        a[0] * b[0]
-        + a[1] * b[1]
-        + a[2] * b[2];
+void v_lerp(const Point3d a, const Point3d b, const float t, Point3d* out) {
+    out->v[0] = lerpf(a.v[0], b.v[0], t);
+    out->v[1] = lerpf(a.v[1], b.v[1], t);
+    out->v[2] = lerpf(a.v[2], b.v[2], t);
 }
 
-void v_lerp(const Point3d* restrict a, const Point3d* restrict b, const float t, Point3d* restrict out) {
-    out->x = lerpf(a->x, b->x, t);
-    out->y = lerpf(a->y, b->y, t);
-    out->z = lerpf(a->z, b->z, t);
-}
-
-void m_x_y_rot(const float* restrict a, const float angle, float* restrict out) {
+void m_x_y_rot(const Mat4 a, const float angle, Mat4 out) {
     const float c = cosf(angle), s = sinf(angle);
     const float a11 = a[0], a13 = a[8], a21 = a[1], a23 = a[9], a31 = a[2], a33 = a[10];
 

@@ -143,167 +143,34 @@ function clone(src)
 end
 
 -- vector tools
-function make_v(a,b)
-	return {
-		b[1]-a[1],
-		b[2]-a[2],
-		b[3]-a[3]}
-end
-function v_clone(v)
-	return {v[1],v[2],v[3]}
-end
-function v_dot(a,b)
-	return a[1]*b[1]+a[2]*b[2]+a[3]*b[3]
-end
-function v_scale(v,scale)
-	v[1]*=scale
-	v[2]*=scale
-	v[3]*=scale
-end
-function v_add(v,dv,scale)
-	scale=scale or 1
-	v[1]+=scale*dv[1]
-	v[2]+=scale*dv[2]
-	v[3]+=scale*dv[3]
-end
+local vec3 = lib3d.Vec3.new
+local v_clone = lib3d.Vec3.clone
+local v_dot = lib3d.Vec3.dot
+local v_scale = lib3d.Vec3.scale
+local v_add = lib3d.Vec3.add
+local v_len = lib3d.Vec3.length
+local v_dist = lib3d.Vec3.dist
+local v_normz = lib3d.Vec3.normz
+local v_lerp = lib3d.Vec3.lerp
+local v_move = lib3d.Vec3.move
+local v_zero = lib3d.Vec3.zero
+local v_up=vec3(0,1,0)
 
--- vector length
-function v_len(v)
-	local x,y,z=v[1],v[2],v[3]
-	return sqrt(x*x+y*y+z*z)
-end
-function v_normz(v)
-	local d=v_len(v)
-  if d==0 then return v end
-	v[1]/=d
-	v[2]/=d
-	v[3]/=d
-	return d
-end
-
-function v_lerp(a,b,t)
-	return {
-		lerp(a[1],b[1],t),
-		lerp(a[2],b[2],t),
-		lerp(a[3],b[3],t)
-	}
-end
-function v_cross(a,b)
-	local ax,ay,az=a[1],a[2],a[3]
-	local bx,by,bz=b[1],b[2],b[3]
-	return {ay*bz-az*by,az*bx-ax*bz,ax*by-ay*bx}
-end
-
-local v_up={0,1,0}
 
 -- matrix functions
-function m_x_v(m,v)
-	local x,y,z=v[1],v[2],v[3]
-	return {m[1]*x+m[5]*y+m[9]*z+m[13],m[2]*x+m[6]*y+m[10]*z+m[14],m[3]*x+m[7]*y+m[11]*z+m[15]}
-end
-function m_x_m(a,b)
-	local a11,a12,a13,a14=a[1],a[5],a[9],a[13]
-	local a21,a22,a23,a24=a[2],a[6],a[10],a[14]
-	local a31,a32,a33,a34=a[3],a[7],a[11],a[15]
-
-	local b11,b12,b13,b14=b[1],b[5],b[9],b[13]
-	local b21,b22,b23,b24=b[2],b[6],b[10],b[14]
-	local b31,b32,b33,b34=b[3],b[7],b[11],b[15]
-
-	return {
-			a11*b11+a12*b21+a13*b31,a21*b11+a22*b21+a23*b31,a31*b11+a32*b21+a33*b31,0,
-			a11*b12+a12*b22+a13*b32,a21*b12+a22*b22+a23*b32,a31*b12+a32*b22+a33*b32,0,
-			a11*b13+a12*b23+a13*b33,a21*b13+a22*b23+a23*b33,a31*b13+a32*b23+a33*b33,0,
-			a11*b14+a12*b24+a13*b34+a14,a21*b14+a22*b24+a23*b34+a24,a31*b14+a32*b24+a33*b34+a34,1
-		}
-end
-function make_m_z_rot(angle)
-	local c,s=cos(angle),-sin(angle)
-	return {
-		c,-s,0,0,
-		s,c,0,0,
-		0,0,1,0,
-		0,0,0,1
-	}
-end
-
-function make_m_x_rot(angle)
-	local c,s=cos(angle),-sin(angle)
-	return {
-		1,0,0,0,
-		0,c,-s,0,
-		0,s,c,0,
-		0,0,0,1
-	}
-end
-
-function make_m_y_rot(angle)
-	local c,s=cos(angle),-sin(angle)
-	return {
-		c,0,-s,0,
-		0,1,0,0,
-		s,0,c,0,
-		0,0,0,1
-	}
-end
-
-function make_m_from_v_angle(up,angle)
-	local fwd={-sin(angle),0,cos(angle)}
-	local right=v_cross(up,fwd)
-	v_normz(right)
-	fwd=v_cross(right,up)
-	return {
-		right[1],right[2],right[3],0,
-		up[1],up[2],up[3],0,
-		fwd[1],fwd[2],fwd[3],0,
-		0,0,0,1
-	}
-end
-
-function make_m_from_v(up)
-	local fwd={0,0,1}
-	local right={up[2],-up[1],0}
-	v_normz(right)
-	fwd=v_cross(right,up)
-	return {
-		right[1],right[2],right[3],0,
-		up[1],up[2],up[3],0,
-		fwd[1],fwd[2],fwd[3],0,
-		0,0,0,1
-	}
-end
-
-function make_m_lookat(from,to)
-	local fwd=make_v(from,to)
-	v_normz(fwd)
-	local right=v_cross(v_up,fwd)
-	v_normz(right)
-	local up=v_cross(fwd,right)
-	return {
-		right[1],right[2],right[3],0,
-		up[1],up[2],up[3],0,
-		fwd[1],fwd[2],fwd[3],0,
-		0,0,0,1
-	}
-end
-
--- only invert 3x3 part
-function m_inv(m)
-	m[2],m[5]=m[5],m[2]
-	m[3],m[9]=m[9],m[3]
-	m[7],m[10]=m[10],m[7]
-end
-
--- returns basis vectors from matrix
-function m_right(m)
-	return {m[1],m[2],m[3]}
-end
-function m_up(m)
-	return {m[5],m[6],m[7]}
-end
-function m_fwd(m)
-	return {m[9],m[10],m[11]}
-end
+local m_x_v = lib3d.Mat4.m_x_v
+local m_x_m = lib3d.Mat4.m_x_m
+local make_m_x_rot = lib3d.Mat4.make_m_x_rot
+local make_m_y_rot = lib3d.Mat4.make_m_y_rot
+local make_m_from_v_angle = lib3d.Mat4.make_m_from_v_angle
+local make_m_from_v = lib3d.Mat4.make_m_from_v
+local make_m_lookat = lib3d.Mat4.make_m_lookat
+local m_inv = lib3d.Mat4.m_inv
+local m_right = lib3d.Mat4.m_right
+local m_up = lib3d.Mat4.m_up
+local m_fwd = lib3d.Mat4.m_fwd
+local m_inv_translate = lib3d.Mat4.m_inv_translate
+local m_translate = lib3d.Mat4.m_translate
 
 -- main engine
 -- global vars
@@ -328,31 +195,25 @@ end
 -- camera
 function make_cam(pos)
 	--
-	local up={0,1,0}
+	local up=vec3(0,1,0)
 
 	camera()
 
 	return {
-		pos=pos and v_clone(pos) or {0,0,0},
+		pos=pos and v_clone(pos) or vec3(0,0,0),
 		angle=0,
 		m=make_m_from_v_angle(v_up,0),
 		update=function()
 			screen:update()
 			camera(shkx,shky)
 		end,
-
 		look=function(self,to)
 			local pos=self.pos
 			local m=make_m_lookat(pos,to)
 			-- inverse view matrix
 			m_inv(m)
-			self.m=m_x_m(m,{
-				1,0,0,0,
-				0,1,0,0,
-				0,0,1,0,
-				-pos[1],-pos[2],-pos[3],1
-			})
-			
+			m_inv_translate(m,pos)
+			self.m=m
 			self.pos=pos
 		end,
 		track=function(self,pos,a,u,power,snap)
@@ -360,7 +221,7 @@ function make_cam(pos)
    		-- lerp angle
 			self.angle=lerp(self.angle,a,power or 0.8)
 			-- lerp orientation (or snap to angle)
-			up=v_lerp(up,u,snap or 0.1)
+			v_move(up,u,snap or 0.1)
 			v_normz(up)
 
 			-- shift cam position			
@@ -371,14 +232,10 @@ function make_cam(pos)
 			
 			-- inverse view matrix
 			m_inv(m)
-			self.m=m_x_m(m,{
-				1,0,0,0,
-				0,1,0,0,
-				0,0,1,0,
-				-pos[1],-pos[2],-pos[3],1
-			})
+			m_inv_translate(m,pos)
 			
-			self.pos=pos
+			self.pos = pos
+			self.m = m
 		end,
 		project2d=function(self,v)
 			local w=199.5/v[3]
@@ -390,14 +247,15 @@ end
 -- basic gravity+slope physic body
 function make_body(p,angle)
 	-- last contact face
-	local up,oldf={0,1,0}
+	local up,oldf=vec3(0,1,0)
 
-	local velocity,angularv,forces,torque={0,0,0},0,{0,0,0},0
+	local velocity,angularv,forces,torque=vec3(0,0,0),0,vec3(0,0,0),0
 	local boost,perm_boost=0,0
 	local steering_angle=0
 	angle=angle or 0
-
-	local g={0,-4,0}
+	
+	local no_force=vec3(0,0,0)
+	local g=vec3(0,-4,0)
 	return {
 		pos=v_clone(p),
 		on_ground=nil,
@@ -461,7 +319,8 @@ function make_body(p,angle)
 			angle+=angularv
 
 			-- reset
-			forces,torque={0,0,0},0
+			v_zero(forces)
+			torque=0
 		end,
 		steer=function(self,steering_dt)
 			-- stiff direction when boosting!
@@ -503,7 +362,7 @@ function make_body(p,angle)
 					self:apply_force_and_torque(right,-steering_angle*ski_len/4)
 				end
 			elseif not self.on_ground then
-				self:apply_force_and_torque({0,0,0},-steering_angle/4)
+				self:apply_force_and_torque(no_force,-steering_angle/4)
 			end			
 		end,
 		update=function(self)
@@ -579,7 +438,7 @@ function make_plyr(p,on_trick)
 			air_t=0
 
 			if jump_ttl>8 and playdate.buttonJustPressed(_input.action.id) then
-				self:apply_force_and_torque({0,63,0},0)
+				self:apply_force_and_torque(vec3(0,63,0),0)
 				jump_ttl=0
 			end
 		else
@@ -648,7 +507,7 @@ function make_plyr(p,on_trick)
 		self.on_track=pos[1]>=slice.xmin and pos[1]<=slice.xmax
 		
 		-- need to have some speed
-		if v_dot(velocity,{-sin(angle),0,cos(angle)})<-0.2 then
+		if v_dot(velocity,vec3(-sin(angle),0,cos(angle)))<-0.2 then
 			reverse_t+=1
 		else
 			reverse_t=0
@@ -706,7 +565,7 @@ function make_jinx(id,pos,velocity,params)
 
 			-- distance to player
 			if _plyr then
-				local dist=v_len(make_v(pos,_plyr.pos))
+				local dist=v_dist(pos,_plyr.pos)
 				if dist<params.radius then
 					params.effect()
 					return
@@ -714,14 +573,11 @@ function make_jinx(id,pos,velocity,params)
 			end
 
 			if params.particle and rnd()>0.1 then
-				lib3d.spawn_particle(params.particle, table.unpack(pos))
+				lib3d.spawn_particle(params.particle, pos)
 			end
 	
-			local m=self.m
-			m[13]=pos[1]
-			m[14]=pos[2]
-			m[15]=pos[3]			
-			self.m = m
+			m_translate(self.m,pos)
+
 			return true
 		end
 	}
@@ -729,7 +585,7 @@ end
 
 function make_npc(p,cam)
 	local body=make_body(p,0)
-	local up={0,1,0}
+	local up=vec3(0,1,0)
 	local dir,boost=0,0
 	local boost_ttl=0
 	local jinx_ttl=90
@@ -742,7 +598,7 @@ function make_npc(p,cam)
 	local jinxes={
 		-- dynamite
 		function(pos)
-			add(_actors,make_jinx(models.PROP_DYNAMITE, pos, {0,2,-0.1}, {
+			add(_actors,make_jinx(models.PROP_DYNAMITE, pos, vec3(0,2,-0.1), {
 				particle=1,
 				radius=3,
 				effect=function()
@@ -753,7 +609,7 @@ function make_npc(p,cam)
 		end,
 		-- reverse!
 		function(pos)
-			add(_actors,make_jinx(models.PROP_INVERT, pos, {0,2,-0.1}, {
+			add(_actors,make_jinx(models.PROP_INVERT, pos, vec3(0,2,-0.1), {
 				radius=2,
 				effect=function()
 					if _plyr then 
@@ -765,7 +621,7 @@ function make_npc(p,cam)
 		end,
 		-- coin!
 		function(pos)
-			add(_actors,make_jinx(models.PROP_COIN, pos, {0,2,-0.1}, {
+			add(_actors,make_jinx(models.PROP_COIN, pos, vec3(0,2,-0.1), {
 				radius=2,
 				effect=function()
 					if _plyr then _plyr.on_coin(1) end
@@ -831,30 +687,25 @@ function make_npc(p,cam)
 
 		-- create orientation matrix
 		local newy,newn=_ground:find_face(pos)
-		up=v_lerp(up,newn,0.3)
+		v_move(up,newn,0.3)
 		local _,angle=self:get_pos()
 		local m=make_m_from_v_angle(up,angle)
-		m[13]=pos[1]
-		m[14]=pos[2]
-		m[15]=pos[3]
-
-		self.m = m
+		m_translate(m,pos)
 
 		-- spawn particles
 		if self.on_ground and abs(dir)>0.04 and rnd()>0.1 then
-			local v=m_x_v(m,v_lerp(vgroups.SKIER_LEFT_SKI,vgroups.SKIER_RIGHT_SKI,rnd()))
-			
-			lib3d.spawn_particle(0, table.unpack(v))
+			lib3d.spawn_particle(0, m, vgroups.SKIER_LEFT_SKI,vgroups.SKIER_RIGHT_SKI)
 		end
 
 		-- update sfx
 		local volume=self.on_ground and 1 or 0
 		-- distance to camera
-		local dist=v_len(make_v(self.pos,cam.pos))
+		local dist=v_dist(self.pos,cam.pos)
 		if dist<4 then dist=4 end
 		sfx:setVolume(volume*4/dist)
 		sfx:setRate(1-abs(da/2))
 
+		self.m = m
 		return true
 	end
 
@@ -868,7 +719,7 @@ function make_snowball(pos)
 	local body_update=body.update
 	local base_angle=rnd()
 	local angle=rnd()
-	local n={cos(angle),0,sin(angle)}
+	local n=vec3(cos(angle),0,sin(angle))
 	body.pre_update=function(self)		
 
 		-- physic update
@@ -877,7 +728,7 @@ function make_snowball(pos)
 	end
 	body.hit=function()
 		angle=rnd()
-		n={cos(angle),0,sin(angle)}
+		n=vec3(cos(angle),0,sin(angle))
 	end
 	body.update=function(self)
 		local pos=self.pos
@@ -928,6 +779,7 @@ function loading_state()
 		end
 		next_state(menu_state)
 		--next_state(bench_state)
+		--next_state(vec3_test)
 	end)
 
 	return 
@@ -1016,8 +868,8 @@ function menu_state(angle)
 	local actors={}
 
 	-- menu cam	
-	local look_at = {0,0,1}
-	local cam=make_cam({0,0.8,-0.5})
+	local look_at = vec3(0,0,1)
+	local cam=make_cam(vec3(0,0.8,-0.5))
 
 	-- clean up
 	local music = playdate.sound.fileplayer.new("sounds/alps_polka")
@@ -1041,20 +893,17 @@ function menu_state(angle)
 	local angle = angle or 0
 	add(actors,{
 		id=models.PROP_MOUNTAIN,
-		pos={0.5,0,1},
-		m={
-			1,0,0,0,
-			0,1,0,0,
-			0,0,1,0,
-			0.5,0,1,1},
+		pos=vec3(0.5,0,1),
 		update=function(self)
 			local m
 			if starting then
 				local panel = panels[sel+1]
 				-- project location into world space
 				local world_loc = m_x_v(self.m,panel.loc)
-				local dir=make_v(cam.pos,world_loc)
-				dir[2] = 0
+				local dir=vec3(
+					world_loc[1] - cam.pos[1],
+					0,
+					world_loc[3] - cam.pos[3])
 				v_normz(dir)
 				local right=m_right(self.m)
 				right[2] = 0
@@ -1077,11 +926,7 @@ function menu_state(angle)
 				
 				m = make_m_y_rot(angle)
 			end
-
-			local pos=self.pos
-			m[13]=pos[1]
-			m[14]=pos[2]
-			m[15]=pos[3]
+			m_translate(m,self.pos)
 
 			self.m=m
 		end
@@ -1116,8 +961,8 @@ function menu_state(angle)
 					local world_loc = m_x_v(actors[1].m,panel.loc)		
 					for i=1,30 do
 						scale = lerp(scale,1.8,0.1)
-						cam.pos=v_lerp(cam.pos, {0.5,0.5,-0.75},0.1)
-						look_at=v_lerp(look_at,world_loc,0.1)
+						v_move(cam.pos, vec3(0.5,0.5,-0.75),0.1)
+						v_move(look_at,world_loc,0.1)
 						coroutine.yield()
 					end
 					music:stop()
@@ -1158,9 +1003,9 @@ function menu_state(angle)
 			cls(gfx.kColorWhite)
 			
 			for _,a in pairs(actors) do
-				lib3d.add_render_prop(a.id,table.unpack(a.m))
+				lib3d.add_render_prop(a.id,a.m)
 			end
-			lib3d.render_props(cam.pos[1],cam.pos[2],cam.pos[3],table.unpack(cam.m))
+			lib3d.render_props(cam.pos,cam.m)
 
 			if not starting then
 
@@ -1229,22 +1074,14 @@ function menu_zoomout_state(cam_pos, look_at, scale, angle)
 
 	local mountain_actor={
 		id=models.PROP_MOUNTAIN,
-		pos={0.5,0,1},
-		m={
-			1,0,0,0,
-			0,1,0,0,
-			0,0,1,0,
-			0.5,0,1,1},
+		pos=vec3(0.5,0,1),
 		update=function(self)
 			local m=make_m_y_rot(angle)
 			m[1]  = scale
 			m[6]  = scale
 			m[11] = scale
 
-			local pos=self.pos
-			m[13]=pos[1]
-			m[14]=pos[2]
-			m[15]=pos[3]
+			m_translate(m,self.pos)
 			self.m=m
 		end
 	}
@@ -1254,8 +1091,8 @@ function menu_zoomout_state(cam_pos, look_at, scale, angle)
 		for i=1,30 do
 			local t=(i-1)/30
 			scale=lerp(s,1,t)
-			cam.pos=v_lerp(cam.pos,{0,0.8,-0.5},0.2)
-			look_at=v_lerp(look_at,{0,0,1},0.2)
+			v_move(cam.pos,vec3(0,0.8,-0.5),0.2)
+			v_move(look_at,vec3(0,0,1),0.2)
 			coroutine.yield()
 		end
 		next_state(menu_state, angle)
@@ -1272,8 +1109,8 @@ function menu_zoomout_state(cam_pos, look_at, scale, angle)
 		function()
 			cls(gfx.kColorWhite)
 			
-			lib3d.add_render_prop(mountain_actor.id,table.unpack(mountain_actor.m))
-			lib3d.render_props(cam.pos[1],cam.pos[2],cam.pos[3],table.unpack(cam.m))
+			lib3d.add_render_prop(mountain_actor.id,mountain_actor.m)
+			lib3d.render_props(cam.pos,cam.m)
 
 		end		
 end
@@ -1454,7 +1291,7 @@ end
 -- generic static prop
 function make_static_actor(id,x,sfx_name,update)
 	return function(lane,cam)
-		local pos={x or (lane+0.5)*4,-16,_ground_height - 2}
+		local pos=vec3(x or (lane+0.5)*4,-16,_ground_height - 2)
 		local y=_ground:find_face(pos)
 		pos[2]=y
 		-- sfx?
@@ -1466,11 +1303,7 @@ function make_static_actor(id,x,sfx_name,update)
 		return {
 			id=id,
 			pos=pos,
-			m={
-				1,0,0,0,
-				0,1,0,0,
-				0,0,1,0,
-				0,0,0,1},
+			m=make_m_from_v(v_up),
 			update=function(self)
 				local pos=self.pos
 				-- out of landscape?
@@ -1482,19 +1315,16 @@ function make_static_actor(id,x,sfx_name,update)
 				end
 
 				-- update pos?
-				local m=self.m
 				if update then					
 					update(pos)
 				end
 				-- if sound
 				if sfx then
-					local d=v_len(make_v(pos,cam.pos))
+					local d=v_dist(pos,cam.pos)
 					if d<16 then d=16 end
 					sfx:setVolume(16/d)
 				end
-				m[13]=pos[1]
-				m[14]=pos[2]
-				m[15]=pos[3]
+				m_translate(self.m,pos)
 				return true
 			end
 		}
@@ -1509,7 +1339,7 @@ function make_command_handlers(custom)
 			local y_velocity,z_velocity = 0,1.5
 			local y_force,on_ground = 0
 			local base_angle = rnd()
-			local pos={(lane+0.5)*4,0,0.5}
+			local pos=vec3((lane+0.5)*4,0,0.5)
 			local prev_pos=v_clone(pos)
 			-- helper
 			local function v2_sqrlen(x,z,b)
@@ -1586,7 +1416,7 @@ function make_command_handlers(custom)
 		end,
 		-- skidoo
 		K=function(lane,cam)
-			local pos={(lane+0.5)*4,-16,_ground_height-2}
+			local pos=vec((lane+0.5)*4,-16,_ground_height-2)
 			-- sfx
 			local sfx = _skidoo_sfx:copy()
 			sfx:setOffset(rnd())
@@ -1617,11 +1447,11 @@ function make_command_handlers(custom)
 					-- spawn particles
 					if rnd()>0.2 then
 						local v=m_x_v(m,v_lerp(vgroups.SKIDOO_LTRACK,vgroups.SKIDOO_RTRACK,rnd()))					
-						lib3d.spawn_particle(0, table.unpack(v))
+						lib3d.spawn_particle(0, v)
 					end
 
 					-- distance to camera
-					local dist=v_len(make_v(self.pos,cam.pos))
+					local dist=v_dist(self.pos,cam.pos)
 					if dist<32 then dist=32 end
 					sfx:setVolume(32/dist)
 
@@ -1653,13 +1483,26 @@ end
 -- bench mode
 function bench_state()
 	_ground = make_ground({slope=2,twist=4,num_tracks=1,tight_mode=0,props_rate=0.87,track_type=0,min_cooldown=8,max_cooldown=12})
-	local pos={15.5*4,-16,12.5*4}
+	print("ground ok")
+	local pos=vec3(15.5*4,-16,12.5*4)
+	print("new pos")
 	local newy,newn=_ground:find_face(pos)
-	pos[2]=newy+1
+	print("location: "..newy)
+	pos[2]=newy+1	
 	local cam=make_cam()
-	local u={0,0.9,1}
+	print("cam ok")
+	local u=vec3(0,0.9,1)
 	v_normz(u)
+	print("normz ok")
 	cam:track(pos,0,u,1,1)
+	
+	for j=0,3 do
+		local s=""
+		for i=0,3 do
+			s=s.." "..cam.m[j*4+i+1]
+		end
+		print(s)
+	end
 
 	return 
 		-- update
@@ -1667,6 +1510,35 @@ function bench_state()
 		-- draw
 		function()
 			_ground:draw(cam)
+		end
+end
+
+function vec3_test()
+	local vecs={}
+	return
+		-- update
+		function()
+			if playdate.buttonJustReleased(playdate.kButtonA) then
+				add(vecs,lib3d.Vec3.new(rnd(),rnd(),rnd()))
+			end
+			if playdate.buttonJustReleased(playdate.kButtonB) then
+				table.remove(vecs)
+			end
+		end,
+		-- draw
+		function()
+			cls(gfx.kColorWhite)
+			local out=lib3d.Vec3.new()
+			local y=0
+			for i=1,#vecs do
+				local v=vecs[i]
+				print_small(v[1].." "..v[2].." "..v[3],2,y,gfx.kColorBlack);
+				lib3d.Vec3.add(out,v,-1)
+				y+=11
+			end
+			print_small("--------------------------",2,y,gfx.kColorBlack);
+			y+=11
+			print_small(out[1].." "..out[2].." "..out[3],2,y,gfx.kColorBlack);
 		end
 end
 
@@ -1756,12 +1628,9 @@ function play_state(params,help_ttl)
 			end
 
 			-- adjust ground
-			local z,slice_id,commands,wx,wy,wz = _ground:update(_tracked.pos)
-			local offset={0,wy,wz}
+			local slice_id,commands,offset = _ground:update(_tracked.pos)
 			if _plyr then
-				-- player position is already "corrected"
-				_plyr.pos[2]+=wy
-				_plyr.pos[3]=z
+				v_add(_plyr.pos,offset)
 			end
 
 			if _plyr then
@@ -1811,7 +1680,6 @@ function play_state(params,help_ttl)
 				end
 			end
 
-			local offset={0,wy,wz}
 			for i=#_actors,1,-1 do
 				local a=_actors[i]
 				if a.shift then
@@ -1826,7 +1694,7 @@ function play_state(params,help_ttl)
 			if _plyr then
 				local pos,a,steering=_plyr:get_pos()
 				local up=_plyr:get_up()
-				cam:track({pos[1],pos[2]+0.5,pos[3]},a,up)
+				cam:track(vec3(pos[1],pos[2]+0.5,pos[3]),a,up)
 
 				if _plyr.dead then
 					_ski_sfx:stop()
@@ -1956,7 +1824,7 @@ function race_state(params)
 	local cam=make_cam()
 	local make_helo=function(lane,cam)
 		droping_in=true
-		local pos={(lane+0.5)*4,-16,4}
+		local pos=vec3((lane+0.5)*4,-16,4)
 		local y=_ground:find_face(pos)
 		pos[2]=y+16
 		-- sfx?
@@ -1994,14 +1862,11 @@ function race_state(params)
 						add(_actors,npc)
 					end)
 				end
-				local d=v_len(make_v(pos,cam.pos))
+				local d=v_dist(pos,cam.pos)
 				if d<16 then d=16 end
 				_helo_sfx:setVolume(16/d)
 
-				local m=self.m
-				m[13]=pos[1]
-				m[14]=pos[2]
-				m[15]=pos[3]
+				m_translate(self.m,pos)
 				return true
 			end
 		}
@@ -2023,7 +1888,7 @@ function race_state(params)
 			dropped=true
 			local y=0
 			if _plyr then y=_plr.pos[2]+12 end
-			npc=make_npc({(lane+0.5)*4,y,4},cam)
+			npc=make_npc(vec3((lane+0.5)*4,y,4),cam)
 			return npc
 		end
 	}
@@ -2122,7 +1987,7 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 				screen:shake()
 			end
 			-- keep camera off side walls
-			cam:track({mid(p[1],8,29*4),p[2],p[3]+16},0.5,v_up,0.2)
+			cam:track(vec3(mid(p[1],8,29*4),p[2],p[3]+16),0.5,v_up,0.2)
 
 			if playdate.buttonJustReleased(_input.back.id) then
 				next_state(zoomin_state,menu_state)
@@ -2306,23 +2171,22 @@ function make_ground(params)
 	return {		
 		_gp = gp,
 		get_pos=function(self)
-			return {lib3d.get_start_pos()}
+			return lib3d.get_start_pos()
 		end,
 		update=function(self,p)
-			return lib3d.update_ground(table.unpack(p))
+			return lib3d.update_ground(p)
 		end,
 		draw=function(self,cam,blink_mask)
-			lib3d.render_ground(cam.pos[1],cam.pos[2],cam.pos[3],cam.angle%1,blink_mask,table.unpack(cam.m))
+			lib3d.render_ground(cam.pos,cam.angle%1,blink_mask,cam.m)
 		end,
 		draw_props=function(self,cam)
-			lib3d.render_props(cam.pos[1],cam.pos[2],cam.pos[3],table.unpack(cam.m))
+			lib3d.render_props(cam.pos,cam.m)
 		end,
 		find_face=function(self,p)
-			local y,nx,ny,nz=lib3d.get_face(table.unpack(p))
-			return y, {nx,ny,nz}
+			return lib3d.get_face(p)
 		end,
 		get_track=function(self,p)
-			local xmin,xmax,z,checkpoint,angle = lib3d.get_track_info(table.unpack(p))
+			local xmin,xmax,z,checkpoint,angle = lib3d.get_track_info(p)
 			return {
 				xmin=xmin,
 				xmax=xmax,
@@ -2331,33 +2195,19 @@ function make_ground(params)
 				angle=angle
 			}
 		end,
-		get_props=function(self,p)
-			-- layout: 
-			-- type: int
-			-- coords float x 3
-			local props = {lib3d.get_props(table.unpack(p))}
-			local out={}
-			for i=1,#props,4 do
-				add(out,{
-					type = props[i],
-					pos = {props[i+1],props[i+2],props[i+3]}
-				})				
-			end
-			return out
-		end,
 		clear_checkpoint=function(self,p)
-			lib3d.clear_checkpoint(table.unpack(p))
+			lib3d.clear_checkpoint(p)
 		end,
 		-- find all actors within a given radius from given position
 		collide=function(self,p,r)
-			local hit_type = lib3d.collide(p[1],p[2],p[3],r)
+			local hit_type = lib3d.collide(p,r)
 			return hit_type>0 and hit_type
 		end,
 		update_snowball=function(self,p,r)
-			lib3d.update_snowball(p[1],p[2],p[3],r)
+			lib3d.update_snowball(p,r)
 		end,
 		add_render_prop=function(self,id,m)
-			lib3d.add_render_prop(id,table.unpack(m))
+			lib3d.add_render_prop(id,m)
 		end
 	}
 end
