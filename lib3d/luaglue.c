@@ -272,9 +272,23 @@ static int lib3d_load_assets_async(lua_State* L) {
 static int lib3d_spawn_particle(lua_State* L) {
 	int argc = 1;
 	int id = pd->lua->getArgInt(argc++);
-	Point3d* pos = getArgVec3(argc++);
+	Point3d pos;
+	if (pd->lua->getArgCount() == 2) {
+		// standard mode
+		Point3d* v = getArgVec3(argc++);
+		pos = *v;
+	}
+	else {
+		// local matrix + lerp a b
+		Mat4* m = getArgMat4(argc++);
+		Point3d* a = getArgVec3(argc++);
+		Point3d* b = getArgVec3(argc++);
+		Point3d tmp;
+		v_lerp(*a, *b, randf(), &tmp);
+		m_x_v(*m, tmp, &pos);
+	}
 
-	spawn_particle(id, *pos);
+	spawn_particle(id, pos);
 
 	return 0;
 }
@@ -373,7 +387,7 @@ void lib3d_register(PlaydateAPI* playdate)
 	REGISTER_LUA_FUNC(update_ground);
 	REGISTER_LUA_FUNC(spawn_particle);
 	REGISTER_LUA_FUNC(clear_particles);
-
+	
 	if (!pd->lua->registerClass("lib3d.GroundParams", lib3D_GroundParams, NULL, 0, &err))
 		pd->system->logToConsole("%s:%i: registerClass failed, %s", __FILE__, __LINE__, err);	
 }

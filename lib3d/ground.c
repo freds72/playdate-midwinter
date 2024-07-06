@@ -523,7 +523,7 @@ void collide(const Point3d pos, float radius, int* hit_type)
     radius *= radius;
 
     // check all 9 cells(overkill but faster)
-    float tilez = 0.f;
+    float tilez = (float)(j0 - 1) * GROUND_CELL_SIZE;
     for (int j = j0 - 1; j < j0 + 2; j++, tilez += GROUND_CELL_SIZE) {
         if (j >= 0 && j < GROUND_HEIGHT) {
             GroundSlice* s0 = _ground.slices[j];
@@ -531,7 +531,7 @@ void collide(const Point3d pos, float radius, int* hit_type)
             for (int i = i0 - 1; i < i0 + 2; i++, tilex += GROUND_CELL_SIZE) {
                 if (i >= 0 && i < GROUND_WIDTH) {
                     GroundTile* t0 = &s0->tiles[i];
-                    int id = t0->prop_id;
+                    const int id = t0->prop_id;
                     // collidable actor ?
                     if (id) {
                         PropProperties* props = &_props_properties[id - 1];

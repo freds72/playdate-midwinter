@@ -694,9 +694,7 @@ function make_npc(p,cam)
 
 		-- spawn particles
 		if self.on_ground and abs(dir)>0.04 and rnd()>0.1 then
-			local v=m_x_v(m,v_lerp(vgroups.SKIER_LEFT_SKI,vgroups.SKIER_RIGHT_SKI,rnd()))
-			
-			lib3d.spawn_particle(0, v)
+			lib3d.spawn_particle(0, m, vgroups.SKIER_LEFT_SKI,vgroups.SKIER_RIGHT_SKI)
 		end
 
 		-- update sfx
