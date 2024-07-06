@@ -5,6 +5,8 @@
 #include "3dmath.h"
 
 void userdata_init(PlaydateAPI* playdate);
+void userdata_stats(int* vlen, int* vmax, int* mlen, int* mmax);
+
 // pop a vec3 from the buffer
 Point3d* pop_vec3();
 // restores a vec3 pointer

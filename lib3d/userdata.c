@@ -27,21 +27,18 @@ static void pool_init(FloatPool* pool, float* buffer) {
 }
 
 static float* pop_float(FloatPool* pool) {
-    if (pool->cursor == pool->size) {
-        pd->system->error("Vec3 pool exhausted");
+    if (pool->cursor >= pool->size) {
+        pd->system->error("Pool: %s exhausted",pool->id);
         return NULL;
     }
-    const int i = pool->cursor;
-    pool->cursor += pool->stride;
-    return pool->ptr[i];
+    return pool->ptr[pool->cursor++];
 }
 
 static void push_float(FloatPool* pool, float* p) {
-    if (pool->cursor == 0) {
+    if (pool->cursor <= 0) {
         pd->system->error("Pool: %s underflow", pool->id);
     }
-    pool->cursor -= pool->stride;
-    pool->ptr[pool->cursor] = p;    
+    pool->ptr[--pool->cursor] = p;    
 }
 
 // api
@@ -67,4 +64,12 @@ void userdata_init(PlaydateAPI* playdate) {
     // attach pool to poointers
     pool_init(&vec3_pool, vec3_pool_values);
     pool_init(&mat4_pool, mat4_pool_values);
+}
+
+void userdata_stats(int* vlen, int* vmax, int* mlen,int *mmax) {
+    *vlen = vec3_pool.cursor;
+    *vmax = vec3_pool.size;
+
+    *mlen = mat4_pool.cursor;
+    *mmax = mat4_pool.size;
 }

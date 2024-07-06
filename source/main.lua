@@ -169,6 +169,7 @@ local m_inv = lib3d.Mat4.m_inv
 local m_right = lib3d.Mat4.m_right
 local m_up = lib3d.Mat4.m_up
 local m_fwd = lib3d.Mat4.m_fwd
+local m_inv_translate = lib3d.Mat4.m_inv_translate
 local m_translate = lib3d.Mat4.m_translate
 
 -- main engine
@@ -211,7 +212,7 @@ function make_cam(pos)
 			local m=make_m_lookat(pos,to)
 			-- inverse view matrix
 			m_inv(m)
-			m_translate(m,pos)
+			m_inv_translate(m,pos)
 			self.m=m
 			self.pos=pos
 		end,
@@ -231,7 +232,7 @@ function make_cam(pos)
 			
 			-- inverse view matrix
 			m_inv(m)
-			m_translate(m,pos)
+			m_inv_translate(m,pos)
 			
 			self.pos = pos
 			self.m = m
@@ -572,14 +573,11 @@ function make_jinx(id,pos,velocity,params)
 			end
 
 			if params.particle and rnd()>0.1 then
-				lib3d.spawn_particle(params.particle, table.unpack(pos))
+				lib3d.spawn_particle(params.particle, pos)
 			end
 	
-			local m=self.m
-			m[13]=pos[1]
-			m[14]=pos[2]
-			m[15]=pos[3]			
-			self.m = m
+			m_translate(self.m,pos)
+
 			return true
 		end
 	}
@@ -692,11 +690,7 @@ function make_npc(p,cam)
 		v_move(up,newn,0.3)
 		local _,angle=self:get_pos()
 		local m=make_m_from_v_angle(up,angle)
-		m[13]=pos[1]
-		m[14]=pos[2]
-		m[15]=pos[3]
-
-		self.m = m
+		m_translate(m,pos)
 
 		-- spawn particles
 		if self.on_ground and abs(dir)>0.04 and rnd()>0.1 then
@@ -708,11 +702,12 @@ function make_npc(p,cam)
 		-- update sfx
 		local volume=self.on_ground and 1 or 0
 		-- distance to camera
-		local dist=v_len(make_v(self.pos,cam.pos))
+		local dist=v_dist(self.pos,cam.pos)
 		if dist<4 then dist=4 end
 		sfx:setVolume(volume*4/dist)
 		sfx:setRate(1-abs(da/2))
 
+		self.m = m
 		return true
 	end
 
@@ -933,11 +928,7 @@ function menu_state(angle)
 				
 				m = make_m_y_rot(angle)
 			end
-
-			local pos=self.pos
-			m[13]=pos[1]
-			m[14]=pos[2]
-			m[15]=pos[3]
+			m_translate(m,self.pos)
 
 			self.m=m
 		end
@@ -1092,10 +1083,7 @@ function menu_zoomout_state(cam_pos, look_at, scale, angle)
 			m[6]  = scale
 			m[11] = scale
 
-			local pos=self.pos
-			m[13]=pos[1]
-			m[14]=pos[2]
-			m[15]=pos[3]
+			m_translate(m,self.pos)
 			self.m=m
 		end
 	}
@@ -1338,10 +1326,7 @@ function make_static_actor(id,x,sfx_name,update)
 					if d<16 then d=16 end
 					sfx:setVolume(16/d)
 				end
-				local m=self.m
-				m[13]=pos[1]
-				m[14]=pos[2]
-				m[15]=pos[3]
+				m_translate(self.m,pos)
 				return true
 			end
 		}
@@ -1879,14 +1864,11 @@ function race_state(params)
 						add(_actors,npc)
 					end)
 				end
-				local d=v_len(make_v(pos,cam.pos))
+				local d=v_dist(pos,cam.pos)
 				if d<16 then d=16 end
 				_helo_sfx:setVolume(16/d)
 
-				local m=self.m
-				m[13]=pos[1]
-				m[14]=pos[2]
-				m[15]=pos[3]
+				m_translate(self.m,pos)
 				return true
 			end
 		}

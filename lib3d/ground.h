@@ -49,7 +49,7 @@ void collide(Point3d pos, float radius, int* hit_type);
 void render_ground(const Point3d pos, const float tau_angle, const Mat4 m, uint32_t blink, uint8_t* bitmap);
 
 // register a new "free" prop to be rendered using the given transformation matrix
-void add_render_prop(int id, const Mat4 m);
+void add_render_prop(const int id, const Mat4 m);
 
 // render "free" props
 void render_props(const Point3d pos, const Mat4 m, uint8_t* bitmap);

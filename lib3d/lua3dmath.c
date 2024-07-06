@@ -428,21 +428,31 @@ static int mat4_fwd(lua_State* L) {
 	return 1;
 }
 
-static int mat4_m_x_translate(lua_State* L) {
+static int mat4_m_x_inv_translate(lua_State* L) {
 	int argc = 1;
 	Mat4* m = getArgMat4(argc++);
 	Point3d* v = getArgVec3(argc++);
 
-	Mat4* p = pop_mat4();
+	Mat4 p;
 	m_x_m(*m, (Mat4) {
 		1.f, 0.f, 0.f, 0.f,
 		0.f, 1.f, 0.f, 0.f,
 		0.f, 0.f, 1.f, 0.f,
 		-v->x, -v->y, -v->z, 1.f
-	}, *p);
-	memcpy(*m, *p, sizeof(Mat4));
+	}, p);
+	memcpy(*m, p, sizeof(Mat4));
 
-	push_mat4(p);
+	return 0;
+}
+
+static int mat4_translate(lua_State* L) {
+	int argc = 1;
+	Mat4* m = getArgMat4(argc++);
+	Point3d* v = getArgVec3(argc++);
+
+	(*m)[12] = v->x;
+	(*m)[13] = v->y;
+	(*m)[14] = v->z;
 
 	return 0;
 }
@@ -484,7 +494,8 @@ static const lua_reg _mat4_methods[] =
 	{ "m_right",				mat4_right },
 	{ "m_up",					mat4_up },
 	{ "m_fwd",					mat4_fwd },
-	{ "m_translate",			mat4_m_x_translate },
+	{ "m_inv_translate",		mat4_m_x_inv_translate },
+	{ "m_translate",			mat4_translate },
 	{ NULL,						NULL }
 };
 

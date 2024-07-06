@@ -134,6 +134,11 @@ static int lib3d_render_ground(lua_State* L)
 
 	render_ground(*cam_pos, tau_angle, *m, blink, bitmap);
 
+	// get userdata stats
+	int vlen, vmax, mlen, mmax;
+	userdata_stats(&vlen, &vmax, &mlen, &mmax);
+	pd->system->logToConsole("vec pool: %i/%i matrix pool: %i/%i", vlen, vmax, mlen, mmax);
+
     pd->graphics->markUpdatedRows(0, LCD_ROWS - 1);
 
 	return 0;
@@ -234,7 +239,7 @@ static int lib3d_add_render_prop(lua_State* L) {
 	const int id = pd->lua->getArgInt(argc++);
 	Mat4* m = getArgMat4(argc++);
 
-	add_render_prop(id, m);
+	add_render_prop(id, *m);
 
 	return 0;
 }
@@ -267,11 +272,9 @@ static int lib3d_load_assets_async(lua_State* L) {
 static int lib3d_spawn_particle(lua_State* L) {
 	int argc = 1;
 	int id = pd->lua->getArgInt(argc++);
-	Point3d pos;
-	for (int i = 0; i < 3; ++i) {
-		pos.v[i] = pd->lua->getArgFloat(argc++);
-	}
-	spawn_particle(id, pos);
+	Point3d* pos = getArgVec3(argc++);
+
+	spawn_particle(id, *pos);
 
 	return 0;
 }

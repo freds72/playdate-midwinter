@@ -1059,7 +1059,7 @@ static void push_tile(const GroundFace* f, const Mat4 m, GroundSliceCoord* coord
     END_FUNC();
 }
 
-void add_render_prop(int id, const Mat4 m) {
+void add_render_prop(const int id, const Mat4 m) {
     RenderProp* p = &_render_props.props[_render_props.n++];
     if (_render_props.n>=MAX_RENDER_PROPS)
         pd->system->error("Too many render props: %i/%i", _render_props.n, MAX_RENDER_PROPS);
