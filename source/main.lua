@@ -152,7 +152,10 @@ local v_len = lib3d.Vec3.length
 local v_dist = lib3d.Vec3.dist
 local v_normz = lib3d.Vec3.normz
 local v_lerp = lib3d.Vec3.lerp
+local v_move = lib3d.Vec3.move
+local v_zero = lib3d.Vec3.zero
 local v_up=vec3(0,1,0)
+
 
 -- matrix functions
 local m_x_v = lib3d.Mat4.m_x_v
@@ -208,8 +211,8 @@ function make_cam(pos)
 			local m=make_m_lookat(pos,to)
 			-- inverse view matrix
 			m_inv(m)
-			self.m = m_translate(m,pos)
-			
+			m_translate(m,pos)
+			self.m=m
 			self.pos=pos
 		end,
 		track=function(self,pos,a,u,power,snap)
@@ -217,7 +220,7 @@ function make_cam(pos)
    		-- lerp angle
 			self.angle=lerp(self.angle,a,power or 0.8)
 			-- lerp orientation (or snap to angle)
-			up=v_lerp(up,u,snap or 0.1)
+			v_move(up,u,snap or 0.1)
 			v_normz(up)
 
 			-- shift cam position			
@@ -228,9 +231,10 @@ function make_cam(pos)
 			
 			-- inverse view matrix
 			m_inv(m)
-			self.m = m_translate(m,pos)
+			m_translate(m,pos)
 			
 			self.pos = pos
+			self.m = m
 		end,
 		project2d=function(self,v)
 			local w=199.5/v[3]
@@ -248,7 +252,8 @@ function make_body(p,angle)
 	local boost,perm_boost=0,0
 	local steering_angle=0
 	angle=angle or 0
-
+	
+	local no_force=vec3(0,0,0)
 	local g=vec3(0,-4,0)
 	return {
 		pos=v_clone(p),
@@ -313,7 +318,8 @@ function make_body(p,angle)
 			angle+=angularv
 
 			-- reset
-			forces,torque=vec3(0,0,0),0
+			v_zero(forces)
+			torque=0
 		end,
 		steer=function(self,steering_dt)
 			-- stiff direction when boosting!
@@ -355,7 +361,7 @@ function make_body(p,angle)
 					self:apply_force_and_torque(right,-steering_angle*ski_len/4)
 				end
 			elseif not self.on_ground then
-				self:apply_force_and_torque(vec3(0,0,0),-steering_angle/4)
+				self:apply_force_and_torque(no_force,-steering_angle/4)
 			end			
 		end,
 		update=function(self)
@@ -683,7 +689,7 @@ function make_npc(p,cam)
 
 		-- create orientation matrix
 		local newy,newn=_ground:find_face(pos)
-		up=v_lerp(up,newn,0.3)
+		v_move(up,newn,0.3)
 		local _,angle=self:get_pos()
 		local m=make_m_from_v_angle(up,angle)
 		m[13]=pos[1]
@@ -696,7 +702,7 @@ function make_npc(p,cam)
 		if self.on_ground and abs(dir)>0.04 and rnd()>0.1 then
 			local v=m_x_v(m,v_lerp(vgroups.SKIER_LEFT_SKI,vgroups.SKIER_RIGHT_SKI,rnd()))
 			
-			lib3d.spawn_particle(0, table.unpack(v))
+			lib3d.spawn_particle(0, v)
 		end
 
 		-- update sfx
@@ -778,8 +784,8 @@ function loading_state()
 				coroutine.yield()
 			end
 		end
-		--next_state(menu_state)
-		next_state(bench_state)
+		next_state(menu_state)
+		--next_state(bench_state)
 		--next_state(vec3_test)
 	end)
 
@@ -966,8 +972,8 @@ function menu_state(angle)
 					local world_loc = m_x_v(actors[1].m,panel.loc)		
 					for i=1,30 do
 						scale = lerp(scale,1.8,0.1)
-						cam.pos=v_lerp(cam.pos, vec3(0.5,0.5,-0.75),0.1)
-						look_at=v_lerp(look_at,world_loc,0.1)
+						v_move(cam.pos, vec3(0.5,0.5,-0.75),0.1)
+						v_move(look_at,world_loc,0.1)
 						coroutine.yield()
 					end
 					music:stop()
@@ -1099,8 +1105,8 @@ function menu_zoomout_state(cam_pos, look_at, scale, angle)
 		for i=1,30 do
 			local t=(i-1)/30
 			scale=lerp(s,1,t)
-			cam.pos=v_lerp(cam.pos,vec3(0,0.8,-0.5),0.2)
-			look_at=v_lerp(look_at,vec3(0,0,1),0.2)
+			v_move(cam.pos,vec3(0,0.8,-0.5),0.2)
+			v_move(look_at,vec3(0,0,1),0.2)
 			coroutine.yield()
 		end
 		next_state(menu_state, angle)
@@ -1311,6 +1317,7 @@ function make_static_actor(id,x,sfx_name,update)
 		return {
 			id=id,
 			pos=pos,
+			m=make_m_from_v(v_up),
 			update=function(self)
 				local pos=self.pos
 				-- out of landscape?
@@ -1322,7 +1329,6 @@ function make_static_actor(id,x,sfx_name,update)
 				end
 
 				-- update pos?
-				local m=self.m
 				if update then					
 					update(pos)
 				end
@@ -1332,6 +1338,7 @@ function make_static_actor(id,x,sfx_name,update)
 					if d<16 then d=16 end
 					sfx:setVolume(16/d)
 				end
+				local m=self.m
 				m[13]=pos[1]
 				m[14]=pos[2]
 				m[15]=pos[3]

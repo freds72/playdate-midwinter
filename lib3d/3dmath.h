@@ -1,7 +1,8 @@
-#ifndef _lib3d_math_h
-#define _lib3d_math_h
+#ifndef _lib3d_3dmath_h
+#define _lib3d_3dmath_h
 
 #include <stdint.h>
+#include <stddef.h>
 
 #define PI 3.1415927410125732421875f
 #define MAT4x4 16
@@ -39,7 +40,16 @@ typedef struct {
 
 // 3d point with u coordinate
 typedef struct {
-    struct Point3d;
+    union {
+        struct Point3d p;
+        struct {
+            float x;
+            float y;
+            float z;
+        };
+        // values array
+        float v[VEC3];
+    };
     float u;
     float light;
 } Point3du;
@@ -66,13 +76,25 @@ typedef struct {
 // matrix struct
 typedef float Mat4[MAT4x4];
 
+#define __STATIC_INLINE static inline
+
 // convert a tau angle [0;1] into a radian angle
-inline float detauify(const float tau) {
+#if TARGET_PLAYDATE
+__attribute__((always_inline)) __STATIC_INLINE
+#else
+static __forceinline
+#endif
+float detauify(const float tau) {
     return tau * 2 * PI;
 }
 
 // convert a rad angle [0;2*PI] into a tau angle [0;1]
-inline float tauify(const float rad) {
+#if TARGET_PLAYDATE
+__attribute__((always_inline)) __STATIC_INLINE
+#else
+static __forceinline
+#endif
+float tauify(const float rad) {
     return rad / (2 * PI);
 }
 
@@ -88,28 +110,57 @@ void shuffle(int* array, size_t n);
 
 
 // lerp between 2 float values
-inline float lerpf(const float a, const float b, const float t) {
+#if TARGET_PLAYDATE
+__attribute__((always_inline)) __STATIC_INLINE
+#else
+static __forceinline
+#endif
+float lerpf(const float a, const float b, const float t) {
   return a + (b - a) * t;
 }
 
 // lerp between 2 int values
-inline int lerpi(const int a, const int b, const float t) {
+#if TARGET_PLAYDATE
+__attribute__((always_inline)) __STATIC_INLINE
+#else
+static __forceinline
+#endif
+int lerpi(const int a, const int b, const float t) {
     return (int)lerpf((float)a, (float)b, t);
 }
 
-inline float v_dot(const Point3d a, const Point3d b) {
-    return
-          a.v[0] * b.v[0]
-        + a.v[1] * b.v[1]
-        + a.v[2] * b.v[2];
+#if TARGET_PLAYDATE
+__attribute__((always_inline)) __STATIC_INLINE
+#else
+static __forceinline
+#endif
+float v_dot(const Point3d v0, const Point3d v1) {
+    // faster??
+    float acc = 0;
+    acc += v0.v[0] * v1.v[0];
+    acc += v0.v[1] * v1.v[1];
+    acc += v0.v[2] * v1.v[2];
+    return acc;
+}
+
+#if TARGET_PLAYDATE
+__attribute__((always_inline)) __STATIC_INLINE
+#else
+static __forceinline
+#endif
+void m_x_v(const Mat4 m, const Point3d v, Point3d* out) {
+    const float x = v.x, y = v.y, z = v.z;
+    out->v[0] = m[0] * x + m[4] * y + m[8] * z + m[12];
+    out->v[1] = m[1] * x + m[5] * y + m[9] * z + m[13];
+    out->v[2] = m[2] * x + m[6] * y + m[10] * z + m[14];
 }
 
 void make_v(const Point3d a, Point3d b, Point3d* out);
-float v_dot(const Point3d a, const Point3d b);
+
 // returns 1/len
 float v_normz(Point3d* a);
 void v_cross(const Point3d a, const Point3d b, Point3d* out);
-void m_x_v(const Mat4 m, const Point3d v, Point3d* out);
+
 // matrix multiply
 void m_x_m(const Mat4  a, const Mat4 b, Mat4 out);
 // translate matrix by vector v

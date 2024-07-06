@@ -15,8 +15,8 @@ static float name ## _values[st * len]; \
 static float* name ## _ptr[len]; \
 static FloatPool name = { .id = #name, .cursor = 0, .size = len, .stride=st, .ptr = name ## _ptr };
 
-FLOAT_POOL(vec3_pool, VEC3, 256)
-FLOAT_POOL(mat4_pool, MAT4x4, 64)
+FLOAT_POOL(vec3_pool, VEC3, 2048)
+FLOAT_POOL(mat4_pool, MAT4x4, 512)
 
 // helper functions
 static void pool_init(FloatPool* pool, float* buffer) {

@@ -128,6 +128,14 @@ static int vec3_normz(lua_State* L) {
 	return 1;
 }
 
+static int vec3_zero(lua_State* L) {
+	int argc = 1;
+	Point3d* p = getArgVec3(argc++);
+	*p = (Point3d){ .v = {0} };
+
+	return 0;
+}
+
 static int vec3_lerp(lua_State* L) {
 	int argc = 1;
 	Point3d* a = getArgVec3(argc++);
@@ -140,6 +148,20 @@ static int vec3_lerp(lua_State* L) {
 
 	pushArgVec3(p);
 	return 1;
+}
+
+// in-place lerp
+static int vec3_move(lua_State* L) {
+	int argc = 1;
+	Point3d* a = getArgVec3(argc++);
+	Point3d* b = getArgVec3(argc++);
+	const float scale = pd->lua->getArgFloat(argc++);
+
+	Point3d p;
+	v_lerp(*a, *b, scale, &p);
+	*a = p;
+
+	return 0;
 }
 
 static int vec3_add(lua_State* L) {
@@ -170,13 +192,13 @@ static int vec3_add(lua_State* L) {
 static int mat4_new(lua_State* L)
 {
 	Mat4* p = pop_mat4();
-	memset(p, 0, sizeof(float) * MAT4x4);
+	memset(*p, 0, sizeof(float) * MAT4x4);
 	// set diagonals
-	*p[0] = *p[5] = *p[10] = *p[15] = 1.f;
+	(*p)[0] = (*p)[5] = (*p)[10] = (*p)[15] = 1.f;
 
 	int argc = pd->lua->getArgCount();
 	for (int i = 0; i < argc && i < MAT4x4; i++) {
-		*p[i] = pd->lua->getArgFloat(i + 1);
+		(*p)[i] = pd->lua->getArgFloat(i + 1);
 	}
 
 	pushArgMat4(p);
@@ -212,7 +234,7 @@ static int mat4_newindex(lua_State* L)
 	const int i = pd->lua->getArgInt(argc++);
 	if (i > 0 && i <= MAT4x4) {
 		// keep 1-base
-		*p[i - 1] = pd->lua->getArgFloat(argc++);
+		(*p)[i - 1] = pd->lua->getArgFloat(argc++);
 	}
 
 	return 0;
@@ -418,9 +440,11 @@ static int mat4_m_x_translate(lua_State* L) {
 		0.f, 0.f, 1.f, 0.f,
 		-v->x, -v->y, -v->z, 1.f
 	}, *p);
+	memcpy(*m, *p, sizeof(Mat4));
 
-	pushArgMat4(p);
-	return 1;
+	push_mat4(p);
+
+	return 0;
 }
 
 // LUA api
@@ -438,6 +462,8 @@ static const lua_reg _vec3_methods[] =
 	{ "lerp",		vec3_lerp },
 	{ "length",		vec3_len },
 	{ "dist",		vec3_dist },
+	{ "zero",		vec3_zero },
+	{ "move",		vec3_move },
 	{ NULL,			NULL }
 };
 

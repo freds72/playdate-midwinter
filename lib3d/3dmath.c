@@ -66,13 +66,6 @@ void v_cross(const Point3d a, const Point3d b, Point3d* out) {
     out->v[2] = ax * by - ay * bx;
 }
 
-void m_x_v(const Mat4 m, const Point3d v, Point3d* out) {
-    const float x = v.x, y = v.y, z = v.z;
-    out->v[0] = m[0] * x + m[4] * y + m[8] * z + m[12];
-    out->v[1] = m[1] * x + m[5] * y + m[9] * z + m[13];
-    out->v[2] = m[2] * x + m[6] * y + m[10] * z + m[14];
-}
-
 void m_x_m(const Mat4 a, const Mat4 b, Mat4 out) {
     const float a11 = a[0], a12 = a[4], a13 = a[8], a21 = a[1],  a22 = a[5], a23 = a[9], a31 = a[2], a32 = a[6],  a33 = a[10];
     const float b11 = b[0], b12 = b[4], b13 = b[8], b14 = b[12], b21 = b[1], b22 = b[5], b23 = b[9], b24 = b[13], b31 = b[2], b32 = b[6], b33 = b[10], b34 = b[14];

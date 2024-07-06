@@ -6,7 +6,12 @@
 
 typedef int32_t q31_t;
 
-static inline uint32_t swap(uint32_t n)
+#if TARGET_PLAYDATE
+static __attribute__((always_inline))
+#else
+static __forceinline
+#endif
+inline uint32_t swap(uint32_t n)
 {
 #if TARGET_PLAYDATE
     //return __REV(n);
@@ -19,7 +24,12 @@ static inline uint32_t swap(uint32_t n)
 #endif
 }
 
-static inline uint32_t __SADD16(uint32_t op1, uint32_t op2)
+#if TARGET_PLAYDATE
+static __attribute__((always_inline))
+#else
+static __forceinline
+#endif
+inline uint32_t __SADD16(uint32_t op1, uint32_t op2)
 {
 #if TARGET_PLAYDATE
     uint32_t result;
@@ -33,7 +43,12 @@ static inline uint32_t __SADD16(uint32_t op1, uint32_t op2)
 #endif
 }
 
-static inline uint32_t __SMLAD(uint32_t x, uint32_t y, uint32_t sum)
+#if TARGET_PLAYDATE
+static __attribute__((always_inline))
+#else
+static __forceinline
+#endif
+inline uint32_t __SMLAD(uint32_t x, uint32_t y, uint32_t sum)
 {
 #if TARGET_PLAYDATE
   uint32_t result;
@@ -48,7 +63,12 @@ static inline uint32_t __SMLAD(uint32_t x, uint32_t y, uint32_t sum)
 }
 
 // convert the given float into a 16:16 fixed point
-static inline int32_t __TOFIXED16(float x)
+#if TARGET_PLAYDATE
+static __attribute__((always_inline))
+#else
+static __forceinline
+#endif
+inline int32_t __TOFIXED16(float x)
 {
     // will corectly generate a vcvt asm instruction
     return (int32_t)(x * (1<<16));

@@ -219,25 +219,20 @@ static int lib3d_update_ground(lua_State* L) {
 
 	int slice_id;
 	char* pattern;
-	Point3d offset;
-	update_ground(*pos, &slice_id, &pattern, &offset);
+	Point3d* offset = pop_vec3();;
+	update_ground(*pos, &slice_id, &pattern, offset);
 
 	pd->lua->pushInt(slice_id);
 	pd->lua->pushString(pattern);
-	pd->lua->pushFloat(offset.x);
-	pd->lua->pushFloat(offset.y);
-	pd->lua->pushFloat(offset.z);
+	pushArgVec3(offset);
 
-	return 5;
+	return 3;
 }
 
 static int lib3d_add_render_prop(lua_State* L) {
 	int argc = 1;
 	const int id = pd->lua->getArgInt(argc++);
-	float m[MAT4x4];
-	for (int i = 0; i < MAT4x4; ++i) {
-		m[i] = pd->lua->getArgFloat(argc++);
-	}
+	Mat4* m = getArgMat4(argc++);
 
 	add_render_prop(id, m);
 
@@ -246,14 +241,12 @@ static int lib3d_add_render_prop(lua_State* L) {
 
 static int lib3d_collide(lua_State* L) {
 	int argc = 1;
-	Point3d pos;
-	for (int i = 0; i < 3; ++i) {
-		pos.v[i] = pd->lua->getArgFloat(argc++);
-	}
+
+	Point3d* pos = getArgVec3(argc++);
 	float radius = pd->lua->getArgFloat(argc++);
 
 	int out = 0;
-	collide(pos, radius, &out);
+	collide(*pos, radius, &out);
 
 	pd->lua->pushInt(out);
 	return 1;
