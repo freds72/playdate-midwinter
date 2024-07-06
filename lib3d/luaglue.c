@@ -135,9 +135,9 @@ static int lib3d_render_ground(lua_State* L)
 	render_ground(*cam_pos, tau_angle, *m, blink, bitmap);
 
 	// get userdata stats
-	int vlen, vmax, mlen, mmax;
-	userdata_stats(&vlen, &vmax, &mlen, &mmax);
-	pd->system->logToConsole("vec pool: %i/%i matrix pool: %i/%i", vlen, vmax, mlen, mmax);
+	// int vlen, vmax, mlen, mmax;
+	// userdata_stats(&vlen, &vmax, &mlen, &mmax);
+	// pd->system->logToConsole("vec pool: %i/%i matrix pool: %i/%i", vlen, vmax, mlen, mmax);
 
     pd->graphics->markUpdatedRows(0, LCD_ROWS - 1);
 
