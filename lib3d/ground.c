@@ -109,7 +109,11 @@ static struct {
 
 // raycasting angles
 #define RAYCAST_PRECISION 256
-static float _raycast_angles[RAYCAST_PRECISION];
+typedef struct {
+    int distance;
+    float angle;
+} Ray;
+static Ray _rays[RAYCAST_PRECISION];
 
 // global buffer to store slices
 static GroundSlice _slices_buffer[GROUND_HEIGHT];
@@ -786,7 +790,13 @@ void ground_init(PlaydateAPI* playdate) {
     for(int i=0;i<RAYCAST_PRECISION;++i) {
         // 1.5f to overshoot 
         float t = 1.5f * (((float)i) / RAYCAST_PRECISION - 0.5f);
-        _raycast_angles[i] = atan2f(MAX_TILE_DIST, MAX_TILE_DIST * t * 2.f) - PI / 2.f;
+        const float angle = atan2f(MAX_TILE_DIST, MAX_TILE_DIST * t * 2.f) - PI / 2.f;
+        // using a 24:8 "fixed" value
+        const int dist_max = (MAX_TILE_DIST << 8) / cosf(angle);
+        _rays[i] = (Ray){
+            .distance = dist_max * dist_max,
+            .angle = angle
+        };            
     }
 
     // props config (todo: get from lua?)
@@ -1220,7 +1230,7 @@ static void collect_tiles(uint32_t visible_tiles[GROUND_HEIGHT], const Point3d p
     visible_tiles[y0] |= 1 << x0;
 
     for (int i = 0; i < RAYCAST_PRECISION; ++i) {
-        float angle = base_angle + _raycast_angles[i];
+        float angle = base_angle + _rays[i].angle;
         float v = cosf(angle), u = sinf(angle);
 
         int32_t mapx = x0, mapy = y0;
@@ -1245,8 +1255,7 @@ static void collect_tiles(uint32_t visible_tiles[GROUND_HEIGHT], const Point3d p
             disty = (mapy + 1 - y) * ddy;
         }
 
-        int32_t dist_max = (MAX_TILE_DIST << 8) / cosf(_raycast_angles[i]);
-        dist_max *= dist_max;
+        const int dist_max = _rays[i].distance;
         while((distx * distx) + (disty * disty) < dist_max) {
             if (distx < disty) {
                 distx += ddx;
