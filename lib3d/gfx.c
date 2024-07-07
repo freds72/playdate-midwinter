@@ -125,7 +125,7 @@ static void drawTextureFragment(uint8_t* row, int x1, int x2, int lu, int ru, ui
     // move by whole shading block (2x32 pixels)
     du *= 8;
     
-    int col = x1 / 8;
+    const int col = x1 / 8;
     uint8_t* p = row + col;
     
     if (col == x2 / 8)

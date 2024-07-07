@@ -76,6 +76,7 @@ typedef struct {
 #define PROP_FLAG_JUMP      16
 #define PROP_FLAG_Y_ROTATE  32
 #define PROP_FLAG_COIN      64
+#define PROP_FLAG_ROTATE_SLOW    128
 
 typedef struct {
     int flags;
@@ -144,27 +145,24 @@ static void mesh_slice(int j) {
     Point3d sn = { .x = 0, .y = GROUND_CELL_SIZE, .z = s0->y - s1->y };
     v_normz(&sn);
 
-    for (int i = 0; i < GROUND_WIDTH - 1; ++i) {
-        const Point3d v0 = { .v = {(float)(i * GROUND_CELL_SIZE),s0->heights[i] + s0->y,(float)(j * GROUND_CELL_SIZE)}};
+    for (int i = 0; i < GROUND_WIDTH - 1; i++) {
+        const float y0 = s0->heights[i] + s0->y;
         // v1-v0
-        const Point3d u1 = { .v = {(float)GROUND_CELL_SIZE,s0->heights[i + 1] + s0->y - v0.y,0.f} };
+        const Point3d u1 = { .v = {(float)GROUND_CELL_SIZE, s0->heights[i + 1] + s0->y - y0, 0.f} };
         // v2-v0
-        const Point3d u2 = { .v = {(float)GROUND_CELL_SIZE,s1->heights[i + 1] + s1->y - v0.y,(float)GROUND_CELL_SIZE} };
+        const Point3d u2 = { .v = {(float)GROUND_CELL_SIZE, s1->heights[i + 1] + s1->y - y0, (float)GROUND_CELL_SIZE} };
         // v3-v0
-        const Point3d u3 = { .v = {0.f,s1->heights[i] + s1->y - v0.y,(float)GROUND_CELL_SIZE} };
+        const Point3d u3 = { .v = {0.f, s1->heights[i] + s1->y - y0, (float)GROUND_CELL_SIZE} };
 
-        Point3d n0, n1;
-        v_cross(u3, u2, &n0);
-        v_cross(u2, u1, &n1);
-        v_normz(&n0);
-        v_normz(&n1);
         GroundFace* f0 = &s0->tiles[i].f0;
-        f0->n = n0;
-        f0->flags = n0.y < 0.75f ? GROUNDFACE_FLAG_ROCK : GROUNDFACE_FLAG_SNOW;
-        if (v_dot(n0, n1) < 0.999f) {
-            GroundFace* f1 = &s0->tiles[i].f1;
-            f1->n = n1;
-            f1->flags = n1.y < 0.75f ? GROUNDFACE_FLAG_ROCK : GROUNDFACE_FLAG_SNOW;;
+        GroundFace* f1 = &s0->tiles[i].f1;
+        v_cross(u3, u2, &f0->n);
+        v_cross(u2, u1, &f1->n);
+        v_normz(&f0->n);
+        v_normz(&f1->n);
+        f0->flags = f0->n.y < 0.75f ? GROUNDFACE_FLAG_ROCK : GROUNDFACE_FLAG_SNOW;
+        if (v_dot(f0->n, f1->n) < 0.999f) {
+            f1->flags = f1->n.y < 0.75f ? GROUNDFACE_FLAG_ROCK : GROUNDFACE_FLAG_SNOW;;
         }
         else {
             f0->flags |= GROUNDFACE_FLAG_QUAD;
@@ -816,6 +814,10 @@ void ground_init(PlaydateAPI* playdate) {
     // coin
     _props_properties[PROP_COIN - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_COLLECT | PROP_FLAG_COIN | PROP_FLAG_Y_ROTATE, .radius = 2.0f };
 
+    _props_properties[PROP_INVERT - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_COLLECT | PROP_FLAG_Y_ROTATE, .radius = 2.0f };
+
+    _props_properties[PROP_EAGLES - 1] = (PropProperties){ .flags = PROP_FLAG_Y_ROTATE | PROP_FLAG_ROTATE_SLOW};
+
     // bind all props to the corresponding 3d model
     for (int i = 0; i < NEXT_PROP_ID; ++i) {
         _props_properties[i].flags |= PROP_FLAG_3D;
@@ -1127,15 +1129,32 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const Mat4 m)
 static void push_and_transform_threeD_model(const int prop_id, const Point3d cam_pos, const Mat4 cam_m, const Mat4 m) {
     BEGIN_FUNC();
 
-    // TODO: support for rotate flags?
-    Mat4 mvv;
-    m_x_m(cam_m, m, mvv);
-
-    // cam pos in 3d model space
     Point3d inv_cam_pos;
-    m_inv_x_v(m, cam_pos, &inv_cam_pos);
+    Mat4 mvv;
+    const int flags = _props_properties[prop_id - 1].flags;
+    if (flags & PROP_FLAG_Y_ROTATE) {
+        // disregard model matrix (beside position)
+        Mat4 tmp = {
+            1.f,0.f,0.f,0.f,
+            0.f,1.f,0.f,0.f,
+            0.f,0.f,1.f,0.f,
+            m[12],m[13],m[14],1.f};
+        // shift rotation to make it more natural
+        const float rot_scale = flags & PROP_FLAG_ROTATE_SLOW ? 1.0f : 2.0f;
+        m_x_y_rot(tmp, rot_scale * pd->system->getElapsedTime() + m[12], mvv);
+        m_inv_x_v(mvv, cam_pos, &inv_cam_pos);
+        m_x_m(cam_m, mvv, tmp);
+        push_threeD_model(prop_id, inv_cam_pos, tmp);
+    }
+    else {
+        m_x_m(cam_m, m, mvv);
 
-    push_threeD_model(prop_id, inv_cam_pos, mvv);
+        // cam pos in 3d model space
+        m_inv_x_v(m, cam_pos, &inv_cam_pos);
+
+        push_threeD_model(prop_id, inv_cam_pos, mvv);
+    }
+
 
     END_FUNC();
 }
@@ -1336,13 +1355,15 @@ void render_ground(const Point3d cam_pos, const float cam_tau_angle, const Mat4 
                         Point3d cv;
                         Mat4 mmvm;
                         // adjust matrix to project into position
-                        if (_props_properties[prop_id - 1].flags & PROP_FLAG_Y_ROTATE) {
+                        const int flags = _props_properties[prop_id - 1].flags;
+                        if (flags & PROP_FLAG_Y_ROTATE) {
                             Mat4 tmp = {
                                 1.f,0.f,0.f,0.f,
                                 0.f,1.f,0.f,0.f,
                                 0.f,0.f,1.f,0.f,
                                 pos.x,pos.y,pos.z,1.f };
-                            m_x_y_rot(tmp, pd->system->getElapsedTime(), mmvm);
+                            const float rot_scale = flags & PROP_FLAG_ROTATE_SLOW ? 1.0f : 2.0f;
+                            m_x_y_rot(tmp, rot_scale * pd->system->getElapsedTime() + pos.x, mmvm);
                             m_inv_x_v(mmvm, cam_pos, &cv);
                             m_x_m(m, mmvm, tmp);
                             push_threeD_model(prop_id, cv, tmp);

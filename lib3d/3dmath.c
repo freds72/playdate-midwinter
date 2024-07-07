@@ -92,13 +92,8 @@ void m_x_m(const Mat4 a, const Mat4 b, Mat4 out) {
 }
 
 void m_x_translate(const Mat4 a, const Point3d pos, Mat4 out) {
-    for (int i = 0; i < 12; i += 4) {
-        out[i] =     a[i];
-        out[i + 1] = a[i + 1];
-        out[i + 2] = a[i + 2];
-        out[i + 3] = a[i + 3];
-    }
-
+    memcpy(out, a, sizeof(Mat4));
+    
     const float x = pos.x, y = pos.y, z = pos.z;
     out[12] = a[0] * x + a[4] * y + a[8] * z + a[12];
     out[13] = a[1] * x + a[5] * y + a[9] * z + a[13];

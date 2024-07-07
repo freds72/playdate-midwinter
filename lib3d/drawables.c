@@ -8,7 +8,7 @@ static PlaydateAPI* pd;
 typedef struct {
     int n;
     // arbitrary limit
-    Drawable all[MAX_DRAWABLES];
+    Drawable all[1024];
 } Drawables;
 
 typedef struct {
@@ -56,8 +56,9 @@ void draw_drawables(uint8_t* bitmap) {
         for (int k = 0; k < n; k++) {
             Drawable* drawable = &_drawables.all[_sortables[k].i];
             drawable->draw(drawable, bitmap);
-        }
+        }        
     }
+    
     END_BLOCK();
 }
 
