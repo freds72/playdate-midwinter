@@ -266,14 +266,12 @@ void texfill(const Point3du* verts, const int n, uint8_t* dither_ramp, uint8_t* 
             const float y0 = p0->y, y1 = p1->y;
             const float dy = y1 - y0;
             ly = (int)y1;
-            lx = __TOFIXED16(p0->x);
-            lu = __TOFIXED16(p0->u);
             ldx = __TOFIXED16((p1->x - p0->x) / dy);
             ldu = __TOFIXED16((p1->u - p0->u) / dy);
             //sub - pixel correction
             const float cy = y - y0;
-            lx += (int)(cy * ldx);
-            lu += (int)(cy * ldu);
+            lx = __TOFIXED16(p0->x) + (int)(cy * ldx);
+            lu = __TOFIXED16(p0->u) + (int)(cy * ldu);
         }
         while (ry < y) {
             const Point3du* p0 = &verts[rj];

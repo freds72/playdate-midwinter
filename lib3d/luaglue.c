@@ -53,7 +53,7 @@ static int ground_params_new(lua_State* L)
     p->num_tracks = 0;
     p->props_rate = 0.1f;
 	p->tight_mode = 0;
-	int milli = 0;
+	unsigned milli = 0;
 	p->r_seed = pd->system->getSecondsSinceEpoch(&milli);
 
 	pd->lua->pushObject(p, "lib3d.GroundParams", 0);

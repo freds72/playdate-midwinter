@@ -854,14 +854,48 @@ function menu_state(angle)
 	local daily_y_offset_target,daily_y_offset=0,0
 
 	local panels={
-		{state=play_state,loc=vgroups.MOUNTAIN_GREEN_TRACK,help="Chill mood?\nEnjoy the snow!",daily=false,params={hp=3,name="Marmottes",slope=1.5,twist=2.5,num_tracks=3,tight_mode=0,props_rate=0.90,track_type=0,min_cooldown=30*2,max_cooldown=30*4}},
+		{state=play_state,loc=vgroups.MOUNTAIN_GREEN_TRACK,help="Chill mood?\nEnjoy the snow!",daily=false,params={
+			hp=3,
+			name="Marmottes",
+			music="AlpsnBass",
+			slope=1.5,
+			twist=2.5,
+			num_tracks=3,
+			tight_mode=0,
+			props_rate=0.90,
+			track_type=0,
+			min_cooldown=30*2,
+			max_cooldown=30*4}},
 		{state=play_state,loc=vgroups.MOUNTAIN_RED_TRACK,help=function()
 			return "Death Canyon\nHow far can you go?\nBest: ".._save_state.best_2.."m"
-		end
-		,params={hp=1,name="Biquettes",dslot=2,slope=2,twist=4,num_tracks=1,tight_mode=1,props_rate=1,track_type=1,min_cooldown=4,max_cooldown=8}},
+		end,params={
+			hp=1,
+			name="Biquettes",
+			music="LoudCorners",
+			dslot=2,
+			slope=2,
+			twist=4,
+			num_tracks=1,
+			tight_mode=1,
+			props_rate=1,
+			track_type=1,
+			min_cooldown=4,
+			max_cooldown=8}},
 		{state=race_state,loc=vgroups.MOUNTAIN_BLACK_TRACK,help=function()
 			return "Endless Race\nTake over mania!\nBest: ".._save_state.best_3.."m"
-		end,params={hp=1,name="Chamois",dslot=3,slope=2.25,twist=6,num_tracks=1,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=4,max_cooldown=12}},
+		end,params={
+			hp=1,
+			name="Chamois",
+			music="WishyWashy",
+			dslot=3,
+			slope=2.25,
+			twist=6,
+			num_tracks=1,
+			tight_mode=0,
+			props_rate=0.97,
+			track_type=2,
+			min_cooldown=4,
+			max_cooldown=12}},
 		{state=shop_state,loc=vgroups.MOUNTAIN_SHOP,help=function()
 			return "Buy gear!\n$".._save_state.coins
 		end ,params={name="Shop"},transition=false,daily=false}
@@ -874,9 +908,9 @@ function menu_state(angle)
 	local look_at = vec3(0,0,1)
 	local cam=make_cam(vec3(0,0.8,-0.5))
 
-	-- clean up
-	local music = playdate.sound.fileplayer.new("sounds/alps_polka")
-	music:play(0)
+	-- background music
+	_music = playdate.sound.fileplayer.new("sounds/alps_polka")
+	_music:play(0)
 
 	_ski_sfx:stop()
 	lib3d.clear_particles()
@@ -886,6 +920,10 @@ function menu_state(angle)
 	menu:removeAllMenuItems()
 	local menuItem, error = menu:addMenuItem("start menu", function()
 			_futures={}
+			if _music then
+				_music:stop()
+				_music = nil
+			end
 			next_state(menu_state)
 	end)	
 	local menuItem, error = menu:addCheckmarkMenuItem("flip crank", _save_state.flip_crank, function(value)
@@ -961,7 +999,7 @@ function menu_state(angle)
         starting=true
 				do_async(function()
 					-- fade out music
-					music:setVolume(0,0,1)
+					_music:setVolume(0,0,1)
 					local panel = panels[sel+1]
 					-- project location into world space
 					local world_loc = m_x_v(actors[1].m,panel.loc)		
@@ -971,7 +1009,7 @@ function menu_state(angle)
 						v_move(look_at,world_loc,0.1)
 						coroutine.yield()
 					end
-					music:stop()
+					_music:stop()
 					-- set global random seed
 					srand(playdate.getSecondsSinceEpoch())					
 					local p=panels[sel+1]
@@ -1616,7 +1654,13 @@ function play_state(params,help_ttl)
 
 	-- command handler
 	local handlers = make_command_handlers(params.commands)
-	-- 
+
+	-- music & sfx
+	if params.music then
+		_music = playdate.sound.fileplayer.new("sounds/"..params.music)
+		_music:play(1)
+	end
+
 	_ski_sfx:play(0)
 
 	-- init goggle selection menu
@@ -1735,6 +1779,7 @@ function play_state(params,help_ttl)
 					-- todo: game over music
 					screen:shake()
 
+					if _music then _music:stop() _music=nil end
 					-- latest score
 					next_state(plyr_death_state,cam,pos,flr(_plyr.distance),total_tricks,params)
 					-- not active
@@ -1748,6 +1793,7 @@ function play_state(params,help_ttl)
 					-- reset?
 					if help_ttl>90 and playdate.buttonJustPressed(_input.back.id) then				
 						_ski_sfx:setVolume(volume/2)
+						if _music then _music:setVolume(0.5,0.5) end
 						next_state(restart_state,params)
 					end
 				end
@@ -2063,10 +2109,17 @@ function restart_state(params)
 		-- update
 		function()
 			if ttl>max_ttl then
+				if _music then
+					_music:stop()
+					_music = nil
+				end
 				-- reset game (without the zoom effect)
 				next_state(play_state,params,90)
 			elseif not playdate.buttonIsPressed(_input.back.id) then
 				-- back to game ("unpause")
+				if _music then
+					_music:setVolume(1,1)
+				end
 				_update_state,_draw_state=prev_update,prev_draw
 			end
 			ttl+=1
