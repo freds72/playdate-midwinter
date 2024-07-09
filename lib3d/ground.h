@@ -15,6 +15,8 @@ typedef struct {
   // min/max time between sections
   int min_cooldown;
   int max_cooldown;
+  // random seed
+  int r_seed;
 } GroundParams;
 
 typedef struct {

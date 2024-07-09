@@ -1,0 +1,14 @@
+intro music                         alps_polka.wav
+speed boost                         boost.wav
+(not longer used)                   checkpoint.wav
+grab coin                           coin.wav
+dynamite explosion                  dynamite_jinx.wav
+eagle sound (marmotte "event")      eagle_loop.wav
+helicopter sound                    helo_loop.wav
+invert control ("chamois")          invert_jinx.wav
+skidoo sound ("biquette")           skidoo.wav
+ski sfx (loops)                     skiing_loop.wav
+tree impact                         tree-impact-1.wav
+tree impact                         tree-impact-2.wav
+UFO sound (marmotte "event")        ufo_loop.wav
+menu button click                   ui_button_click.wav

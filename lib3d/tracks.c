@@ -2,7 +2,7 @@
 #include <limits.h>
 #include "tracks.h"
 #include "3dmath.h"
-
+#include "rand_r.H"
 
 static PlaydateAPI* pd;
 
@@ -244,7 +244,7 @@ Section _endless_sections[] = {
         .random = 0,
         .seq = {.min = 10, .max = INT_MAX },
         .timelines = {
-            {.timeline = "..T..T.T.T." },
+            {.timeline = "..T..T.T.T..." },
             {.timeline = "T..TT.T.T.....C.C" },
             {.timeline = "D.T.T.......G.T.T" },
             {.timeline = "........G.T.T.TT." },
@@ -263,6 +263,7 @@ Section _endless_sections[] = {
             {.timeline = "........D.T.T.TT..." },
             {.timeline = "G.T.T.......D.T.T.." },
             {.timeline = "T..TT.T.T.....C.C.." },
+            {.timeline = "..T..T.T.T..." },
             {.timeline = NULL }
         }
     },
@@ -287,6 +288,30 @@ Section _endless_sections[] = {
             {.timeline = "W....R......"},
             {.timeline = ".W...R..C..C"},
             {.timeline = "W....R......"},
+            {.timeline = NULL }
+        }
+    },
+    // 3x rocks
+    {
+        .random = 0,
+        .seq = {.min = 12, .max = 45 },
+        .timelines = {
+            {.timeline = "."},
+            {.timeline = "W....R..C..."},
+            {.timeline = "..W.....R..C"},
+            {.timeline = "....W......R"},
+            {.timeline = NULL }
+        }
+    },
+    // 3x rocks (random)
+    {
+        .random = 1,
+        .seq = {.min = 14, .max = 45 },
+        .timelines = {
+            {.timeline = "."},
+            {.timeline = "W....R..C..."},
+            {.timeline = "..W.....R..C"},
+            {.timeline = "....W......R"},
             {.timeline = NULL }
         }
     },
@@ -523,10 +548,10 @@ struct {
 
 static void reset_track_timers(TrackTimers *timers, int is_main)
 {
-  timers->ttl = 12 + (int)(8.f * randf());
+  timers->ttl = 12 + (int)(8.f * randf_r());
   // make sure coins are not spawned at start
-  timers->trick_ttl = is_main?60 + (int)(15.f * randf()): 8 + (int)(4.f * randf());
-  timers->trick_type = randf() > 0.5f;
+  timers->trick_ttl = is_main?60 + (int)(15.f * randf_r()): 8 + (int)(4.f * randf_r());
+  timers->trick_type = randf_r() > 0.5f;
 }
 
 static Track *add_track(const float x, const float u, int is_main)
@@ -554,11 +579,12 @@ static Section* pick_next_section() {
         return _section_director.catalog.start;
     }
 
+    // todo: handle more than 16 sections
     Section* sections[16] = {NULL};
     int n = 0;
     // pick section
-    int seq = _section_director.seq;
-    for (int i = 0; i < _section_director.catalog.n; i++) {
+    const int seq = _section_director.seq;
+    for (int i = 0; i < _section_director.catalog.n && i<16; i++) {
         Section* s = &_section_director.catalog.sections[i];
         if (seq >= s->seq.min && seq <= s->seq.max ) {
             sections[n++] = s;
@@ -571,7 +597,7 @@ static Section* pick_next_section() {
         return NULL;
     }
 
-    return sections[randi(n)];
+    return sections[randi_r(n)];
 }
 
 static int update_track(Track *track,int warmup)
@@ -583,8 +609,8 @@ static int update_track(Track *track,int warmup)
       // next section?
       if (!_section_director.active_section) {
           // lerp width
-          int w0 = _section_director.active_section ? _section_director.active_section->width : 4;
-          int w1 = _section_director.next_section ? _section_director.next_section->width : 4;
+          const int w0 = _section_director.active_section ? _section_director.active_section->width : 4;
+          const int w1 = _section_director.next_section ? _section_director.next_section->width : 4;
           track->width = lerpi(w0, w1, (float)(_section_director.total_cooldown - _section_director.cooldown) / _section_director.total_cooldown);
 
           _section_director.cooldown--;
@@ -601,7 +627,7 @@ static int update_track(Track *track,int warmup)
                   // pick random lanes
                   int lanes[] = { 0,1,2,3,4,5,6,7 };
                   if (s->random)
-                      shuffle(lanes, s->width); // shuffle only within the effective timelines (eg. no "blanks")
+                      shuffle_r(lanes, s->width); // shuffle only within the effective timelines (eg. no "blanks")
                   memset(_section_director.lanes, 0, sizeof(Timeline*) * MAX_TIMELINES);
                   int j = 0;
                   size_t max_len = 0;
@@ -643,7 +669,7 @@ static int update_track(Track *track,int warmup)
               _section_director.cooldown = _section_director.next_cooldown;
 
               // select next section
-              _section_director.total_cooldown = lerpi(_section_director.min_cooldown, _section_director.max_cooldown, randf());
+              _section_director.total_cooldown = lerpi(_section_director.min_cooldown, _section_director.max_cooldown, randf_r());
               _section_director.next_cooldown = _section_director.total_cooldown;
           }
       }
@@ -668,16 +694,16 @@ static int update_track(Track *track,int warmup)
     if (track->timers.trick_ttl < -5)
     {
       track->h = 0;
-      track->timers.ttl = 4 + (int)(2.f * randf());
+      track->timers.ttl = 4 + (int)(2.f * randf_r());
     }
   }
   if (track->timers.ttl < 0)
   {
     // reset
     reset_track_timers(&track->timers, 0);
-    track->u = _tracks.twist * (1.6f * randf() - 0.8f);
+    track->u = _tracks.twist * (1.6f * randf_r() - 0.8f);
     // offshoot?
-    if (_tracks.n < _tracks.max_tracks && randf() < 0.25f)
+    if (_tracks.n < _tracks.max_tracks && randf_r() < 0.25f)
     {
         add_track(track->x, -track->u, 0);
     }
@@ -704,9 +730,9 @@ static int update_track(Track *track,int warmup)
 
 // generate ski tracks
 // xmin/xmax: min/max world coordinates for track
-void make_tracks(const int xmin, const int xmax, GroundParams params, Tracks **out)
+void make_tracks(const int xmin, const int xmax, GroundParams params, Tracks** out)
 {
-  float angle = 0.25f + 0.45f * randf();
+  float angle = 0.25f + 0.45f * randf_r();
 
   // set global range
   _tracks.xmin = xmin;
@@ -729,11 +755,11 @@ void make_tracks(const int xmin, const int xmax, GroundParams params, Tracks **o
       pd->system->error("Invalid cooldown values: %i/%i", params.min_cooldown, params.max_cooldown);
   }
 #endif 
-  _section_director.cooldown = lerpi(params.min_cooldown, params.max_cooldown, randf());
-  _section_director.next_cooldown = lerpi(params.min_cooldown, params.max_cooldown, randf());
+  _section_director.cooldown = lerpi(params.min_cooldown, params.max_cooldown, randf_r());
+  _section_director.next_cooldown = lerpi(params.min_cooldown, params.max_cooldown, randf_r());
   _section_director.catalog = _catalog[params.track_type];
 
-  add_track(lerpf(xmin, xmax, randf()), cosf(detauify(angle)), 1);
+  add_track(lerpf(xmin, xmax, randf_r()), cosf(detauify(angle)), 1);
 
   *out = &_tracks;
 }
