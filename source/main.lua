@@ -39,8 +39,8 @@ local _inputs={
 local _input=_inputs[true]
 
 -- ground limits
-local _ground_width = 32*4
-local _ground_height = 40*4
+local _ground_width <const> = 32*4
+local _ground_height <const> = 40*4
 
 -- some "pico-like" helpers
 function cls(c)
@@ -154,7 +154,7 @@ local v_normz = lib3d.Vec3.normz
 local v_lerp = lib3d.Vec3.lerp
 local v_move = lib3d.Vec3.move
 local v_zero = lib3d.Vec3.zero
-local v_up=vec3(0,1,0)
+local v_up <const> =vec3(0,1,0)
 
 
 -- matrix functions
@@ -850,8 +850,11 @@ function menu_state(angle)
   local starting
 	local best_y = -20
 	local frame_t=0
+	local daily
+	local daily_y_offset_target,daily_y_offset=0,0
+
 	local panels={
-		{state=play_state,loc=vgroups.MOUNTAIN_GREEN_TRACK,help="Chill mood?\nEnjoy the snow!",params={hp=3,name="Marmottes",slope=1.5,twist=2.5,num_tracks=3,tight_mode=0,props_rate=0.90,track_type=0,min_cooldown=30*2,max_cooldown=30*4}},
+		{state=play_state,loc=vgroups.MOUNTAIN_GREEN_TRACK,help="Chill mood?\nEnjoy the snow!",daily=false,params={hp=3,name="Marmottes",slope=1.5,twist=2.5,num_tracks=3,tight_mode=0,props_rate=0.90,track_type=0,min_cooldown=30*2,max_cooldown=30*4}},
 		{state=play_state,loc=vgroups.MOUNTAIN_RED_TRACK,help=function()
 			return "Death Canyon\nHow far can you go?\nBest: ".._save_state.best_2.."m"
 		end
@@ -861,7 +864,7 @@ function menu_state(angle)
 		end,params={hp=1,name="Chamois",dslot=3,slope=2.25,twist=6,num_tracks=1,tight_mode=0,props_rate=0.97,track_type=2,min_cooldown=4,max_cooldown=12}},
 		{state=shop_state,loc=vgroups.MOUNTAIN_SHOP,help=function()
 			return "Buy gear!\n$".._save_state.coins
-		end ,params={name="Shop"},transition=false}
+		end ,params={name="Shop"},transition=false,daily=false}
 	}
 	local sel,blink=0,false
 	-- background actors
@@ -950,6 +953,9 @@ function menu_state(angle)
 			if playdate.buttonJustReleased(playdate.kButtonDown) then sel+=1 _button_click:play(1) end
 			sel=mid(sel,0,#panels-1)
 			
+			-- daily mode?
+			if playdate.buttonJustReleased(playdate.kButtonRight) then daily=not daily end
+
 			if not starting and playdate.buttonJustReleased(playdate.kButtonA) then
 				-- sub-state
         starting=true
@@ -966,9 +972,17 @@ function menu_state(angle)
 						coroutine.yield()
 					end
 					music:stop()
-					-- restore random seed
-					srand(playdate.getSecondsSinceEpoch())
+					-- set global random seed
+					srand(playdate.getSecondsSinceEpoch())					
 					local p=panels[sel+1]
+					-- daily mode?
+					if panel.daily~=false and daily then
+						local t = playdate.getTime()
+						p.params.r_seed = t.year * 365 * 31 + (t.month-1) * 31 + t.day-1
+					else
+						p.params.r_seed = playdate.getSecondsSinceEpoch()
+					end
+
 					if p.transition==false then
 						next_state(p.state,v_clone(cam.pos),v_clone(look_at),scale,angle)
 					else
@@ -984,6 +998,12 @@ function menu_state(angle)
 			-- slide menu in
 			local sel_y = (sel//1)*28 + 80
 			local sel_panel = panels[sel+1]
+
+			if sel_panel.daily~=false then
+				daily_y_offset_target = 12
+			else
+				daily_y_offset_target = 0
+			end
 
 			for _,p in pairs(panels) do
 				-- target
@@ -1046,10 +1066,14 @@ function menu_state(angle)
 			end
 
 			local y=90
+			daily_y_offset=lerp(daily_y_offset,daily_y_offset_target,0.4)			
 			for i=1,#panels do
 				local panel = panels[i]
 				local name = panel.params.name
 				if panel==sel_panel then
+					if panel.daily~=false and daily then
+						name = name.."#"
+					end
 					-- text length
 					gfx.setFont(largeFont[gfx.kColorBlack])
 					local sel_w = gfx.getTextSize(name)
@@ -1057,8 +1081,17 @@ function menu_state(angle)
 					gfx.fillRect(0,y+32,sel_w + panel.x + 16,2)
 					gfx.setColor(gfx.kColorBlack)
 					gfx.fillRect(0,y,sel_w + panel.x + 16,32)
-	
+				
 					print_regular(name, panel.x, y,gfx.kColorWhite)
+
+					if panel.daily~=false then
+						local daily_help = "➡️ for daily"
+						if daily then
+							daily_help = "➡️ for random"
+						end
+						print_small(daily_help, panel.x,y + 30,gfx.kColorBlack)
+						y += daily_y_offset
+					end
 				else
 					print_regular(name, panel.x, y, gfx.kColorBlack)
 				end
@@ -1416,7 +1449,7 @@ function make_command_handlers(custom)
 		end,
 		-- skidoo
 		K=function(lane,cam)
-			local pos=vec((lane+0.5)*4,-16,_ground_height-2)
+			local pos=vec3((lane+0.5)*4,-16,_ground_height-2)
 			-- sfx
 			local sfx = _skidoo_sfx:copy()
 			sfx:setOffset(rnd())

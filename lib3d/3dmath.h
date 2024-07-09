@@ -102,12 +102,11 @@ float tauify(const float rad) {
 float randf();
 
 // returns a rand number between [0;max[
-int randi(int max);
+int randi(const int max);
 
 // https://benpfaff.org/writings/clc/shuffle.html
 // in-place shuffling of int array
-void shuffle(int* array, size_t n);
-
+void shuffle(int* array, const size_t n);
 
 // lerp between 2 float values
 #if TARGET_PLAYDATE

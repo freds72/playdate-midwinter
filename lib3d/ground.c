@@ -16,6 +16,7 @@
 #include "ground_limits.h"
 #include "spall.h"
 #include "simd.h"
+#include "rand_r.h"
 
 static PlaydateAPI* pd;
 
@@ -61,11 +62,11 @@ typedef struct {
     // start slice index
     int plyr_z_index;
     int max_pz;
+    int r_seed;
     float slice_y;
     float noise_y_offset;
     // active tracks
     Tracks* tracks;
-
     GroundSlice* slices[GROUND_HEIGHT];
 } Ground;
 
@@ -200,7 +201,7 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
         slice->tiles[i].prop_id = 0;
     }
 
-    _ground.noise_y_offset += (active_params.slope + randf()) / 4.f;
+    _ground.noise_y_offset += (active_params.slope + randf_r()) / 4.f;
 
     int imin = 3, imax = GROUND_WIDTH - 3;
     float main_track_x = GROUND_CELL_SIZE * (imin + imax) / 2.f;
@@ -215,9 +216,9 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
                 // random filling
                 for (int i = 3; i < i0 - 1; i++) {
                     GroundTile* tile = &slice->tiles[i];
-                    if (randf() > active_params.props_rate) {
-                        tile->prop_id = trees[randi(num_trees)];
-                        tile->prop_t = randf();
+                    if (randf_r() > active_params.props_rate) {
+                        tile->prop_id = trees[randi_r(num_trees)];
+                        tile->prop_t = randf_r();
                         // slight shading under trees
                         shadow_mask |= 0x3 << i;
                     }
@@ -225,9 +226,9 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
 
                 for (int i = i1 + 1; i < GROUND_WIDTH - 2; i++) {
                     GroundTile* tile = &slice->tiles[i];
-                    if (randf() > active_params.props_rate) {
-                        tile->prop_id = trees[randi(num_trees)];
-                        tile->prop_t = randf();
+                    if (randf_r() > active_params.props_rate) {
+                        tile->prop_id = trees[randi_r(num_trees)];
+                        tile->prop_t = randf_r();
                         // slight shading under trees
                         shadow_mask |= 0x3 << i;
                     }
@@ -244,7 +245,7 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
                     switch (_ground.tracks->pattern[i]) {
                     case 'W': prop_id = PROP_WARNING; break;
                     case 'R': prop_id = PROP_ROCK; break;
-                    case 'M': prop_id = PROP_COW; prop_t = randf(); break;
+                    case 'M': prop_id = PROP_COW; prop_t = randf_r(); break;
                     case 'J': prop_id = PROP_JUMPPAD; break;
                     case 'S': prop_id = PROP_START; break;
                     case 'D': prop_id = PROP_GORIGHT; break;
@@ -259,8 +260,8 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
                     case '4': slice->heights[i] += 2.5f * active_params.slope; break;
                     case '5': slice->heights[i] += 3.5f * active_params.slope; break;
                     case 'T':
-                        prop_id = trees[randi(num_trees)];
-                        prop_t = randf();
+                        prop_id = trees[randi_r(num_trees)];
+                        prop_t = randf_r();
                         // tree shading
                         shadow_mask |= 0x3 << i;
                         break;
@@ -290,8 +291,8 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
     slice->is_checkpoint = is_checkpoint;
 
     // side walls
-    slice->heights[0] = 15.f + 5.f * randf();
-    slice->heights[GROUND_WIDTH - 1] = 15.f + 5.f * randf();
+    slice->heights[0] = 15.f + 5.f * randf_r();
+    slice->heights[GROUND_WIDTH - 1] = 15.f + 5.f * randf_r();
     if (active_params.tight_mode) {
         for (int i = 1; i < imin - 1; i++) {
             slice->heights[i] = slice->heights[0];
@@ -315,8 +316,8 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
     // apply props shadows
     slice->tracks_mask |= shadow_mask;
     //  + nice transition
-    slice->heights[imin] = lerpf(slice->heights[imin - 1], slice->heights[imin], lerpf(0.666f,0.8f,randf()));
-    slice->heights[imax] = lerpf(slice->heights[imax + 1], slice->heights[imax], lerpf(0.666f,0.8f,randf()));
+    slice->heights[imin] = lerpf(slice->heights[imin - 1], slice->heights[imin], lerpf(0.666f,0.8f,randf_r()));
+    slice->heights[imax] = lerpf(slice->heights[imax + 1], slice->heights[imax], lerpf(0.666f,0.8f,randf_r()));
 
     _ground.slice_id++;
 
@@ -334,12 +335,17 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
 
 void make_ground(GroundParams params) {
     active_params = params;
+    
+    // init random seed
+    rand_r_init(params.r_seed);
+
     // reset global params
     _ground.slice_id = 0;
     _ground.slice_y = 0;
-    _ground.noise_y_offset = 16.f * randf();
+    _ground.noise_y_offset = 16.f * randf_r();
     _ground.plyr_z_index = (GROUND_HEIGHT / 2) - 1;
     _ground.max_pz = 0;
+
 
     // init track generator
     make_tracks(4 * GROUND_CELL_SIZE, (GROUND_WIDTH - 5)*GROUND_CELL_SIZE, params, &_ground.tracks);
@@ -381,7 +387,7 @@ void update_ground(const Point3d p, int* slice_id, char** pattern, Point3d* offs
         _ground.slices[GROUND_HEIGHT - 1] = old_slice;        
 
         // use previous baseline
-        make_slice(old_slice, _ground.slices[GROUND_HEIGHT - 2]->y - active_params.slope * (randf() + 0.5f), 0);
+        make_slice(old_slice, _ground.slices[GROUND_HEIGHT - 2]->y - active_params.slope * (randf_r() + 0.5f), 0);
         mesh_slice(GROUND_HEIGHT - 2);
     }
     // update y offset
