@@ -14,7 +14,6 @@
 #include "particles.h"
 #include "drawables.h"
 #include "ground_limits.h"
-#include "spall.h"
 #include "simd.h"
 #include "rand_r.h"
 
@@ -85,7 +84,7 @@ typedef struct {
     ThreeDModel* model;
 } PropProperties;
 
-static PropProperties _props_properties[NEXT_PROP_ID + 1];
+static PropProperties _props_properties[NEXT_PROP_ID + 1] = {0};
 
 // max. number of props on a given slice (e.g. number of tracks + 1)
 #define MAX_PROPS 4
@@ -114,10 +113,10 @@ typedef struct {
     int distance;
     float angle;
 } Ray;
-static Ray _rays[RAYCAST_PRECISION];
+static Ray _rays[RAYCAST_PRECISION] = {0};
 
 // global buffer to store slices
-static GroundSlice _slices_buffer[GROUND_HEIGHT];
+static GroundSlice _slices_buffer[GROUND_HEIGHT] = {0};
 // active ground
 static Ground _ground;
 
@@ -127,21 +126,18 @@ static GroundParams active_params;
 uint32_t _dithers[32 * 16];
 
 // 16 32 * 8 bytes bitmaps (duplicated on x)
-static uint8_t _dither_ramps[8 * 32 * 16];
-static uint8_t _danger_dither_ramps[8 * 32 * 16];
+static uint8_t _dither_ramps[8 * 32 * 16] = {0};
+static uint8_t _danger_dither_ramps[8 * 32 * 16] = {0};
 
 // 16 32 * 4 bytes bitmaps
-uint32_t _ordered_dithers[32 * 16];
-uint32_t _ordered_dithers[32 * 16];
+uint32_t _ordered_dithers[32 * 16] = {0};
 
-static uint32_t* _backgrounds[61];
-static int _backgrounds_heights[61];
+static uint32_t* _backgrounds[61] = {0};
+static int _backgrounds_heights[61] = {0};
 
 // compute normal and assign material for faces
 static int _z_offset = 0;
 static void mesh_slice(int j) {
-    // BEGIN_FUNC();
-
     _z_offset++;
     GroundSlice* s0 = _ground.slices[j];
     GroundSlice* s1 = _ground.slices[j + 1];
@@ -173,12 +169,9 @@ static void mesh_slice(int j) {
             f0->flags |= GROUNDFACE_FLAG_QUAD;
         }
     }
-
-    // END_FUNC();
 }
 
 static void make_slice(GroundSlice* slice, float y, int warmup) {
-    // BEGIN_FUNC();
     static int trees[] = { PROP_TREE0,PROP_TREE0,PROP_TREE1,PROP_TREE1,PROP_TREE2,PROP_TREE3,PROP_TREE3,PROP_TREE4,PROP_TREE4,PROP_TREE4,PROP_TREE5,PROP_TREE5,PROP_TREE5,PROP_LOG };
     static int num_trees = sizeof(trees) / sizeof(PROP_TREE0);
 
@@ -201,7 +194,7 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
         slice->tiles[i].prop_id = 0;
     }
 
-    _ground.noise_y_offset += (active_params.slope + randf_r()) / 4.f;
+    _ground.noise_y_offset += (active_params.slope + randf_seeded()) / 4.f;
 
     int imin = 3, imax = GROUND_WIDTH - 3;
     float main_track_x = GROUND_CELL_SIZE * (imin + imax) / 2.f;
@@ -216,9 +209,9 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
                 // random filling
                 for (int i = 3; i < i0 - 1; i++) {
                     GroundTile* tile = &slice->tiles[i];
-                    if (randf_r() > active_params.props_rate) {
-                        tile->prop_id = trees[randi_r(num_trees)];
-                        tile->prop_t = randf_r();
+                    if (randf_seeded() > active_params.props_rate) {
+                        tile->prop_id = trees[randi_seeded(num_trees)];
+                        tile->prop_t = randf_seeded();
                         // slight shading under trees
                         shadow_mask |= 0x3 << i;
                     }
@@ -226,9 +219,9 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
 
                 for (int i = i1 + 1; i < GROUND_WIDTH - 2; i++) {
                     GroundTile* tile = &slice->tiles[i];
-                    if (randf_r() > active_params.props_rate) {
-                        tile->prop_id = trees[randi_r(num_trees)];
-                        tile->prop_t = randf_r();
+                    if (randf_seeded() > active_params.props_rate) {
+                        tile->prop_id = trees[randi_seeded(num_trees)];
+                        tile->prop_t = randf_seeded();
                         // slight shading under trees
                         shadow_mask |= 0x3 << i;
                     }
@@ -245,7 +238,7 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
                     switch (_ground.tracks->pattern[i]) {
                     case 'W': prop_id = PROP_WARNING; break;
                     case 'R': prop_id = PROP_ROCK; break;
-                    case 'M': prop_id = PROP_COW; prop_t = randf_r(); break;
+                    case 'M': prop_id = PROP_COW; prop_t = randf_seeded(); break;
                     case 'J': prop_id = PROP_JUMPPAD; break;
                     case 'S': prop_id = PROP_START; break;
                     case 'D': prop_id = PROP_GORIGHT; break;
@@ -260,8 +253,8 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
                     case '4': slice->heights[i] += 2.5f * active_params.slope; break;
                     case '5': slice->heights[i] += 3.5f * active_params.slope; break;
                     case 'T':
-                        prop_id = trees[randi_r(num_trees)];
-                        prop_t = randf_r();
+                        prop_id = trees[randi_seeded(num_trees)];
+                        prop_t = randf_seeded();
                         // tree shading
                         shadow_mask |= 0x3 << i;
                         break;
@@ -291,8 +284,8 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
     slice->is_checkpoint = is_checkpoint;
 
     // side walls
-    slice->heights[0] = 15.f + 5.f * randf_r();
-    slice->heights[GROUND_WIDTH - 1] = 15.f + 5.f * randf_r();
+    slice->heights[0] = 15.f + 5.f * randf_seeded();
+    slice->heights[GROUND_WIDTH - 1] = 15.f + 5.f * randf_seeded();
     if (active_params.tight_mode) {
         for (int i = 1; i < imin - 1; i++) {
             slice->heights[i] = slice->heights[0];
@@ -316,8 +309,8 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
     // apply props shadows
     slice->tracks_mask |= shadow_mask;
     //  + nice transition
-    slice->heights[imin] = lerpf(slice->heights[imin - 1], slice->heights[imin], lerpf(0.666f,0.8f,randf_r()));
-    slice->heights[imax] = lerpf(slice->heights[imax + 1], slice->heights[imax], lerpf(0.666f,0.8f,randf_r()));
+    slice->heights[imin] = lerpf(slice->heights[imin - 1], slice->heights[imin], lerpf(0.666f,0.8f,randf_seeded()));
+    slice->heights[imax] = lerpf(slice->heights[imax + 1], slice->heights[imax], lerpf(0.666f,0.8f,randf_seeded()));
 
     _ground.slice_id++;
 
@@ -330,7 +323,6 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
     }
     pd->system->logToConsole("%s [%i %i]", _ground.tracks->pattern, imin, imax);
     */
-    // END_FUNC();
 }
 
 void make_ground(GroundParams params) {
@@ -342,7 +334,7 @@ void make_ground(GroundParams params) {
     // reset global params
     _ground.slice_id = 0;
     _ground.slice_y = 0;
-    _ground.noise_y_offset = 16.f * randf_r();
+    _ground.noise_y_offset = 16.f * randf_seeded();
     _ground.plyr_z_index = (GROUND_HEIGHT / 2) - 1;
     _ground.max_pz = 0;
 
@@ -361,8 +353,6 @@ void make_ground(GroundParams params) {
 }
 
 void update_ground(const Point3d p, int* slice_id, char** pattern, Point3d* offset) {
-    BEGIN_FUNC();
-
     // TODO: FIX!!!
     // prevent going up slope!
     float pz = p.z;
@@ -387,7 +377,7 @@ void update_ground(const Point3d p, int* slice_id, char** pattern, Point3d* offs
         _ground.slices[GROUND_HEIGHT - 1] = old_slice;        
 
         // use previous baseline
-        make_slice(old_slice, _ground.slices[GROUND_HEIGHT - 2]->y - active_params.slope * (randf_r() + 0.5f), 0);
+        make_slice(old_slice, _ground.slices[GROUND_HEIGHT - 2]->y - active_params.slope * (randf_seeded() + 0.5f), 0);
         mesh_slice(GROUND_HEIGHT - 2);
     }
     // update y offset
@@ -400,8 +390,6 @@ void update_ground(const Point3d p, int* slice_id, char** pattern, Point3d* offs
 
     *slice_id = _ground.slice_id;
     *pattern = _ground.tracks->pattern;
-
-    END_FUNC();
 }
 
 void get_start_pos(Point3d* out) {
@@ -411,13 +399,10 @@ void get_start_pos(Point3d* out) {
 }
 
 int get_face(const Point3d pos, Point3d* nout, float* yout) {
-    BEGIN_FUNC();
-
     // z slice
     int i = (int)(pos.x / GROUND_CELL_SIZE), j = (int)(pos.z / GROUND_CELL_SIZE);
     // outside ground?
     if (i < 0 || i >= GROUND_WIDTH || j < 0 || j >= GROUND_HEIGHT) {
-        END_FUNC();
         return 0;
     }
 
@@ -440,16 +425,17 @@ int get_face(const Point3d pos, Point3d* nout, float* yout) {
     nout->v[1] = f->n.v[1];
     nout->v[2] = f->n.v[2];
 
-    END_FUNC();
-
     return 1;
 }
 
 // get slice extents
 void get_track_info(const Point3d pos, float* xmin, float* xmax, float* z, int* checkpoint, float* angleout) {
-    BEGIN_FUNC();
-
     int j = (int)(pos.z / GROUND_CELL_SIZE);
+    if (j < 0 || j >= GROUND_HEIGHT) {
+        pd->system->error("Invalid z position: %f", pos.z);
+        return;
+    }
+
     const GroundSlice* s0 = _ground.slices[j];
     *xmin = (float)(s0->extents[0] * GROUND_CELL_SIZE);
     *xmax = (float)(s0->extents[1] * GROUND_CELL_SIZE);
@@ -470,8 +456,6 @@ void get_track_info(const Point3d pos, float* xmin, float* xmax, float* z, int* 
     }
     // direction to track ahead (rebase to half circle)
     *angleout = 0.5f * atan2f(y * GROUND_CELL_SIZE, x - pos.x) / PI - 0.25f;
-
-    END_FUNC();
 }
 
 void get_props(Point3d pos, PropInfo** info, int* nout) {
@@ -513,7 +497,6 @@ void clear_checkpoint(const Point3d pos) {
 
 void collide(const Point3d pos, float radius, int* hit_type)
 {
-    BEGIN_FUNC();
     // z slice
     int i0 = (int)(pos.x / GROUND_CELL_SIZE), j0 = (int)(pos.z / GROUND_CELL_SIZE);
 
@@ -523,7 +506,6 @@ void collide(const Point3d pos, float radius, int* hit_type)
     // out of track
     if (i0 <= 0 || i0 >= GROUND_WIDTH - 2) {
         *hit_type = 2;
-        END_FUNC();
         return;
     }
 
@@ -571,7 +553,6 @@ void collide(const Point3d pos, float radius, int* hit_type)
                                     t0->prop_id = 0;
                                 }
 
-                                END_FUNC();
                                 return;
                             }
                         }
@@ -580,7 +561,6 @@ void collide(const Point3d pos, float radius, int* hit_type)
             }
         }
     }
-    END_FUNC();
 }
 
 /*
@@ -879,7 +859,6 @@ typedef struct {
 
 // clip polygon against near-z
 static int z_poly_clip(const float z, const float flip, Point3du* in, int n, Point3du* out) {
-    BEGIN_FUNC();
     Point3du v0 = in[n - 1];
     float d0 = flip * (v0.z - z);
     int nout = 0;
@@ -902,13 +881,10 @@ static int z_poly_clip(const float z, const float flip, Point3du* in, int n, Poi
         v0 = v1;
         d0 = d1;
     }
-    END_FUNC();
     return nout;
 }
 
 static void draw_tile(Drawable* drawable, uint8_t* bitmap) {
-    // BEGIN_FUNC();
-
     DrawableFace* face = &drawable->face;
 
     const int n = face->n;
@@ -945,8 +921,6 @@ static void draw_tile(Drawable* drawable, uint8_t* bitmap) {
         x0 = x1, y0 = y1;
     }
     */
-
-    // END_FUNC();
 }
 
 static void draw_blinking_tile(Drawable* drawable, uint8_t* bitmap) {
@@ -973,7 +947,6 @@ static void draw_blinking_tile(Drawable* drawable, uint8_t* bitmap) {
 }
 
 static void draw_face(Drawable* drawable, uint8_t* bitmap) {
-    BEGIN_FUNC();
     DrawableFace* face = &drawable->face;
 
     const int n = face->n;
@@ -1005,14 +978,11 @@ static void draw_face(Drawable* drawable, uint8_t* bitmap) {
             p0 = p1;
         }
     }
-    END_FUNC();
 }
 
 
 // push a face to the drawing list
 static void push_tile(const GroundFace* f, const Mat4 m, GroundSliceCoord* coords, int n, const float light, const int is_danger) {
-    BEGIN_FUNC();
-
     Point3du tmp[4];
 
     // transform
@@ -1073,8 +1043,6 @@ static void push_tile(const GroundFace* f, const Mat4 m, GroundSliceCoord* coord
             memcpy(face->pts, tmp, n * sizeof(Point3du));
         }
     }
-
-    END_FUNC();
 }
 
 void add_render_prop(const int id, const Mat4 m) {
@@ -1088,8 +1056,6 @@ void add_render_prop(const int id, const Mat4 m) {
 }
 
 static void push_threeD_model(const int prop_id, const Point3d cv, const Mat4 m) {
-    BEGIN_FUNC();
-
     Point3du tmp[4];
     ThreeDModel* model = _props_properties[prop_id - 1].model;
     for (int j = 0; j < model->face_count; ++j) {
@@ -1139,12 +1105,9 @@ static void push_threeD_model(const int prop_id, const Point3d cv, const Mat4 m)
             }       
         }
     }
-    END_FUNC();
 }
 
 static void push_and_transform_threeD_model(const int prop_id, const Point3d cam_pos, const Mat4 cam_m, const Mat4 m) {
-    BEGIN_FUNC();
-
     Point3d inv_cam_pos;
     Mat4 mvv;
     const int flags = _props_properties[prop_id - 1].flags;
@@ -1170,14 +1133,9 @@ static void push_and_transform_threeD_model(const int prop_id, const Point3d cam
 
         push_threeD_model(prop_id, inv_cam_pos, mvv);
     }
-
-
-    END_FUNC();
 }
 
 int render_sky(const Mat4 m, uint8_t* screen) {
-    BEGIN_FUNC();
-
     uint32_t* bitmap = (uint32_t*)screen;
 
     // cam up in world space
@@ -1221,14 +1179,10 @@ int render_sky(const Mat4 m, uint8_t* screen) {
     }
     memset(bitmap, 0xff, (LCD_ROWS - h1) * LCD_ROWSIZE);
 
-    END_FUNC();
-
     return angle;
 }
 
 static void collect_tiles(uint32_t visible_tiles[GROUND_HEIGHT], const Point3d pos, float base_angle) {
-    BEGIN_FUNC();
-
     float x = pos.x / GROUND_CELL_SIZE, y = pos.z / GROUND_CELL_SIZE;
     int32_t x0 = (int)x, y0 = (int)y;
 
@@ -1277,15 +1231,11 @@ static void collect_tiles(uint32_t visible_tiles[GROUND_HEIGHT], const Point3d p
             visible_tiles[mapy] |= 1 << mapx;
         }
     }
-
-    END_FUNC();
 }
 
 // render ground
 
 void render_ground(const Point3d cam_pos, const float cam_tau_angle, const Mat4 m, uint32_t blink, uint8_t * bitmap) {
-    BEGIN_FUNC();
-
     // cache lines
     CameraPoint c0[GROUND_WIDTH];
     CameraPoint c1[GROUND_WIDTH];
@@ -1434,13 +1384,10 @@ void render_ground(const Point3d cam_pos, const float cam_tau_angle, const Mat4 
         }
     }
     */
-    END_FUNC();
 }
 
 // render "free" props without ground (for title screen say)
 void render_props(const Point3d cam_pos, const Mat4 m, uint8_t* bitmap) {
-    BEGIN_FUNC();
-
     // "free" props?
     reset_drawables();
     for (int i = 0; i < _render_props.n; ++i) {
@@ -1455,6 +1402,4 @@ void render_props(const Point3d cam_pos, const Mat4 m, uint8_t* bitmap) {
 
     // sort & renders back to front
     draw_drawables(bitmap);
-
-    END_FUNC();
 }

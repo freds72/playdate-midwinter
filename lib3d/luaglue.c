@@ -16,12 +16,6 @@
 #include "particles.h"
 #include "drawables.h"
 #include "lua3dmath.h"
-#include "spall.h"
-
-#ifdef SPALL_COLLECT
-SpallProfile spall_ctx;
-SpallBuffer  spall_buffer;
-#endif
 
 #define REGISTER_LUA_FUNC(func) \
 	do {\
@@ -53,7 +47,7 @@ static int ground_params_new(lua_State* L)
     p->num_tracks = 0;
     p->props_rate = 0.1f;
 	p->tight_mode = 0;
-	int milli = 0;
+	unsigned milli = 0;
 	p->r_seed = pd->system->getSecondsSinceEpoch(&milli);
 
 	pd->lua->pushObject(p, "lib3d.GroundParams", 0);
@@ -303,70 +297,10 @@ static int lib3d_clear_particles(lua_State* L) {
 	return 0;
 }
 
-// ****************************
-// profiling helpers
-SPALL_FN SPALL_FORCEINLINE bool spall_file_write_playdate(SpallProfile *ctx, const void *p, size_t n) {
-    if (!ctx->data) return false;
-
-    if (pd->file->write((void*)ctx->data, p, n) == -1) return false;
-    return true;
-}
-
-SPALL_FN bool spall_file_flush_playdate(SpallProfile* ctx) {
-	if (!ctx->data) return false;
-	if (pd->file->flush((void*)ctx->data) == -1) return false;
-	return true;
-}
-
-SPALL_FN void spall_file_close_playdate(SpallProfile *ctx) {
-    if (!ctx->data) return;
-
-    if (ctx->is_json) {
-        {
-            pd->file->seek((void*)ctx->data, -2, SEEK_CUR); // seek back to overwrite trailing comma
-            pd->file->write((void*)ctx->data, "\n]}\n", sizeof("\n]}\n") - 1);
-        }
-    }
-    pd->file->flush((void*)ctx->data);
-    pd->file->close((void*)ctx->data);
-    ctx->data = NULL;
-}
-
-SPALL_FN SpallProfile spall_init_playdate(const char *filename, double timestamp_unit) {
-    SpallProfile ctx;
-    memset(&ctx, 0, sizeof(ctx));
-    if (!filename) return ctx;
-	ctx.data = pd->file->open(filename, kFileWrite);
-    if (!ctx.data) { spall_quit(&ctx); return ctx; }
-    ctx = spall_init_callbacks(
-			timestamp_unit, 
-			spall_file_write_playdate, 
-			spall_file_flush_playdate, 
-			spall_file_close_playdate, 
-			ctx.data, 
-			0);
-	ctx.pd = pd;
-    return ctx;
-}
-
 void lib3d_register(PlaydateAPI* playdate)
 {
 	pd = playdate;
 	lib3d_setRealloc(pd->system->realloc);
-
-#ifdef SPALL_COLLECT
-	// init tracing context with custom callbacks
-	spall_ctx = spall_init_playdate("snow.spall", 1000000);
-
-	// allocate tracing buffer
-	int buffer_size = 1 * 1024 * 1024;
-	unsigned char* buffer = lib3d_malloc(buffer_size);
-	spall_buffer = (SpallBuffer){
-		.length = buffer_size,
-		.data = buffer,
-	};
-	spall_buffer_init(&spall_ctx, &spall_buffer);
-#endif
 
 	const char* err;
 
@@ -397,9 +331,4 @@ void lib3d_register(PlaydateAPI* playdate)
 }
 
 void lib3d_unregister(PlaydateAPI* playdate) {
-#ifdef SPALL_COLLECT
-	spall_buffer_quit(&spall_ctx, &spall_buffer);
-	lib3d_free(spall_buffer.data);
-	spall_quit(&spall_ctx);
-#endif
 }

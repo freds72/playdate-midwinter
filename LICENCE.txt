@@ -1,2 +1,3 @@
-No licence given to distribute game on any platform.
+No licence given to distribute game on any platform without author consent.
 Licence given to reuse code with attribution.
+No licence given to reuse or redistribute art assets (inc. music).

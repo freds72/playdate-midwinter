@@ -1,5 +1,4 @@
 #include "drawables.h"
-#include "spall.h"
 
 static PlaydateAPI* pd;
 
@@ -23,8 +22,8 @@ typedef struct {
     };
 } Sortable;
 
-static Drawables _drawables;
-static Sortable _sortables[MAX_DRAWABLES];
+static Drawables _drawables = {0};
+static Sortable _sortables[MAX_DRAWABLES] = {0};
 
 // compare 2 drawables
 static int cmp_sortable(const void* a, const void* b) {
@@ -39,17 +38,18 @@ void reset_drawables() {
 
 Drawable* pop_drawable(const float sortkey) {
     const int i = _drawables.n++;
+    if (_drawables.n >= MAX_DRAWABLES) {
+        pd->system->error("Drawable pool exhausted: %i/%i", _drawables.n, MAX_DRAWABLES);
+        return NULL;
+    }
     // pack everything into a int32    
     _sortables[i] = (Sortable){ .i = i, .key = (uint16_t)(max(0.f,sortkey) * 256.0f) };
     return &_drawables.all[i];
 }
 
 void draw_drawables(uint8_t* bitmap) {
-    BEGIN_BLOCK("draw_drawables");
     if (_drawables.n > 0) {
-        BEGIN_BLOCK("qsort");
         qsort(_sortables, (size_t)_drawables.n, sizeof(Sortable), cmp_sortable);
-        END_BLOCK();
 
         // rendering
         const int n = _drawables.n;
@@ -58,8 +58,6 @@ void draw_drawables(uint8_t* bitmap) {
             drawable->draw(drawable, bitmap);
         }        
     }
-    
-    END_BLOCK();
 }
 
 void drawables_init(PlaydateAPI* playdate) {
