@@ -11,8 +11,8 @@ typedef struct {
 } FloatPool;
 
 #define FLOAT_POOL(name, st, len) \
-static float name ## _values[st * len]; \
-static float* name ## _ptr[len]; \
+static float name ## _values[st * len] = {0}; \
+static float* name ## _ptr[len] = {0}; \
 static FloatPool name = { .id = #name, .cursor = 0, .size = len, .stride=st, .ptr = name ## _ptr };
 
 FLOAT_POOL(vec3_pool, VEC3, 2048)

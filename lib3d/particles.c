@@ -2,7 +2,6 @@
 #include "drawables.h"
 #include "ground_limits.h"
 #include "gfx.h"
-#include "spall.h"
 
 static PlaydateAPI* pd;
 
@@ -130,7 +129,6 @@ void update_particles(const Point3d offset) {
 // particles API - rendering
 
 static void draw_particle(Drawable* drawable, uint8_t* bitmap) {
-    BEGIN_FUNC();
     DrawableParticle* particle = &drawable->particle;
 
     // project particle center
@@ -152,7 +150,6 @@ static void draw_particle(Drawable* drawable, uint8_t* bitmap) {
     }
 
     alphafill(pts, 4, 0xffffffff * particle->color, _dithers + 32 * particle->alpha, (uint32_t*)bitmap);
-    END_FUNC();
 }
 
 void push_particles(const Point3d cam_pos, const Mat4 m) {

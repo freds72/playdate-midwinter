@@ -1,7 +1,6 @@
 #include <pd_api.h>
 #include <float.h>
 #include "simd.h"
-#include "spall.h"
 #include "gfx.h"
 
 // float32 display ptr width
@@ -19,7 +18,7 @@ static __attribute__((always_inline))
 #else
 static __forceinline
 #endif
-inline void _drawMaskPattern(uint32_t* p, uint32_t mask, uint32_t color)
+void _drawMaskPattern(uint32_t* p, uint32_t mask, uint32_t color)
 {
     *p = (*p & ~mask) | (color & mask);
 }
@@ -29,7 +28,7 @@ static __attribute__((always_inline))
 #else
 static __forceinline
 #endif
-inline void _drawMaskPatternOpaque(uint32_t* p, uint32_t color)
+void _drawMaskPatternOpaque(uint32_t* p, uint32_t color)
 {
     *p = color;
 }
@@ -171,8 +170,6 @@ static void drawTextureFragment(uint8_t* row, int x1, int x2, int lu, int ru, ui
 }
 
 void polyfill(const Point3du* verts, const int n, uint32_t* dither, uint32_t* bitmap) {
-    BEGIN_FUNC();
-
 	float miny = FLT_MAX, maxy = -FLT_MAX;
 	int mini = -1;
 	// find extent
@@ -183,7 +180,6 @@ void polyfill(const Point3du* verts, const int n, uint32_t* dither, uint32_t* bi
 	}
     // out of screen?
     if (miny > LCD_ROWS || maxy < 0.f) {
-        END_FUNC();
         return;
     }
 
@@ -224,15 +220,11 @@ void polyfill(const Point3du* verts, const int n, uint32_t* dither, uint32_t* bi
 
         drawFragment(bitmap, lx>>16, rx>>16, dither[y&31]);
     } 
-
-    END_FUNC();
 }
 
 // affine texturing (using dither pattern)
 // z contains dither color
 void texfill(const Point3du* verts, const int n, uint8_t* dither_ramp, uint8_t* bitmap) {
-    BEGIN_FUNC();
-
     float miny = FLT_MAX, maxy = -FLT_MAX;
     int mini = -1;
     // find extent
@@ -243,7 +235,6 @@ void texfill(const Point3du* verts, const int n, uint8_t* dither_ramp, uint8_t* 
     }
     // out of screen?
     if (miny > LCD_ROWS || maxy < 0) {
-        END_FUNC();
         return;
     }
 
@@ -290,7 +281,6 @@ void texfill(const Point3du* verts, const int n, uint8_t* dither_ramp, uint8_t* 
         }
         drawTextureFragment(bitmap, lx >> 16, rx >> 16, lu, ru, dither_ramp + (y & 31) * 8 * 16);
     }
-    END_FUNC();
 }
 
 // alpha polyfill
@@ -354,8 +344,6 @@ static void drawAlphaFragment(uint32_t* row, int x1, int x2, uint32_t color, uin
 }
 
 void alphafill(const Point3du* verts, const int n, uint32_t color, uint32_t* alpha, uint32_t* bitmap) {
-    BEGIN_FUNC();
-
     float miny = FLT_MAX, maxy = -FLT_MAX;
     int mini = -1;
     // find extent
@@ -366,7 +354,6 @@ void alphafill(const Point3du* verts, const int n, uint32_t color, uint32_t* alp
     }
     // out of screen?
     if (miny > LCD_ROWS || maxy < 0) {
-        END_FUNC();
         return;
     }
 
@@ -378,7 +365,7 @@ void alphafill(const Point3du* verts, const int n, uint32_t color, uint32_t* alp
     if (yend > LCD_ROWS) yend = LCD_ROWS;
     if (ystart < 0) ystart = 0;
     bitmap += ystart * LCD_ROWSIZE32;
-    for (int y = (int)miny; y < maxy; y++, bitmap += LCD_ROWSIZE32, lx += ldx, rx += rdx) {
+    for (int y = ystart; y < yend; y++, bitmap += LCD_ROWSIZE32, lx += ldx, rx += rdx) {
         // maybe update to next vert
         while (ly < y) {
             const Point3du* p0 = &verts[lj];
@@ -405,6 +392,4 @@ void alphafill(const Point3du* verts, const int n, uint32_t color, uint32_t* alp
 
         drawAlphaFragment(bitmap, lx >> 16, rx >> 16, color, alpha[y & 31]);        
     }
-
-    END_FUNC();
 }

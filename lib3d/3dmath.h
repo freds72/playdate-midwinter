@@ -149,9 +149,18 @@ static __forceinline
 #endif
 void m_x_v(const Mat4 m, const Point3d v, Point3d* out) {
     const float x = v.x, y = v.y, z = v.z;
-    out->v[0] = m[0] * x + m[4] * y + m[8] * z + m[12];
-    out->v[1] = m[1] * x + m[5] * y + m[9] * z + m[13];
-    out->v[2] = m[2] * x + m[6] * y + m[10] * z + m[14];
+    float accx = m[0] * x , accy = m[1] * x , accz = m[2] * x;
+    accx += m[4] * y;
+    accy += m[5] * y;
+    accz += m[6] * y;
+    
+    accx += m[8] * z;
+    accy += m[9] * z;
+    accz += m[10] * z;
+    
+    out->v[0] = accx + m[12];
+    out->v[1] = accy + m[13];
+    out->v[2] = accz + m[14];
 }
 
 void make_v(const Point3d a, Point3d b, Point3d* out);
