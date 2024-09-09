@@ -777,6 +777,8 @@ function loading_state()
 				coroutine.yield()
 			end
 		end
+
+		--next_state(transition_state)
 		next_state(menu_state)
 		--next_state(bench_state)
 		--next_state(vec3_test)
@@ -805,6 +807,49 @@ function loading_state()
 				lerp(400,188,t),
 				lerp(82,0,t))
 			print_regular("Altitude: "..(step*10).."m",4,220)
+		end
+end
+
+function transition_state()
+	local ttl,dttl=30,0.01
+  local starting
+	local fade=1
+	do_async(function()
+		while fade<=20 do
+			coroutine.yield()
+			fade+=1
+		end
+		-- next_state(go_state,table.unpack(args))
+	end)
+	local mask = gfx.image.new(400,240,gfx.kColorBlack)
+	local bg = gfx.image.new("system/menu")
+	local card = gfx.image.new("system/card")
+	local first_frame=true
+	return
+		-- update
+		function(self)
+		end,
+		-- draw
+		function()
+
+			card:draw(25,43)
+
+			gfx.lockFocus(mask)
+			gfx.setColor(gfx.kColorWhite)
+			for x=0,400,32 do
+				for y=0,240,32 do
+					local r=lerp(-16-y/16,0,x/400)
+					gfx.fillCircleAtPoint(x,y,max(0,r+58*(fade-1)/20))
+			 end
+	 		end
+			gfx.unlockFocus()
+
+			bg:clearMask()
+			bg:setMaskImage(mask)
+			bg:draw(0,0)
+
+			-- save image
+			if fade<=20 then playdate.simulator.writeToFile(gfx.getDisplayImage(), "~/launchImages/"..fade..".png") end
 		end
 end
 
@@ -980,7 +1025,7 @@ function menu_state(angle)
 	-- starting position (outside screen)
 	gfx.setFont(largeFont[gfx.kColorBlack])
 	for _,p in pairs(panels) do
-		p.x = -gfx.getTextSize(p.params.name) - 8
+		p.x = -gfx.getTextSize(p.params.name) - 32
 		p.x_start = p.x
 	end
 
@@ -1068,7 +1113,7 @@ function menu_state(angle)
 			if not starting then
 
 				_game_title_anim:drawImage((frame_t%#_game_title_anim)+1,10,6)
-				print_small("by FReDS72",10,60)
+				print_small("FReDS72 & Ridgekhun",10,54)
 			end
 
 			local sel_panel = panels[sel+1]
@@ -1244,8 +1289,8 @@ function shop_state(...)
 			end
 			local is_valid = _save_state[item.uuid] or _save_state.coins>=item.price
 			if is_valid and playdate.buttonIsPressed(playdate.kButtonA) then
-				action_ttl=min(60,action_ttl+1)
-				if action_ttl==60 then
+				action_ttl=min(30,action_ttl+1)
+				if action_ttl==30 then
 					action_ttl = 0
 					do_async(function()
 						-- commit basket instantly
@@ -1280,6 +1325,11 @@ function shop_state(...)
 				end
 				local item = _store_items[i]
 				gfx.setColor(gfx.kColorBlack)
+				if i~=selection then
+					gfx.setStencilPattern(_50pct_pattern)
+				else
+					gfx.clearStencil()
+				end
 				gfx.fillRect(0,y,400,65)
     		gfx.setPattern(_50pct_pattern)
 				gfx.fillRect(0,y+65,400,2)
@@ -1318,23 +1368,31 @@ function shop_state(...)
 					print_regular(s,399 - w,y+2,gfx.kColorWhite)
 				end
 				y += 65
-				-- already bought?
+				-- already bought?				
 				if i==selection and not is_sold then
+					local can_buy = _save_state.coins >= item.price
 					local buy_text
 					if action_ttl>0 then
-						buy_text = "Buying..."
-					else
+						buy_text = "Keep pressing ("..30-action_ttl..")"
+					elseif can_buy then
 						buy_text = "Buy".._input.action.glyph
+					else
+						buy_text = "Tricks for $!"
 					end
+
 		
 					local action_y=action_ttl>0 and 2 or 0
 					local w=gfx.getTextSize(buy_text)
 					gfx.setPattern(_50pct_pattern)
 					gfx.fillRect(button_x,y+36,w+24,2)
 					gfx.setColor(gfx.kColorBlack)
-					gfx.fillRect(button_x,y+action_y,w+24,36)
+					gfx.fillRect(button_x,y,w+24,36)
 		
+					if not can_buy then
+						gfx.setStencilPattern(_50pct_pattern)
+					end	
 					print_regular(buy_text,10+button_x,y+2+action_y,gfx.kColorWhite)
+					gfx.clearStencil()
 
 					-- back
 					local back_text = "Back".._input.back.glyph
@@ -2345,5 +2403,5 @@ function playdate.update()
 	_input = _inputs[playdate.isCrankDocked()]
   _update()
   if _draw_state then _draw_state() end
-  playdate.drawFPS(0,228)
+  -- playdate.drawFPS(0,228)
 end
