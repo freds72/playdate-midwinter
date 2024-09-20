@@ -1086,7 +1086,7 @@ function menu_state(angle)
 			sel=mid(sel,0,#panels-1)
 			
 			-- daily mode?
-			if playdate.buttonJustReleased(playdate.kButtonRight) then daily=not daily end
+			if playdate.buttonJustReleased(playdate.kButtonRight) then daily=not daily _button_click:play(1) end
 
 			if not starting and playdate.buttonJustReleased(playdate.kButtonA) then
 				-- sub-state
@@ -1098,6 +1098,7 @@ function menu_state(angle)
 				do_async(function()
 					-- fade out music
 					_music:setVolume(0,0,1)
+					_button_go:play(1)
 					local panel = panels[sel+1]
 					-- project location into world space
 					local world_loc = m_x_v(actors[1].m,panel.loc)		
@@ -1350,6 +1351,7 @@ function shop_state(...)
 				action_ttl=min(30,action_ttl+1)
 				if action_ttl==30 then
 					action_ttl = 0
+					_button_buy:play(1)
 					do_async(function()
 						-- commit basket instantly
 						_save_state[item.uuid] = 1
@@ -2203,7 +2205,7 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 				active_text,text_ttl=pick(text),10
 				turn_side=-turn_side
 				screen:shake()
-				hit_ttl=10
+				hit_ttl=15
 			end
 			-- keep camera off side walls
 			local slice=_ground:get_track(cam.pos)
@@ -2222,6 +2224,7 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 		-- draw
 		function()
 			prev_draw()
+			if true then return end
 
 			print_bold(msgs[active_msg+1],nil,msg_y,gfx.kColorWhite)
 			local x,y=rnd(4)-2,msg_y+8+rnd(4)-2
@@ -2325,6 +2328,8 @@ function _init()
 	_checkpoint_sfx = playdate.sound.sampleplayer.new("sounds/checkpoint")
 	_treehit_sfx = playdate.sound.sampleplayer.new("sounds/tree-impact-1")
 	_button_click = playdate.sound.sampleplayer.new("sounds/ui_button_click")
+	_button_go = playdate.sound.sampleplayer.new("sounds/ui_button_go")
+	_button_buy = playdate.sound.sampleplayer.new("sounds/ui_button_buy")
 	_boost_sfx = playdate.sound.sampleplayer.new("sounds/boost")
 	_invert_sfx = playdate.sound.sampleplayer.new("sounds/invert_jinx")
 	_dynamite_sfx = playdate.sound.sampleplayer.new("sounds/dynamite_jinx")
