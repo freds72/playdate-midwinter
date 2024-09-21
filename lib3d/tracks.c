@@ -226,10 +226,34 @@ Section _endless_sections[] = {
             {.timeline = NULL }
         }
     },
+    // 2 trees + coin
+    {
+        .random = 1,
+        .seq = {.min = 10, .max = INT_MAX },
+        .timelines = {
+            {.timeline = "." },
+            {.timeline = "T..." },
+            {.timeline = "...C" },
+            {.timeline = "T..." },
+            {.timeline = NULL }
+        }
+    },
+    // 2 trees + coin
+    {
+        .random = 1,
+        .seq = {.min = 10, .max = INT_MAX },
+        .timelines = {
+            {.timeline = "." },
+            {.timeline = "T....C" },
+            {.timeline = "...T.." },
+            {.timeline = "T....C" },
+            {.timeline = NULL }
+        }
+    },
     // forest 1
     {
         .random = 0,
-        .seq = {.min = 10, .max = INT_MAX },
+        .seq = {.min = 15, .max = INT_MAX },
         .timelines = {
             {.timeline = "T..TT.T.T.." },
             {.timeline = "T....C..D.T.T.T.T" },
@@ -242,7 +266,7 @@ Section _endless_sections[] = {
     // forest 2
     {
         .random = 0,
-        .seq = {.min = 10, .max = INT_MAX },
+        .seq = {.min = 15, .max = INT_MAX },
         .timelines = {
             {.timeline = "..T..T.T.T..." },
             {.timeline = "T..TT.T.T.....C.C" },
@@ -256,7 +280,7 @@ Section _endless_sections[] = {
     // forest 3
     {
         .random = 0,
-        .seq = {.min = 10, .max = INT_MAX },
+        .seq = {.min = 13, .max = INT_MAX },
         .timelines = {
             {.timeline = "D.T.....T..T.T.T..." },
             {.timeline = ".....D.T.T........." },
@@ -270,7 +294,7 @@ Section _endless_sections[] = {
     // forest 3
     {
         .random = 0,
-        .seq = {.min = 8, .max = 35 },
+        .seq = {.min = 10, .max = 35 },
         .timelines = {
             {.timeline = "T...D.T..T.T....C." },
             {.timeline = "..............W.T." },
@@ -491,15 +515,17 @@ Section _endless_section_start = {
 
 // test
 Section _test_sections[] = {
+    // jump
     {
         .random = 0,
         .seq = {.min = 0, .max = INT_MAX },
         .timelines = {
-            {.timeline = "...............K" },
-            {.timeline = ".............."},
-            {.timeline = ".............K.."},
-            {.timeline = ".............."},
-            {.timeline = "...............K" },
+            {.timeline = "W............" },
+            {.timeline = "....12345...."},
+            {.timeline = "..J.12345...."},
+            {.timeline = "..J.12345...."},
+            {.timeline = "....12345...."},
+            {.timeline = "W............" },
             {.timeline = NULL }
         }
     }

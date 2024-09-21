@@ -4,6 +4,9 @@
 -- game globals
 import 'CoreLibs/graphics'
 import 'CoreLibs/nineslice'
+import 'CoreLibs/easing'
+import 'CoreLibs/timer'
+import 'CoreLibs/qrcode'
 import 'models.lua'
 import 'store.lua'
 
@@ -210,11 +213,11 @@ function make_cam(pos)
 		look=function(self,to)
 			local pos=self.pos
 			local m=make_m_lookat(pos,to)
+			self.angle=0.25-0.5*math.atan2(m[11],m[9])/math.pi
 			-- inverse view matrix
 			m_inv(m)
 			m_inv_translate(m,pos)
 			self.m=m
-			self.pos=pos
 		end,
 		track=function(self,pos,a,u,power,snap)
    		pos=v_clone(pos)
@@ -255,12 +258,15 @@ function make_body(p,angle)
 	angle=angle or 0
 	
 	local no_force=vec3(0,0,0)
-	local g=vec3(0,-4,0)
+	local g=vec3(0,-3.5,0)
 	return {
 		pos=v_clone(p),
 		on_ground=nil,
 		height=0,
 		drag=0,
+		get_velocity=function()
+			return velocity
+		end,
 		get_pos=function(self)
 	 		return self.pos,angle,steering_angle/0.625,velocity,boost
 		end,
@@ -493,7 +499,7 @@ function make_plyr(p,on_trick)
 			end
 		elseif hit_ttl<0 and hit_type==1 then
 			-- props: 
-			_treehit_sfx:play()
+			pick(_treehit_sfxs):play()
 			screen:shake()
 			-- temporary invincibility
 			hit_ttl=15
@@ -713,6 +719,34 @@ function make_npc(p,cam)
 	return body
 end
 
+function make_smoke_trail(pos, vel)
+	local angle=rnd()
+	local s,c=cos(angle),sin(angle)	
+	local velocity=vec3(8*c,16+rnd(8),8*s)
+	v_add(velocity,vel,0.5)
+	local ttl=flr(rnd(5))
+	
+	return {
+		pos=vec3(pos[1],pos[2]+2,pos[3]),
+		update=function(self)
+			velocity[2]-=1
+			v_add(self.pos,velocity,0.5/30)
+			local y=_ground:find_face(self.pos)
+			-- edge case - too close to map borders
+			if not y then return end
+			-- below ground?
+			if y>self.pos[2] then				
+				return
+			end
+			ttl+=1
+			if ttl%2==0 then
+				lib3d.spawn_particle(pick{0,1}, self.pos)
+			end
+			return true
+		end
+	}
+end
+
 function make_snowball(pos)
 	local body=make_body(pos)
 	body.id = models.PROP_SNOWBALL_PLAYER
@@ -720,17 +754,31 @@ function make_snowball(pos)
 	local base_angle=rnd()
 	local angle=rnd()
 	local n=vec3(cos(angle),0,sin(angle))
-	body.pre_update=function(self)		
+	-- hp
+	local hp=3
 
+	body.pre_update=function(self)		
 		-- physic update
 		self:integrate()
 		body_update(self)		
 	end
-	body.hit=function()
+	body.hit=function(self,force)
 		angle=rnd()
 		n=vec3(cos(angle),0,sin(angle))
+		-- fly a bit :)
+		body:apply_force_and_torque(vec3(0,lerp(25,50,rnd()),0),0)
+
+		hp-=1
+		if not self.dead and (hp<0 or force) then
+			self.dead = true
+			local vel=body:get_velocity()
+			for i=1,5+rnd(3) do
+				add(_actors,make_smoke_trail(self.pos,vel))
+			end
+		end
 	end
 	body.update=function(self)
+		if self.dead then return end
 		local pos=self.pos
 		-- update
 		local newy,newn=_ground:find_face(pos)
@@ -902,7 +950,7 @@ function menu_state(angle)
 		{state=play_state,loc=vgroups.MOUNTAIN_GREEN_TRACK,help="Chill mood?\nEnjoy the snow!",daily=false,params={
 			hp=3,
 			name="Marmottes",
-			music="AlpsnBass",
+			music="2-AlpineAirtime",
 			slope=1.5,
 			twist=2.5,
 			num_tracks=3,
@@ -916,7 +964,7 @@ function menu_state(angle)
 		end,params={
 			hp=1,
 			name="Biquettes",
-			music="LoudCorners",
+			music="4-TreelineTrekkin",
 			dslot=2,
 			slope=2,
 			twist=4,
@@ -927,11 +975,11 @@ function menu_state(angle)
 			min_cooldown=4,
 			max_cooldown=8}},
 		{state=race_state,loc=vgroups.MOUNTAIN_BLACK_TRACK,help=function()
-			return "Endless Race\nTake over mania!\nBest: ".._save_state.best_3.."m"
+			return "Special Ski Course\nStay alert!\nBest: ".._save_state.best_3.."m"
 		end,params={
 			hp=1,
 			name="Chamois",
-			music="WishyWashy",
+			music="3-BackcountryBombing",
 			dslot=3,
 			slope=2.25,
 			twist=6,
@@ -954,7 +1002,7 @@ function menu_state(angle)
 	local cam=make_cam(vec3(0,0.8,-0.5))
 
 	-- background music
-	_music = playdate.sound.fileplayer.new("sounds/alps_polka")
+	_music = playdate.sound.fileplayer.new("sounds/1-PowderyPolka")
 	_music:play(0)
 
 	_ski_sfx:stop()
@@ -1024,8 +1072,9 @@ function menu_state(angle)
 
 	-- starting position (outside screen)
 	gfx.setFont(largeFont[gfx.kColorBlack])
-	for _,p in pairs(panels) do
-		p.x = -gfx.getTextSize(p.params.name) - 32
+	for i,p in pairs(panels) do
+		p.x = -gfx.getTextSize(p.params.name) - 16
+		p.t = time()
 		p.x_start = p.x
 	end
 
@@ -1037,14 +1086,19 @@ function menu_state(angle)
 			sel=mid(sel,0,#panels-1)
 			
 			-- daily mode?
-			if playdate.buttonJustReleased(playdate.kButtonRight) then daily=not daily end
+			if playdate.buttonJustReleased(playdate.kButtonRight) then daily=not daily _button_click:play(1) end
 
 			if not starting and playdate.buttonJustReleased(playdate.kButtonA) then
 				-- sub-state
         starting=true
+				for _,p in pairs(panels) do
+					p.t = time()
+				end
+
 				do_async(function()
 					-- fade out music
 					_music:setVolume(0,0,1)
+					_button_go:play(1)
 					local panel = panels[sel+1]
 					-- project location into world space
 					local world_loc = m_x_v(actors[1].m,panel.loc)		
@@ -1061,9 +1115,13 @@ function menu_state(angle)
 					-- daily mode?
 					if panel.daily~=false and daily then
 						local t = playdate.getTime()
-						p.params.r_seed = t.year * 365 * 31 + (t.month-1) * 31 + t.day-1
+						local date = string.format("%04d/%02d/%02d",t.year,t.month,t.day)
+						p.params.r_seed = lib3d.DEKHash(date)
+						-- keep date string
+						p.params.daily = date
 					else
 						p.params.r_seed = playdate.getSecondsSinceEpoch()
+						p.params.daily = nil
 					end
 
 					if p.transition==false then
@@ -1091,10 +1149,12 @@ function menu_state(angle)
 			for _,p in pairs(panels) do
 				-- target
 				local x = p == sel_panel and 14 or 10
+				local dt=0.5
+				local t=min(dt,time()-p.t)
 				if starting then
-					x = p.x_start
+					t=dt-t
 				end
-				p.x = lerp(p.x,x,0.25)
+				p.x = playdate.easingFunctions.inOutBack(t,p.x_start,x-p.x_start,dt)
 			end
 		
 			--
@@ -1111,7 +1171,6 @@ function menu_state(angle)
 			lib3d.render_props(cam.pos,cam.m)
 
 			if not starting then
-
 				_game_title_anim:drawImage((frame_t%#_game_title_anim)+1,10,6)
 				print_small("FReDS72 & Ridgekhun",10,54)
 			end
@@ -1292,6 +1351,7 @@ function shop_state(...)
 				action_ttl=min(30,action_ttl+1)
 				if action_ttl==30 then
 					action_ttl = 0
+					_button_buy:play(1)
 					do_async(function()
 						-- commit basket instantly
 						_save_state[item.uuid] = 1
@@ -1751,6 +1811,9 @@ function play_state(params,help_ttl)
 		end
 	end)	
 
+	local track_name = params.name
+	local track_name_x = 399 - gfx.getTextSize(track_name)
+
 	return
 		-- update
 		function()
@@ -1764,6 +1827,7 @@ function play_state(params,help_ttl)
 
 			-- adjust ground
 			local slice_id,commands,offset = _ground:update(_tracked.pos)
+
 			if _plyr then
 				v_add(_plyr.pos,offset)
 			end
@@ -1864,7 +1928,8 @@ function play_state(params,help_ttl)
 		function()
 			blink_mask = 0
 			for _,a in pairs(_actors) do
-				if not a.blinking or frame_t%2==0 then
+				-- skip non 3d model actors
+				if a.id and (not a.blinking or frame_t%2==0) then
 					_ground:add_render_prop(a.id,a.m)
 					if a.m_shadow then
 						_ground:add_render_prop(models.PROP_SHADOW,a.m_shadow)
@@ -1914,9 +1979,8 @@ function play_state(params,help_ttl)
 				print_small("$"..coins,0,0,text_color)
 
 				-- current track
-				local x = 399 - gfx.getTextSize(params.name)
-				print_small(params.name,x,0,text_color)
-				_mountain_icon:draw(x - _mountain_icon:getSize(),3)
+				print_small(track_name,track_name_x,0,text_color)
+				_mountain_icon:draw(track_name_x - _mountain_icon:getSize(),3)
 
 				-- chill mode?
 				if best_distance then
@@ -2057,7 +2121,7 @@ function race_state(params)
 		function()
 			play_draw()
 			if npc and npc.dist>30 then	
-				local s=flr(npc.dist).."m"
+				local s=npc.dist>70 and "bye!" or "faster!"--flr(npc.dist).."m"
 				gfx.setFont(smallFont[gfx.kColorWhite])
 				local sw,sh=gfx.getTextSize(s)
 				sw += 4
@@ -2089,11 +2153,14 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 	local snowball=add(_actors,make_snowball(pos))
 	-- hugh :/
 	snowball:update()
+
 	_tracked = snowball
 
 	local turn_side,tricks_rating=pick({-1,1}),{"meh","rookie","junior","master"}
 	local text_ttl,active_text,text=10,"yikes!",{"ouch!","aie!","pok!","weee!"}
-
+	local hit_ttl = 0
+	-- limit free rolling to 10s
+	local ttl = 10*30
 	-- save records (if any)
 	if params.dslot and total_distance>_save_state["best_"..params.dslot] then
 		_save_state["best_"..params.dslot] = flr(total_distance)
@@ -2101,11 +2168,29 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 	
 	-- stop ski sfx
 	_ski_sfx:stop()
+	_snowball_sfx:play(0)
+
+	-- generate QR code if daily
+	local qrcode_timer
+	local qrcode_img
+	if params.daily then
+		local hash = lib3d.DEKHash(string.format("b437f227-eece-46b2-a81d-70a8c8224a0f-%s%i",params.daily,total_distance))
+		local url = string.format("https://freds72.github.io/snow-scores.html?h=%X&m=%i&d=%s&t=%i",hash,flr(total_distance),params.daily,params.track_type)
+		qrcode_timer = gfx.generateQRCode(url, nil, function(img, error)
+			qrcode_img = img
+			if error then print("Unable to generate QR code: "..error) end
+		end)
+	end
 
 	return
 		-- update
-		function()		
-			snowball:pre_update()	
+		function()	
+			-- for qr code generation
+			playdate.timer.updateTimers()
+
+			if not snowball.dead then
+				snowball:pre_update()	
+			end
 			prev_update()
 
 			msg_y=lerp(msg_y,msg_tgt_y[msg_tgt_i+1],0.08)
@@ -2115,21 +2200,32 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 			if msg_tgt_i>#msg_tgt_y-1 then msg_tgt_i=0 active_msg=(active_msg+1)%2 end
 
 			text_ttl-=1
-
-			local p=snowball.pos
-			if text_ttl<0 and _ground:collide(p,1) then
-				snowball:hit()
+			hit_ttl-=1
+			ttl-=1
+			local p=snowball.pos			
+			if not snowball.dead and ((hit_ttl<0 and text_ttl<0 and _ground:collide(p,1)==1) or ttl<0) then
+				-- force kill?
+				snowball:hit(ttl<0)
+				pick(_treehit_sfxs):play()
+				if snowball.dead then
+					_snowball_sfx:stop()
+				end
 				active_text,text_ttl=pick(text),10
 				turn_side=-turn_side
 				screen:shake()
+				hit_ttl=15
 			end
 			-- keep camera off side walls
-			cam:track(vec3(mid(p[1],8,29*4),p[2],p[3]+16),0.5,v_up,0.2)
+			local slice=_ground:get_track(cam.pos)
+			cam.pos=vec3(lerp(cam.pos[1],mid(p[1],slice.xmin+4,slice.xmax-4),0.1),p[2],p[3]+16)
+			cam:look(p)
 
 			if playdate.buttonJustReleased(_input.back.id) then
+				if qrcode_timer then qrcode_timer:remove() qrcode_timer = nil end
 				next_state(zoomin_state,menu_state)
 			end
 			if playdate.buttonJustReleased(_input.action.id) then
+				if qrcode_timer then qrcode_timer:remove() qrcode_timer = nil end
 				next_state(zoomin_state,play_state,params,90)
 			end
 		end,
@@ -2153,6 +2249,11 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 					text = "ⒷRestart/MenuⒶ"
 				end				
 				print_regular(text,nil,162)
+			end
+
+			if qrcode_img then
+				local w,h = qrcode_img:getSize()
+				qrcode_img:draw(400-w,240-h)
 			end
 		end
 end
@@ -2232,12 +2333,20 @@ function _init()
 	_helo_sfx = playdate.sound.sampleplayer.new("sounds/helo_loop")
 	_coin_sfx = playdate.sound.sampleplayer.new("sounds/coin")
 	_checkpoint_sfx = playdate.sound.sampleplayer.new("sounds/checkpoint")
-	_treehit_sfx = playdate.sound.sampleplayer.new("sounds/tree-impact-1")
+	_treehit_sfxs = {
+		--playdate.sound.sampleplayer.new("sounds/tree-hit-1"),
+		playdate.sound.sampleplayer.new("sounds/tree-hit-1"),
+		playdate.sound.sampleplayer.new("sounds/tree-hit-2"),
+		playdate.sound.sampleplayer.new("sounds/tree-hit-3"),
+		}
 	_button_click = playdate.sound.sampleplayer.new("sounds/ui_button_click")
+	_button_go = playdate.sound.sampleplayer.new("sounds/ui_button_go")
+	_button_buy = playdate.sound.sampleplayer.new("sounds/ui_button_buy")
 	_boost_sfx = playdate.sound.sampleplayer.new("sounds/boost")
 	_invert_sfx = playdate.sound.sampleplayer.new("sounds/invert_jinx")
 	_dynamite_sfx = playdate.sound.sampleplayer.new("sounds/dynamite_jinx")
 	_skidoo_sfx = playdate.sound.sampleplayer.new("sounds/skidoo")
+	_snowball_sfx = playdate.sound.sampleplayer.new("sounds/snowball")
 
 	_game_over = gfx.image.new("images/game_over")
 	_dir_icon = gfx.image.new("images/checkpoint_lock")

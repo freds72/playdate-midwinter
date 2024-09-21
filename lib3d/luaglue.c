@@ -297,6 +297,24 @@ static int lib3d_clear_particles(lua_State* L) {
 	return 0;
 }
 
+// https://www.partow.net/programming/hashfunctions/index.html#DEKHashFunction
+static int lib3d_DEKHash(lua_State* L)
+{
+	int argc = 1;
+	char* str = pd->lua->getArgString(argc++);
+	int length = strlen(str);
+
+	unsigned int hash = length;
+	unsigned int i = 0;
+
+	for (i = 0; i < length; ++str, ++i)
+	{
+		hash = ((hash << 5) ^ (hash >> 27)) ^ (*str);
+	}
+	pd->lua->pushInt(hash);
+	return 1;
+}
+
 void lib3d_register(PlaydateAPI* playdate)
 {
 	pd = playdate;
@@ -325,6 +343,7 @@ void lib3d_register(PlaydateAPI* playdate)
 	REGISTER_LUA_FUNC(update_ground);
 	REGISTER_LUA_FUNC(spawn_particle);
 	REGISTER_LUA_FUNC(clear_particles);
+	REGISTER_LUA_FUNC(DEKHash);
 	
 	if (!pd->lua->registerClass("lib3d.GroundParams", lib3D_GroundParams, NULL, 0, &err))
 		pd->system->logToConsole("%s:%i: registerClass failed, %s", __FILE__, __LINE__, err);	
