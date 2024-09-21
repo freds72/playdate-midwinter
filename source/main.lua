@@ -499,7 +499,7 @@ function make_plyr(p,on_trick)
 			end
 		elseif hit_ttl<0 and hit_type==1 then
 			-- props: 
-			_treehit_sfx:play()
+			pick(_treehit_sfxs):play()
 			screen:shake()
 			-- temporary invincibility
 			hit_ttl=15
@@ -762,14 +762,14 @@ function make_snowball(pos)
 		self:integrate()
 		body_update(self)		
 	end
-	body.hit=function(self)
+	body.hit=function(self,force)
 		angle=rnd()
 		n=vec3(cos(angle),0,sin(angle))
 		-- fly a bit :)
 		body:apply_force_and_torque(vec3(0,lerp(25,50,rnd()),0),0)
 
 		hp-=1
-		if not self.dead and hp<0 then
+		if not self.dead and (hp<0 or force) then
 			self.dead = true
 			local vel=body:get_velocity()
 			for i=1,5+rnd(3) do
@@ -950,7 +950,7 @@ function menu_state(angle)
 		{state=play_state,loc=vgroups.MOUNTAIN_GREEN_TRACK,help="Chill mood?\nEnjoy the snow!",daily=false,params={
 			hp=3,
 			name="Marmottes",
-			music="AlpsnBass",
+			music="2-AlpineAirtime",
 			slope=1.5,
 			twist=2.5,
 			num_tracks=3,
@@ -964,7 +964,7 @@ function menu_state(angle)
 		end,params={
 			hp=1,
 			name="Biquettes",
-			music="LoudCorners",
+			music="4-TreelineTrekkin",
 			dslot=2,
 			slope=2,
 			twist=4,
@@ -979,7 +979,7 @@ function menu_state(angle)
 		end,params={
 			hp=1,
 			name="Chamois",
-			music="WishyWashy",
+			music="3-BackcountryBombing",
 			dslot=3,
 			slope=2.25,
 			twist=6,
@@ -1002,7 +1002,7 @@ function menu_state(angle)
 	local cam=make_cam(vec3(0,0.8,-0.5))
 
 	-- background music
-	_music = playdate.sound.fileplayer.new("sounds/alps_polka")
+	_music = playdate.sound.fileplayer.new("sounds/1-PowderyPolka")
 	_music:play(0)
 
 	_ski_sfx:stop()
@@ -2159,7 +2159,8 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 	local turn_side,tricks_rating=pick({-1,1}),{"meh","rookie","junior","master"}
 	local text_ttl,active_text,text=10,"yikes!",{"ouch!","aie!","pok!","weee!"}
 	local hit_ttl = 0
-
+	-- limit free rolling to 10s
+	local ttl = 10*30
 	-- save records (if any)
 	if params.dslot and total_distance>_save_state["best_"..params.dslot] then
 		_save_state["best_"..params.dslot] = flr(total_distance)
@@ -2167,6 +2168,7 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 	
 	-- stop ski sfx
 	_ski_sfx:stop()
+	_snowball_sfx:play(0)
 
 	-- generate QR code if daily
 	local qrcode_timer
@@ -2199,9 +2201,15 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 
 			text_ttl-=1
 			hit_ttl-=1
-			local p=snowball.pos
-			if not snowball.dead and hit_ttl<0 and text_ttl<0 and _ground:collide(p,1) then
-				snowball:hit()
+			ttl-=1
+			local p=snowball.pos			
+			if not snowball.dead and ((hit_ttl<0 and text_ttl<0 and _ground:collide(p,1)==1) or ttl<0) then
+				-- force kill?
+				snowball:hit(ttl<0)
+				pick(_treehit_sfxs):play()
+				if snowball.dead then
+					_snowball_sfx:stop()
+				end
 				active_text,text_ttl=pick(text),10
 				turn_side=-turn_side
 				screen:shake()
@@ -2224,7 +2232,6 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 		-- draw
 		function()
 			prev_draw()
-			if true then return end
 
 			print_bold(msgs[active_msg+1],nil,msg_y,gfx.kColorWhite)
 			local x,y=rnd(4)-2,msg_y+8+rnd(4)-2
@@ -2326,7 +2333,12 @@ function _init()
 	_helo_sfx = playdate.sound.sampleplayer.new("sounds/helo_loop")
 	_coin_sfx = playdate.sound.sampleplayer.new("sounds/coin")
 	_checkpoint_sfx = playdate.sound.sampleplayer.new("sounds/checkpoint")
-	_treehit_sfx = playdate.sound.sampleplayer.new("sounds/tree-impact-1")
+	_treehit_sfxs = {
+		--playdate.sound.sampleplayer.new("sounds/tree-hit-1"),
+		playdate.sound.sampleplayer.new("sounds/tree-hit-1"),
+		playdate.sound.sampleplayer.new("sounds/tree-hit-2"),
+		playdate.sound.sampleplayer.new("sounds/tree-hit-3"),
+		}
 	_button_click = playdate.sound.sampleplayer.new("sounds/ui_button_click")
 	_button_go = playdate.sound.sampleplayer.new("sounds/ui_button_go")
 	_button_buy = playdate.sound.sampleplayer.new("sounds/ui_button_buy")
@@ -2334,6 +2346,7 @@ function _init()
 	_invert_sfx = playdate.sound.sampleplayer.new("sounds/invert_jinx")
 	_dynamite_sfx = playdate.sound.sampleplayer.new("sounds/dynamite_jinx")
 	_skidoo_sfx = playdate.sound.sampleplayer.new("sounds/skidoo")
+	_snowball_sfx = playdate.sound.sampleplayer.new("sounds/snowball")
 
 	_game_over = gfx.image.new("images/game_over")
 	_dir_icon = gfx.image.new("images/checkpoint_lock")
