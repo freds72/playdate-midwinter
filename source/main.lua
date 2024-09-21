@@ -1812,7 +1812,9 @@ function play_state(params,help_ttl)
 	end)	
 
 	local track_name = params.name
+	gfx.setFont(smallFont[gfx.kColorWhite])
 	local track_name_x = 399 - gfx.getTextSize(track_name)
+	local track_icon = params.daily and _calendar_icon or _mountain_icon
 
 	return
 		-- update
@@ -1980,7 +1982,7 @@ function play_state(params,help_ttl)
 
 				-- current track
 				print_small(track_name,track_name_x,0,text_color)
-				_mountain_icon:draw(track_name_x - _mountain_icon:getSize(),3)
+				track_icon:draw(track_name_x - track_icon:getSize() - 2,3)
 
 				-- chill mode?
 				if best_distance then
@@ -2351,6 +2353,7 @@ function _init()
 	_game_over = gfx.image.new("images/game_over")
 	_dir_icon = gfx.image.new("images/checkpoint_lock")
 	_mountain_icon = gfx.image.new("images/mountain_icon")
+	_calendar_icon = gfx.image.new("images/calendar_icon")
 
 	_warning_small = gfx.image.new("images/warning_small")
 	_warning_avalanche = gfx.image.new("images/warning_avalanche")
