@@ -2349,7 +2349,7 @@ function _init()
 		-- default values
 		_save_state = {}		
 		_save_state.version = 1
-		_save_state.coins = 2000
+		_save_state.coins = 0
 		_save_state.flip_crank = false
 		_save_state.best_1 = 1000
 		_save_state.best_2 = 500
