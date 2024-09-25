@@ -826,7 +826,6 @@ function loading_state()
 			end
 		end
 
-		--next_state(transition_state)
 		next_state(menu_state)
 		--next_state(bench_state)
 		--next_state(vec3_test)
@@ -855,49 +854,6 @@ function loading_state()
 				lerp(400,188,t),
 				lerp(82,0,t))
 			print_regular("Altitude: "..(step*10).."m",4,220)
-		end
-end
-
-function transition_state()
-	local ttl,dttl=30,0.01
-  local starting
-	local fade=1
-	do_async(function()
-		while fade<=20 do
-			coroutine.yield()
-			fade+=1
-		end
-		-- next_state(go_state,table.unpack(args))
-	end)
-	local mask = gfx.image.new(400,240,gfx.kColorBlack)
-	local bg = gfx.image.new("system/menu")
-	local card = gfx.image.new("system/card")
-	local first_frame=true
-	return
-		-- update
-		function(self)
-		end,
-		-- draw
-		function()
-
-			card:draw(25,43)
-
-			gfx.lockFocus(mask)
-			gfx.setColor(gfx.kColorWhite)
-			for x=0,400,32 do
-				for y=0,240,32 do
-					local r=lerp(-16-y/16,0,x/400)
-					gfx.fillCircleAtPoint(x,y,max(0,r+58*(fade-1)/20))
-			 end
-	 		end
-			gfx.unlockFocus()
-
-			bg:clearMask()
-			bg:setMaskImage(mask)
-			bg:draw(0,0)
-
-			-- save image
-			if fade<=20 then playdate.simulator.writeToFile(gfx.getDisplayImage(), "~/launchImages/"..fade..".png") end
 		end
 end
 
@@ -1114,7 +1070,8 @@ function menu_state(angle)
 					local p=panels[sel+1]
 					-- daily mode?
 					if panel.daily~=false and daily then
-						local t = playdate.getTime()
+						-- make sure all players get the same seed all over the world!!
+						local t = playdate.getGMTTime()
 						local date = string.format("%04d/%02d/%02d",t.year,t.month,t.day)
 						p.params.r_seed = lib3d.DEKHash(date)
 						-- keep date string
@@ -1172,7 +1129,7 @@ function menu_state(angle)
 
 			if not starting then
 				_game_title_anim:drawImage((frame_t%#_game_title_anim)+1,10,6)
-				print_small("FReDS72 & Ridgekhun",10,54)
+				print_small("by Freds72&Ridgekhun",10,54)
 			end
 
 			local sel_panel = panels[sel+1]
@@ -1239,7 +1196,7 @@ function menu_state(angle)
 				end
 				y += 28
 			end			
-			
+
 		end		
 end
 
@@ -1346,20 +1303,28 @@ function shop_state(...)
 			if not playdate.buttonIsPressed(playdate.kButtonA) then 
 				action_ttl=0
 			end
-			local is_valid = _save_state[item.uuid] or _save_state.coins>=item.price
+			-- don't already own item
+			local is_valid = not _save_state[item.uuid] and _save_state.coins>=item.price
 			if is_valid and playdate.buttonIsPressed(playdate.kButtonA) then
 				action_ttl=min(30,action_ttl+1)
+				if action_ttl==1 then
+					_button_go:play(1)
+				end
 				if action_ttl==30 then
 					action_ttl = 0
 					_button_buy:play(1)
 					do_async(function()
 						-- commit basket instantly
 						_save_state[item.uuid] = 1
+						local start_coins = _save_state.coins
 						_save_state.coins -= item.price
-						for i=1,30 do
-							coins -= 1
-							coroutine.yield()
+						local target_coins = _save_state.coins
+						for i=0,29,3 do
+							coins = flr(lerp(start_coins,target_coins,i/30))
+							_coin_sfx:play(1)
+							wait_async(3)
 						end
+						coins = _save_state.coins 
 					end)
 				end
 			end
@@ -1745,6 +1710,7 @@ function play_state(params,help_ttl)
 		local prev=bonus[#bonus]
 		-- add to combo only if different trick
 		if not prev or prev.msg~=msg then
+			_trick_sfx:play(1)
 			add(bonus,{x=-60,t=0,msg=msg})
 			-- 3s to get another trick
 			combo_ttl=90
@@ -2057,7 +2023,7 @@ function race_state(params)
 				-- wooble over ground
 				pos[2] = ny + 16 + cos(time())
 
-				if not dropped and pos[3]>_plyr.pos[3]+24 then
+				if not dropped and _plyr and pos[3]>_plyr.pos[3]+24 then
 					-- avoid reentrancy
 					dropped=true
 					do_async(function()
@@ -2122,7 +2088,7 @@ function race_state(params)
 		-- draw
 		function()
 			play_draw()
-			if npc and npc.dist>30 then	
+			if npc and npc.dist>30 and _plyr then	
 				local s=npc.dist>70 and "bye!" or "faster!"--flr(npc.dist).."m"
 				gfx.setFont(smallFont[gfx.kColorWhite])
 				local sw,sh=gfx.getTextSize(s)
@@ -2330,6 +2296,7 @@ function _init()
 
 	_ski = gfx.image.new("images/ski")
 	_ski_sfx = playdate.sound.sampleplayer.new("sounds/skiing_loop")
+	_trick_sfx = playdate.sound.sampleplayer.new("sounds/trick")
 	_eagle_sfx = playdate.sound.sampleplayer.new("sounds/eagle_loop")
 	_ufo_sfx = playdate.sound.sampleplayer.new("sounds/ufo_loop")
 	_helo_sfx = playdate.sound.sampleplayer.new("sounds/helo_loop")
@@ -2382,7 +2349,7 @@ function _init()
 		-- default values
 		_save_state = {}		
 		_save_state.version = 1
-		_save_state.coins = 0
+		_save_state.coins = 2000
 		_save_state.flip_crank = false
 		_save_state.best_1 = 1000
 		_save_state.best_2 = 500

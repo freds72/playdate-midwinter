@@ -38,6 +38,7 @@ PROP_TREE1 = 1
 ,PROP_GOLEFT = 35
 ,PROP_GORIGHT = 36
 ,PROP_SKIDOO = 37
+,PROP_SNOWPLOW = 38
 
 }
 -- named vertices

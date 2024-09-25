@@ -127,7 +127,20 @@ Section _chill_sections[] = {
             {.timeline = "W............" },
             {.timeline = NULL }
         }
-    }
+    },
+    // snowplow
+    {
+        .random = 0,
+            .seq = { .min = 0, .max = INT_MAX },
+            .timelines = {
+                {.timeline = "." },
+                {.timeline = "." },
+                {.timeline = "P" },
+                {.timeline = "." },
+                {.timeline = "." },
+                {.timeline = NULL }
+        }
+    },
 };
 
 // red track
@@ -515,20 +528,18 @@ Section _endless_section_start = {
 
 // test
 Section _test_sections[] = {
-    // jump
     {
         .random = 0,
-        .seq = {.min = 0, .max = INT_MAX },
-        .timelines = {
-            {.timeline = "W............" },
-            {.timeline = "....12345...."},
-            {.timeline = "..J.12345...."},
-            {.timeline = "..J.12345...."},
-            {.timeline = "....12345...."},
-            {.timeline = "W............" },
-            {.timeline = NULL }
+            .seq = {.min = 0, .max = INT_MAX },
+            .timelines = {
+                {.timeline = "." },
+                {.timeline = "." },
+                {.timeline = "P" },
+                {.timeline = "." },
+                {.timeline = "." },
+                {.timeline = NULL }
         }
-    }
+    },
 };
 
 

@@ -238,6 +238,7 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
                     switch (_ground.tracks->pattern[i]) {
                     case 'W': prop_id = PROP_WARNING; break;
                     case 'R': prop_id = PROP_ROCK; break;
+                    case 'P': prop_id = PROP_SNOWPLOW; break;
                     case 'M': prop_id = PROP_COW; prop_t = randf_seeded(); break;
                     case 'J': prop_id = PROP_JUMPPAD; break;
                     case 'S': prop_id = PROP_START; break;
@@ -802,6 +803,8 @@ void ground_init(PlaydateAPI* playdate) {
     // obstacles
     _props_properties[PROP_ROCK - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_KILL, .radius = 3.f };
     _props_properties[PROP_COW - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_KILL, .radius = 2.5f };
+    _props_properties[PROP_SNOWPLOW - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_KILL, .radius = 3.f };
+
     // snowball
     _props_properties[PROP_SNOWBALL - 1] = (PropProperties){ .flags = PROP_FLAG_KILL, .radius = 2.f };
     _props_properties[PROP_SPLASH - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
