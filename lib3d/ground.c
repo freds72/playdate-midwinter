@@ -171,7 +171,7 @@ static void mesh_slice(int j) {
     }
 }
 
-static void make_slice(GroundSlice* slice, float y, int warmup) {
+static void make_slice(GroundSlice* slice, float y) {
     static int trees[] = { PROP_TREE0,PROP_TREE0,PROP_TREE1,PROP_TREE1,PROP_TREE2,PROP_TREE3,PROP_TREE3,PROP_TREE4,PROP_TREE4,PROP_TREE4,PROP_TREE5,PROP_TREE5,PROP_TREE5,PROP_LOG };
     static int num_trees = sizeof(trees) / sizeof(PROP_TREE0);
 
@@ -182,7 +182,7 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
     slice->y = y;
     slice->tracks_mask = 0;
 
-    update_tracks(warmup);
+    update_tracks();
 
     // generate height
     uint32_t shadow_mask = 0;
@@ -326,7 +326,7 @@ static void make_slice(GroundSlice* slice, float y, int warmup) {
     */
 }
 
-void make_ground(GroundParams params) {
+void make_ground(GroundParams params, TrackPatterns* patterns) {
     active_params = params;
     
     // init random seed
@@ -346,14 +346,15 @@ void make_ground(GroundParams params) {
     for (int i = 0; i < GROUND_HEIGHT; ++i) {
         // reset slices
         _ground.slices[i] = &_slices_buffer[i];
-        make_slice(_ground.slices[i], -i * params.slope, 1);
+        make_slice(_ground.slices[i], -i * params.slope);
+        memcpy(patterns->pattern[i],_ground.tracks->pattern, TRACK_PATTERN_WIDTH);
     }
     for (int i = 0; i < GROUND_HEIGHT - 1; ++i) {
         mesh_slice(i);
     }
 }
 
-void update_ground(const Point3d p, int* slice_id, char** pattern, Point3d* offset) {
+void update_ground(const Point3d p, int* slice_id, TrackPattern* pattern, Point3d* offset) {
     // TODO: FIX!!!
     // prevent going up slope!
     float pz = p.z;
@@ -378,7 +379,7 @@ void update_ground(const Point3d p, int* slice_id, char** pattern, Point3d* offs
         _ground.slices[GROUND_HEIGHT - 1] = old_slice;        
 
         // use previous baseline
-        make_slice(old_slice, _ground.slices[GROUND_HEIGHT - 2]->y - active_params.slope * (randf_seeded() + 0.5f), 0);
+        make_slice(old_slice, _ground.slices[GROUND_HEIGHT - 2]->y - active_params.slope * (randf_seeded() + 0.5f));
         mesh_slice(GROUND_HEIGHT - 2);
     }
     // update y offset
@@ -390,7 +391,7 @@ void update_ground(const Point3d p, int* slice_id, char** pattern, Point3d* offs
     update_particles(*offset);
 
     *slice_id = _ground.slice_id;
-    *pattern = _ground.tracks->pattern;
+    memcpy(pattern,_ground.tracks->pattern, TRACK_PATTERN_WIDTH);
 }
 
 void get_start_pos(Point3d* out) {
@@ -779,7 +780,7 @@ void ground_init(PlaydateAPI* playdate) {
         float t = 1.5f * (((float)i) / RAYCAST_PRECISION - 0.5f);
         const float angle = atan2f(MAX_TILE_DIST, MAX_TILE_DIST * t * 2.f) - PI / 2.f;
         // using a 24:8 "fixed" value
-        const int dist_max = (MAX_TILE_DIST << 8) / cosf(angle);
+        const int dist_max = (int)((MAX_TILE_DIST << 8) / cosf(angle));
         _rays[i] = (Ray){
             .distance = dist_max * dist_max,
             .angle = angle
@@ -1187,7 +1188,7 @@ int render_sky(const Mat4 m, uint8_t* screen) {
 
 static void collect_tiles(uint32_t visible_tiles[GROUND_HEIGHT], const Point3d pos, float base_angle) {
     float x = pos.x / GROUND_CELL_SIZE, y = pos.z / GROUND_CELL_SIZE;
-    int32_t x0 = (int)x, y0 = (int)y;
+    int x0 = (int)x, y0 = (int)y;
 
     // current tile is always in
     visible_tiles[y0] |= 1 << x0;
@@ -1196,11 +1197,11 @@ static void collect_tiles(uint32_t visible_tiles[GROUND_HEIGHT], const Point3d p
         float angle = base_angle + _rays[i].angle;
         float v = cosf(angle), u = sinf(angle);
 
-        int32_t mapx = x0, mapy = y0;
-        int32_t mapdx = 1, mapdy = 1;
+        int mapx = x0, mapy = y0;
+        int mapdx = 1, mapdy = 1;
         // convert to fixed 24:8
-        int32_t ddx = (1 << 8) / u, ddy = (1 << 8) / v;
-        int32_t distx = 0, disty = 0;
+        int ddx = (int)((1 << 8) / u), ddy = (int)((1 << 8) / v);
+        int distx = 0, disty = 0;
         if (u < 0.f) {
             mapdx = -1;
             ddx = -ddx;

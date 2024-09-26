@@ -499,13 +499,13 @@ Section _race_section_start = {
     .random = 0,
     .seq = {.min = 0, .max = 0 },
     .timelines = {
-        {.timeline = "W.............." },
-        {.timeline = "S.............." },
-        {.timeline = "..............." },
-        {.timeline = "...n..........m" },
-        {.timeline = "..............." },
-        {.timeline = "S.............." },
-        {.timeline = "W.............." },
+        {.timeline = "....................W.............." },
+        {.timeline = "....................S.............." },
+        {.timeline = "..................................." },
+        {.timeline = ".............................n....m" },
+        {.timeline = "..................................." },
+        {.timeline = "....................S.............." },
+        {.timeline = "....................W.............." },
         {.timeline = NULL }
     }
 };
@@ -514,13 +514,13 @@ Section _endless_section_start = {
     .random = 0,
     .seq = {.min = 0, .max = 0 },
     .timelines = {
-        {.timeline = "...................." },
-        {.timeline = "S..................." },
-        {.timeline = "...................." },
-        {.timeline = "..................C." },
-        {.timeline = "...................." },
-        {.timeline = "S..................." },
-        {.timeline = "...................." },
+        {.timeline = "........................................" },
+        {.timeline = "....................S..................." },
+        {.timeline = "........................................" },
+        {.timeline = "......................................C." },
+        {.timeline = "........................................" },
+        {.timeline = "....................S..................." },
+        {.timeline = "........................................" },
         {.timeline = NULL }
     }
 };
@@ -637,12 +637,12 @@ static Section* pick_next_section() {
     return sections[randi_seeded(n)];
 }
 
-static int update_track(Track *track,int warmup)
+static int update_track(Track *track)
 {
   if (track->is_dead)
     return 0;
 
-  if (!warmup && track->is_main) {
+  if (track->is_main) {
       // next section?
       if (!_section_director.active_section) {
           // lerp width
@@ -801,12 +801,12 @@ void make_tracks(const int xmin, const int xmax, GroundParams params, Tracks** o
   *out = &_tracks;
 }
 
-void update_tracks(int warmup)
+void update_tracks()
 {
   int i = 0;
   while (i < _tracks.n)
   {
-    if (!update_track(&_tracks.tracks[i], warmup))
+    if (!update_track(&_tracks.tracks[i]))
     {
       // shift other tracks down
       for (int j = i + 1; j < _tracks.n; j++)

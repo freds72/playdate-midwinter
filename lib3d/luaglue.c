@@ -109,9 +109,34 @@ static const lua_reg lib3D_GroundParams[] =
 	{ NULL,				NULL }
 };
 
+// ************************
+// Track patterns lua/c interface
+// ************************
+static TrackPatterns* getTrackPatternsParam(int n) { return getArgObject(n, "lib3d.TrackPatterns"); }
 
-LCDBitmap* _mire_bitmap = NULL;
-uint8_t* _mire_data = NULL;
+static int track_patterns_gc(lua_State* L)
+{
+	TrackPatterns* p = getTrackPatternsParam(1);
+	lib3d_free(p);
+	return 0;
+}
+
+static int track_patterns_index(lua_State* L)
+{
+	TrackPatterns* p = getTrackPatternsParam(1);
+	const int i = pd->lua->getArgInt(2);
+	
+	pd->lua->pushString(p->pattern[i-1]);
+	return 1;
+}
+
+static const lua_reg lib3D_TrackPatterns[] =
+{
+	{ "__gc", 			track_patterns_gc },
+	{ "__index",		track_patterns_index },
+	{ NULL,				NULL }
+};
+
 
 // 
 static int lib3d_render_ground(lua_State* L)
@@ -170,10 +195,12 @@ static int lib3d_get_start_pos(lua_State* L) {
 
 static int lib3d_make_ground(lua_State* L) {
 	GroundParams* p = getGroundParams(1);
+	
+	TrackPatterns* patterns = lib3d_malloc(sizeof(TrackPatterns));;
+	make_ground(*p,patterns);
 
-	make_ground(*p);
-
-	return 0;
+	pd->lua->pushObject(patterns, "lib3d.TrackPatterns", 0);
+	return 1;
 }
 
 static int lib3d_get_face(lua_State* L) {
@@ -221,8 +248,8 @@ static int lib3d_update_ground(lua_State* L) {
 	Point3d* pos = getArgVec3(1);
 
 	int slice_id;
-	char* pattern;
-	Point3d* offset = pop_vec3();;
+	TrackPattern pattern;
+	Point3d* offset = pop_vec3();
 	update_ground(*pos, &slice_id, &pattern, offset);
 
 	pd->lua->pushInt(slice_id);
@@ -301,13 +328,11 @@ static int lib3d_clear_particles(lua_State* L) {
 static int lib3d_DEKHash(lua_State* L)
 {
 	int argc = 1;
-	char* str = pd->lua->getArgString(argc++);
-	int length = strlen(str);
+	const char* str = pd->lua->getArgString(argc++);
+	const size_t length = strlen(str);
 
-	unsigned int hash = length;
-	unsigned int i = 0;
-
-	for (i = 0; i < length; ++str, ++i)
+	unsigned int hash = (int)length;
+	for (size_t i = 0; i < length; ++str, ++i)
 	{
 		hash = ((hash << 5) ^ (hash >> 27)) ^ (*str);
 	}
@@ -347,6 +372,8 @@ void lib3d_register(PlaydateAPI* playdate)
 	
 	if (!pd->lua->registerClass("lib3d.GroundParams", lib3D_GroundParams, NULL, 0, &err))
 		pd->system->logToConsole("%s:%i: registerClass failed, %s", __FILE__, __LINE__, err);	
+	if (!pd->lua->registerClass("lib3d.TrackPatterns", lib3D_TrackPatterns, NULL, 0, &err))
+		pd->system->logToConsole("%s:%i: registerClass failed, %s", __FILE__, __LINE__, err);
 }
 
 void lib3d_unregister(PlaydateAPI* playdate) {
