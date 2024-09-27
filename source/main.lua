@@ -573,7 +573,7 @@ function make_jinx(id,pos,velocity,params)
 			if _plyr then
 				local dist=v_dist(pos,_plyr.pos)
 				if dist<params.radius then
-					params.effect()
+					params.effect(self)
 					return
 				end
 			end
@@ -607,8 +607,12 @@ function make_npc(p,cam)
 			add(_actors,make_jinx(models.PROP_DYNAMITE, pos, vec3(0,2,-0.1), {
 				particle=1,
 				radius=3,
-				effect=function()
+				-- self = jinx instance
+				effect=function(self)
 					_dynamite_sfx:play(1)
+					for i=1,5+rnd(3) do
+						add(_actors,make_smoke_trail(self.pos,vec3(0,0,0)))
+					end		
 					if _plyr then _plyr.dead=true end
 				end}
 			))
@@ -643,7 +647,7 @@ function make_npc(p,cam)
 		-- crude ai control!
 		local _,angle=self:get_pos()
 		local slice=_ground:get_track(pos)
-		if slice.z>29*4 or slice.z<4 then
+		if slice.z>38*4 or slice.z<4 then
 			sfx:stop()
 			-- kill npc
 			self.dead=true
@@ -928,8 +932,8 @@ function menu_state(angle)
 			tight_mode=1,
 			props_rate=1,
 			track_type=1,
-			min_cooldown=4,
-			max_cooldown=8}},
+			min_cooldown=2,
+			max_cooldown=6}},
 		{state=race_state,loc=vgroups.MOUNTAIN_BLACK_TRACK,help=function()
 			return "Special Ski Course\nStay alert!\nBest: ".._save_state.best_3.."m"
 		end,params={
@@ -941,7 +945,7 @@ function menu_state(angle)
 			twist=6,
 			num_tracks=1,
 			tight_mode=0,
-			props_rate=0.97,
+			props_rate=0.96,
 			track_type=2,
 			min_cooldown=4,
 			max_cooldown=12}},
@@ -2011,7 +2015,7 @@ function race_state(params)
 		droping_in=true
 		local pos=vec3((lane+0.5)*4,-16,row*4-2)
 		local y=_ground:find_face(pos)
-		pos[2]=y+16
+		pos[2]=y+24
 		-- sfx?
 		_helo_sfx:play(0)
 		_helo_sfx:setVolume(0)
@@ -2023,7 +2027,7 @@ function race_state(params)
 			update=function(self)
 				local pos=self.pos
 				-- update pos?
-				pos[3]+=1
+				pos[3]+=0.9
 				-- get current height
 				local ny=_ground:find_face(pos)
 				-- out of landscape?
@@ -2037,9 +2041,9 @@ function race_state(params)
 				end
 
 				-- wooble over ground
-				pos[2] = ny + 16 + cos(time())
+				pos[2] = lerp(pos[2], ny + 18 + cos(time()),0.2)
 
-				if not dropped and _plyr and pos[3]>_plyr.pos[3]+24 then
+				if not dropped and _plyr and pos[3]>_plyr.pos[3]+38 then
 					-- avoid reentrancy
 					dropped=true
 					do_async(function()
@@ -2065,7 +2069,6 @@ function race_state(params)
 			if params.skip_helo then return end
 			params.skip_helo = true
 			if droping_in then return end
-			print("helo:"..lane.." / "..row)
 			return make_helo(lane,row,cam)
 		end,
 		-- nPc

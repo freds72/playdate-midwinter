@@ -395,9 +395,14 @@ void update_ground(const Point3d p, int* slice_id, TrackPattern* pattern, Point3
 }
 
 void get_start_pos(Point3d* out) {
-    out->v[0] = _ground.slices[_ground.plyr_z_index]->center;
-    out->v[1] = 0;
-    out->v[2] = (float)_ground.plyr_z_index * GROUND_CELL_SIZE;
+    *out = (Point3d){.v = {
+        _ground.slices[_ground.plyr_z_index]->center, 
+        0,
+        (float)_ground.plyr_z_index * GROUND_CELL_SIZE} };
+    Point3d n;
+    float y;
+    get_face(*out, &n, &y);
+    out->y = y;
 }
 
 int get_face(const Point3d pos, Point3d* nout, float* yout) {
