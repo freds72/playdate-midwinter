@@ -16,6 +16,7 @@
 #include "particles.h"
 #include "drawables.h"
 #include "lua3dmath.h"
+#include "rand_r.h"
 
 #define REGISTER_LUA_FUNC(func) \
 	do {\
@@ -340,6 +341,12 @@ static int lib3d_DEKHash(lua_State* L)
 	return 1;
 }
 
+// expose game random (for daily)
+static int lib3d_seeded_rnd(lua_State* L) {
+	pd->lua->pushFloat(randf_seeded());
+	return 1;
+}
+
 void lib3d_register(PlaydateAPI* playdate)
 {
 	pd = playdate;
@@ -369,6 +376,7 @@ void lib3d_register(PlaydateAPI* playdate)
 	REGISTER_LUA_FUNC(spawn_particle);
 	REGISTER_LUA_FUNC(clear_particles);
 	REGISTER_LUA_FUNC(DEKHash);
+	REGISTER_LUA_FUNC(seeded_rnd);
 	
 	if (!pd->lua->registerClass("lib3d.GroundParams", lib3D_GroundParams, NULL, 0, &err))
 		pd->system->logToConsole("%s:%i: registerClass failed, %s", __FILE__, __LINE__, err);	

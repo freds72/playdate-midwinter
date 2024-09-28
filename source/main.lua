@@ -82,16 +82,11 @@ local function add(t,v)
   return v
 end
 local function mid(a,b,c)
-  return math.min(math.max(a,b),c)
+  return min(max(a,b),c)
 end
+-- returns time as a fraction of seconds
 local function time()
-  return playdate.getCurrentTimeMilliseconds()/1000
-end
-local function del(t,v)
-  local i = table.indexOfElement(t, v)
-  if i then 
-    table.remove(t, i)
-  end
+  return playdate.getElapsedTime()
 end
 
 -- registers a new coroutine
@@ -550,9 +545,14 @@ function make_jinx(id,pos,velocity,params)
 	return {
 		id=id,
 		pos=pos,
+		-- random orientation
 		m=make_m_y_rot(time()),
 		-- blinking=true,
 		update=function(self)
+			if params.ttl and params.ttl<time() then
+				params.die(self)
+				return
+			end
 			-- gravity
 			velocity[2]-=0.25
 			v_add(pos,velocity)
@@ -607,12 +607,26 @@ function make_npc(p,cam)
 			add(_actors,make_jinx(models.PROP_DYNAMITE, pos, vec3(0,2,-0.1), {
 				particle=1,
 				radius=3,
+				ttl=time()+3,
+				die=function(self)
+					screen:shake()
+					_dynamite_sfx:play(1)
+					for i=1,5+rnd(3) do
+						add(_actors,make_smoke_trail(self.pos,vec3(0,0,0)))
+					end
+					do_async(function()
+						-- spawn a rolling ball on player :)
+						if _plyr then
+							add(_actors,make_rolling_ball(_plyr.pos[1]/4))
+						end
+					end)
+				end,
 				-- self = jinx instance
 				effect=function(self)
 					_dynamite_sfx:play(1)
 					for i=1,5+rnd(3) do
 						add(_actors,make_smoke_trail(self.pos,vec3(0,0,0)))
-					end		
+					end
 					if _plyr then _plyr.dead=true end
 				end}
 			))
@@ -636,6 +650,12 @@ function make_npc(p,cam)
 				effect=function()
 					if _plyr then _plyr.on_coin(1) end
 				end}
+			))
+		end,
+		-- log!
+		function(pos)
+			add(_actors,make_jinx(models.PROP_LOG, pos, vec3(0,2,-0.1), {
+				radius=1.5}
 			))
 		end,
 	}
@@ -673,7 +693,7 @@ function make_npc(p,cam)
 				do_async(function()
 					pick(jinxes)(v_clone(pos))
 				end)
-				jinx_ttl = 90 + rnd(90)
+				jinx_ttl = 90 + 90 * lib3d.seeded_rnd()
 			end
 			self.dist = dist
 		end
@@ -1489,89 +1509,92 @@ function make_static_actor(id,x,sfx_name,update)
 	end	
 end
 
+-- 
+function make_rolling_ball(lane)
+	local y_velocity,z_velocity = 0,1.5
+	local y_force,on_ground = 0
+	local base_angle = rnd()
+	local pos=vec3((lane+0.5)*4,0,0.5)
+	local prev_pos=v_clone(pos)
+	-- helper
+	local function v2_sqrlen(x,z,b)
+		local dx,dz=b[1]-x,b[3]-z
+		return dx*dx+dz*dz
+	end
+	return {
+		id=models.PROP_SNOWBALL,
+		pos=pos,
+		warning=flr(lane),
+		shift=function(self,offset)
+			-- shift
+			v_add(pos,offset)
+			v_add(prev_pos,offset)
+		end,
+		update=function(self)
+			-- gravity
+			y_force = -4
+			if on_ground then
+				-- todo: shake?
+				-- force += 4
+				-- y_force += 0.5
+			end
+			y_velocity+=y_force*0.5/30
+			prev_pos=v_clone(prev_pos)
+			pos[2]+=y_velocity
+			pos[3]+=z_velocity
+			y_force=0
+
+			-- capsule collision with player
+			if _plyr then
+				local plyr_x,plyr_z=_plyr.pos[1],_plyr.pos[3]
+				-- kill warning if past player
+				if pos[3]-plyr_z>4 then
+					self.warning = nil
+				end
+				if v2_sqrlen(plyr_x,plyr_z,pos)<2.25 or 
+					v2_sqrlen(plyr_x,plyr_z,prev_pos)<2.25 or 
+					(plyr_x<pos[1]+1.5 and plyr_x>pos[1]-1.5 
+					and plyr_z<pos[3] and plyr_z>prev_pos[3]) then
+					_plyr.dead = true
+				end
+			end
+			
+			-- update
+			local newy,newn=_ground:find_face(pos)
+			-- out of bound: kill actor
+			if not newy then return end
+
+			on_ground = nil
+			if pos[2]<=newy then
+				pos[2]=newy
+				on_ground = true
+				y_velocity = 0
+			end
+			-- shadow plane projection matrix
+			local m = make_m_from_v(newn)
+			m[13]=pos[1]
+			-- avoid z-fighting
+			m[14]=newy+0.1
+			m[15]=pos[3]
+			self.m_shadow = m
+
+			-- roll!!!
+			local m = make_m_x_rot(base_angle-4*time())
+			m[13]=pos[1]
+			-- offset with ball radius
+			m[14]=pos[2]+1.25
+			m[15]=pos[3]
+			self.m = m
+			return true
+		end
+	}
+end
+
 -- custom provides additional commands (optional)
 function make_command_handlers(custom)
 	return setmetatable({
 		-- snowball!!
-		B=function(lane)
-			local y_velocity,z_velocity = 0,1.5
-			local y_force,on_ground = 0
-			local base_angle = rnd()
-			local pos=vec3((lane+0.5)*4,0,0.5)
-			local prev_pos=v_clone(pos)
-			-- helper
-			local function v2_sqrlen(x,z,b)
-				local dx,dz=b[1]-x,b[3]-z
-				return dx*dx+dz*dz
-			end
-			return {
-				id=models.PROP_SNOWBALL,
-				pos=pos,
-				warning=lane,
-				shift=function(self,offset)
-					-- shift
-					v_add(pos,offset)
-					v_add(prev_pos,offset)
-				end,
-				update=function(self)
-					-- gravity
-					y_force = -4
-					if on_ground then
-						-- todo: shake?
-						-- force += 4
-						-- y_force += 0.5
-					end
-					y_velocity+=y_force*0.5/30
-					prev_pos=v_clone(prev_pos)
-					pos[2]+=y_velocity
-					pos[3]+=z_velocity
-					y_force=0
-
-					-- capsule collision with player
-					if _plyr then
-						local plyr_x,plyr_z=_plyr.pos[1],_plyr.pos[3]
-						-- kill warning if past player
-						if pos[3]-plyr_z>4 then
-							self.warning = nil
-						end
-						if v2_sqrlen(plyr_x,plyr_z,pos)<2.25 or 
-							v2_sqrlen(plyr_x,plyr_z,prev_pos)<2.25 or 
-							(plyr_x<pos[1]+1.5 and plyr_x>pos[1]-1.5 
-							and plyr_z<pos[3] and plyr_z>prev_pos[3]) then
-							_plyr.dead = true
-						end
-					end
-					
-					-- update
-					local newy,newn=_ground:find_face(pos)
-					-- out of bound: kill actor
-					if not newy then return end
-
-					on_ground = nil
-					if pos[2]<=newy then
-						pos[2]=newy
-						on_ground = true
-						y_velocity = 0
-					end
-					-- shadow plane projection matrix
-					local m = make_m_from_v(newn)
-					m[13]=pos[1]
-					-- avoid z-fighting
-					m[14]=newy+0.1
-					m[15]=pos[3]
-					self.m_shadow = m
-
-					-- roll!!!
-					local m = make_m_x_rot(base_angle-4*time())
-					m[13]=pos[1]
-					-- offset with ball radius
-					m[14]=pos[2]+1.25
-					m[15]=pos[3]
-					self.m = m
-					return true
-				end
-			}
-		end,
+		B=make_rolling_ball,
 		-- skidoo
 		K=function(lane,_,cam)
 			local pos=vec3((lane+0.5)*4,-16,_ground_height-2)
