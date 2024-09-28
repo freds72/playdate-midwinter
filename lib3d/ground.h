@@ -24,8 +24,15 @@ typedef struct {
 	Point3d pos;
 } PropInfo;
 
+#define TRACK_PATTERN_WIDTH (GROUND_WIDTH + 1)
+typedef char TrackPattern[TRACK_PATTERN_WIDTH];
+
+typedef struct {
+	TrackPattern pattern[GROUND_HEIGHT];
+} TrackPatterns;
+
 // create a new ground
-void make_ground(GroundParams params);
+void make_ground(GroundParams params, TrackPatterns* patterns);
 
 // start position (to be called after make_ground)
 void get_start_pos(Point3d* out);
@@ -42,7 +49,7 @@ void clear_checkpoint(const Point3d pos);
 
 // update ground, create new slice as necessary and adjust position
 // offset contains the ground "position" offset when slices are created
-void update_ground(const Point3d pos, int* slice_id, char** pattern, Point3d* offset);
+void update_ground(const Point3d pos, int* slice_id, TrackPattern* pattern, Point3d* offset);
 
 // check collision
 void collide(Point3d pos, float radius, int* hit_type);

@@ -24,7 +24,7 @@ typedef struct {
     Timeline timelines[MAX_TIMELINES];
 } Section;
 
-Section _chill_sections[] = {
+static Section _chill_sections[] = {
     // cabins
     {
         .random = 0,
@@ -144,7 +144,7 @@ Section _chill_sections[] = {
 };
 
 // red track
-Section _endless_sections[] = {
+static Section _endless_sections[] = {
     // narrow pass
     {
         .random = 0,
@@ -162,6 +162,43 @@ Section _endless_sections[] = {
         .seq = {.min = 8, .max = 25 },
         .timelines = {
             {.timeline = "..C..." },
+            {.timeline = NULL }
+        }
+    },
+    // trees
+    {
+        .random = 0,
+        .seq = {.min = 0, .max = 25 },
+        .timelines = {
+            {.timeline = "...." },
+            {.timeline = "..T..." },
+            {.timeline = "...." },
+            {.timeline = "..T." },
+            {.timeline = NULL }
+        }
+    },
+    // tree+rock
+    {
+        .random = 0,
+        .seq = {.min = 0, .max = 25 },
+        .timelines = {
+            {.timeline = ".R.." },
+            {.timeline = "..C..." },
+            {.timeline = "..C." },
+            {.timeline = "..T." },
+            {.timeline = NULL }
+        }
+    },
+    // rock
+    {
+        .random = 0,
+        .seq = {.min = 0, .max = 25 },
+        .timelines = {
+            {.timeline = "..." },
+            {.timeline = "..." },
+            {.timeline = ".R.." },
+            {.timeline = "..." },
+            {.timeline = "..." },
             {.timeline = NULL }
         }
     },
@@ -436,7 +473,7 @@ Section _endless_sections[] = {
 };
 
 // black track (race)
-Section _race_sections[] = {
+static Section _race_sections[] = {
     // 2x accel pad
     {
         .random = 0,
@@ -495,39 +532,38 @@ Section _race_sections[] = {
     }
 };
 
-Section _race_section_start = {
+static Section _endless_section_start = {
     .random = 0,
     .seq = {.min = 0, .max = 0 },
     .timelines = {
-        {.timeline = "W.............." },
-        {.timeline = "S.............." },
-        {.timeline = "..............." },
-        {.timeline = "...n..........m" },
-        {.timeline = "..............." },
-        {.timeline = "S.............." },
-        {.timeline = "W.............." },
+        {.timeline = "........................................" },
+        {.timeline = "....................S..................." },
+        {.timeline = "........................................" },
+        {.timeline = "......................................C." },
+        {.timeline = "........................................" },
+        {.timeline = "....................S..................." },
+        {.timeline = "........................................" },
         {.timeline = NULL }
     }
 };
 
-Section _endless_section_start = {
+static Section _race_section_start = {
     .random = 0,
     .seq = {.min = 0, .max = 0 },
     .timelines = {
-        {.timeline = "...................." },
-        {.timeline = "S..................." },
-        {.timeline = "...................." },
-        {.timeline = "..................C." },
-        {.timeline = "...................." },
-        {.timeline = "S..................." },
-        {.timeline = "...................." },
+        {.timeline = "....................W........" },
+        {.timeline = "....................S........" },
+        {.timeline = "............................." },
+        {.timeline = "..........n.................." },
+        {.timeline = "............................." },
+        {.timeline = "....................S........" },
+        {.timeline = "....................W........" },
         {.timeline = NULL }
     }
 };
-
 
 // test
-Section _test_sections[] = {
+static Section _test_sections[] = {
     {
         .random = 0,
             .seq = {.min = 0, .max = INT_MAX },
@@ -616,12 +652,11 @@ static Section* pick_next_section() {
         return _section_director.catalog.start;
     }
 
-    // todo: handle more than 16 sections
-    Section* sections[16] = {NULL};
+    Section* sections[64] = {NULL};
     int n = 0;
     // pick section
     const int seq = _section_director.seq;
-    for (int i = 0; i < _section_director.catalog.n && i<16; i++) {
+    for (int i = 0; i < _section_director.catalog.n && i<64; i++) {
         Section* s = &_section_director.catalog.sections[i];
         if (seq >= s->seq.min && seq <= s->seq.max ) {
             sections[n++] = s;
@@ -637,12 +672,12 @@ static Section* pick_next_section() {
     return sections[randi_seeded(n)];
 }
 
-static int update_track(Track *track,int warmup)
+static int update_track(Track *track)
 {
   if (track->is_dead)
     return 0;
 
-  if (!warmup && track->is_main) {
+  if (track->is_main) {
       // next section?
       if (!_section_director.active_section) {
           // lerp width
@@ -801,12 +836,12 @@ void make_tracks(const int xmin, const int xmax, GroundParams params, Tracks** o
   *out = &_tracks;
 }
 
-void update_tracks(int warmup)
+void update_tracks()
 {
   int i = 0;
   while (i < _tracks.n)
   {
-    if (!update_track(&_tracks.tracks[i], warmup))
+    if (!update_track(&_tracks.tracks[i]))
     {
       // shift other tracks down
       for (int j = i + 1; j < _tracks.n; j++)

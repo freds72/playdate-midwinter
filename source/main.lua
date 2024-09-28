@@ -10,22 +10,22 @@ import 'CoreLibs/qrcode'
 import 'models.lua'
 import 'store.lua'
 
-local gfx = playdate.graphics
-local font = gfx.font.new('font/whiteglove-stroked')
-local smallFont = {
+local gfx <const> = playdate.graphics
+local font <const> = gfx.font.new('font/whiteglove-stroked')
+local smallFont <const> = {
 	[gfx.kColorBlack]=gfx.font.new('font/Memo-Black'),
 	[gfx.kColorWhite]=gfx.font.new('font/Memo-White')
 }
-local largeFont = {
+local largeFont <const> = {
 	[gfx.kColorBlack]=gfx.font.new('font/More-15-Black'),
 	[gfx.kColorWhite]=gfx.font.new('font/More-15-White')
 }
-local outlineFont = {
+local outlineFont <const> = {
 	[gfx.kColorBlack]=gfx.font.new('font/More-15-Black-Outline'),
 	[gfx.kColorWhite]=gfx.font.new('font/More-15-White-Outline')
 }
 -- 50% dither pattern
-local _50pct_pattern = { 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55 }
+local _50pct_pattern <const> = { 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55 }
 
 local _inputs={
 	-- crank docked
@@ -573,7 +573,7 @@ function make_jinx(id,pos,velocity,params)
 			if _plyr then
 				local dist=v_dist(pos,_plyr.pos)
 				if dist<params.radius then
-					params.effect()
+					params.effect(self)
 					return
 				end
 			end
@@ -607,8 +607,12 @@ function make_npc(p,cam)
 			add(_actors,make_jinx(models.PROP_DYNAMITE, pos, vec3(0,2,-0.1), {
 				particle=1,
 				radius=3,
-				effect=function()
+				-- self = jinx instance
+				effect=function(self)
 					_dynamite_sfx:play(1)
+					for i=1,5+rnd(3) do
+						add(_actors,make_smoke_trail(self.pos,vec3(0,0,0)))
+					end		
 					if _plyr then _plyr.dead=true end
 				end}
 			))
@@ -643,7 +647,7 @@ function make_npc(p,cam)
 		-- crude ai control!
 		local _,angle=self:get_pos()
 		local slice=_ground:get_track(pos)
-		if slice.z>29*4 or slice.z<4 then
+		if slice.z>38*4 or slice.z<4 then
 			sfx:stop()
 			-- kill npc
 			self.dead=true
@@ -928,8 +932,8 @@ function menu_state(angle)
 			tight_mode=1,
 			props_rate=1,
 			track_type=1,
-			min_cooldown=4,
-			max_cooldown=8}},
+			min_cooldown=2,
+			max_cooldown=6}},
 		{state=race_state,loc=vgroups.MOUNTAIN_BLACK_TRACK,help=function()
 			return "Special Ski Course\nStay alert!\nBest: ".._save_state.best_3.."m"
 		end,params={
@@ -941,7 +945,7 @@ function menu_state(angle)
 			twist=6,
 			num_tracks=1,
 			tight_mode=0,
-			props_rate=0.97,
+			props_rate=0.96,
 			track_type=2,
 			min_cooldown=4,
 			max_cooldown=12}},
@@ -1444,8 +1448,8 @@ end
 -- command handlers
 -- generic static prop
 function make_static_actor(id,x,sfx_name,update)
-	return function(lane,cam)
-		local pos=vec3(x or (lane+0.5)*4,-16,_ground_height - 2)
+	return function(lane,row,cam)
+		local pos=vec3(x or (lane+0.5)*4,-16,row*4 - 2)
 		local y=_ground:find_face(pos)
 		pos[2]=y
 		-- sfx?
@@ -1569,7 +1573,7 @@ function make_command_handlers(custom)
 			}
 		end,
 		-- skidoo
-		K=function(lane,cam)
+		K=function(lane,_,cam)
 			local pos=vec3((lane+0.5)*4,-16,_ground_height-2)
 			-- sfx
 			local sfx = _skidoo_sfx:copy()
@@ -1721,7 +1725,8 @@ function play_state(params,help_ttl)
 	lib3d.clear_particles()
 
 	-- start over
-	_actors,_ground={},make_ground(params)
+	local patterns
+	_actors,_ground,patterns={},make_ground(params)
 
 	-- create player in correct direction
 	_plyr=make_plyr(_ground:get_pos(),register_trick)
@@ -1738,6 +1743,21 @@ function play_state(params,help_ttl)
 
 	-- command handler
 	local handlers = make_command_handlers(params.commands)
+
+	-- starting commands
+	for j=1,40 do
+		local commands=patterns[j]
+		for i=1,#commands do
+			local c=string.sub(commands,i,i)
+			local cmd=handlers[c]
+			if cmd then
+				local actor=cmd(i-1,j-1,cam)
+				if actor then
+					add(_actors,actor)
+				end
+			end
+		end
+	end
 
 	-- music & sfx
 	if params.music then
@@ -1837,7 +1857,7 @@ function play_state(params,help_ttl)
 						local c=string.sub(commands,i,i)
 						local cmd=handlers[c]
 						if cmd then
-							local actor=cmd(i-1,cam)
+							local actor=cmd(i-1,40,cam)
 							if actor then
 								add(_actors,actor)
 							end
@@ -1991,11 +2011,11 @@ function race_state(params)
 	local droping_in,dropped
 	local frame_t=0
 	local cam=make_cam()
-	local make_helo=function(lane,cam)
+	local make_helo=function(lane,row,cam)
 		droping_in=true
-		local pos=vec3((lane+0.5)*4,-16,4)
+		local pos=vec3((lane+0.5)*4,-16,row*4-2)
 		local y=_ground:find_face(pos)
-		pos[2]=y+16
+		pos[2]=y+24
 		-- sfx?
 		_helo_sfx:play(0)
 		_helo_sfx:setVolume(0)
@@ -2007,7 +2027,7 @@ function race_state(params)
 			update=function(self)
 				local pos=self.pos
 				-- update pos?
-				pos[3]+=1
+				pos[3]+=0.9
 				-- get current height
 				local ny=_ground:find_face(pos)
 				-- out of landscape?
@@ -2021,9 +2041,9 @@ function race_state(params)
 				end
 
 				-- wooble over ground
-				pos[2] = ny + 16 + cos(time())
+				pos[2] = lerp(pos[2], ny + 18 + cos(time()),0.2)
 
-				if not dropped and _plyr and pos[3]>_plyr.pos[3]+24 then
+				if not dropped and _plyr and pos[3]>_plyr.pos[3]+38 then
 					-- avoid reentrancy
 					dropped=true
 					do_async(function()
@@ -2044,20 +2064,20 @@ function race_state(params)
 	-- custom command handlers
 	params.commands = {
 		-- Nelicopter :)
-		n = function(lane,cam)
+		n = function(lane,row,cam)
 			-- run helo sequence only once
 			if params.skip_helo then return end
 			params.skip_helo = true
 			if droping_in then return end
-			return make_helo(lane,cam)
+			return make_helo(lane,row,cam)
 		end,
 		-- nPc
-		p = function(lane,cam)
+		p = function(lane,row,cam)
 			if dropped then return end
 			dropped=true
 			local y=0
 			if _plyr then y=_plr.pos[2]+12 end
-			npc=make_npc(vec3((lane+0.5)*4,y,4),cam)
+			npc=make_npc(vec3((lane+0.5)*4,y,row*4-2),cam)
 			return npc
 		end
 	}
@@ -2388,8 +2408,8 @@ function make_ground(params)
 	for k,v in pairs(params) do
 		gp[k] = v
 	end
-	lib3d.make_ground(gp)
-	
+	local patterns = lib3d.make_ground(gp)
+
 	-- interface with C library
 	return {		
 		_gp = gp,
@@ -2432,7 +2452,7 @@ function make_ground(params)
 		add_render_prop=function(self,id,m)
 			lib3d.add_render_prop(id,m)
 		end
-	}
+	},patterns
 end
 
 -->8
