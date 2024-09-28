@@ -1,6 +1,7 @@
 #include "lua3dmath.h"
 #include "userdata.h"
 #include "3dmath.h"
+#include <float.h>
 
 static PlaydateAPI* pd = NULL;
 
@@ -30,7 +31,11 @@ static int vec3_new(lua_State* L)
 int vec3_gc(lua_State* L)
 {
 	Point3d* p = getArgVec3(1);
-	push_vec3(p);
+	// avoids double release
+	if (p->x != FLT_MAX) {
+		push_vec3(p);
+		p->x = FLT_MAX;
+	}
 	return 0;
 }
 
@@ -72,12 +77,31 @@ static int vec3_clone(lua_State* L) {
 	return 1;
 }
 
-static int vec3_dot(lua_State* L) {
+static int vec3_copy(lua_State* L) {
 	int argc = 1;
 	Point3d* a = getArgVec3(argc++);
 	Point3d* b = getArgVec3(argc++);
 
-	pd->lua->pushFloat(v_dot(*a,*b));
+	*b = *a;
+	return 0;
+}
+
+static int vec3_dot(lua_State* L) {
+	int argc = 1;
+	Point3d* a = getArgVec3(argc++);
+	if (pd->lua->getArgCount() == 2) {
+		Point3d* b = getArgVec3(argc++);
+
+		pd->lua->pushFloat(v_dot(*a, *b));
+	}
+	else {
+		Point3d b = {
+			.v = {
+				pd->lua->getArgFloat(argc++),
+				pd->lua->getArgFloat(argc++),
+				pd->lua->getArgFloat(argc++) } };
+		pd->lua->pushFloat(v_dot(*a, b));
+	}
 	return 1;
 }
 
@@ -208,7 +232,10 @@ static int mat4_new(lua_State* L)
 int mat4_gc(lua_State* L)
 {
 	Mat4* p = getArgMat4(1);
-	push_mat4(p);
+	if ((*p)[0] != FLT_MAX) {
+		push_mat4(p);
+		(*p)[0] = FLT_MAX;
+	}
 	return 0;
 }
 
@@ -464,6 +491,7 @@ static const lua_reg _vec3_methods[] =
 	{ "__gc", 		vec3_gc },
 	{ "__index",	vec3_index },
 	{ "__newindex",	vec3_newindex },
+	{ "__close",	vec3_gc },
 	{ "add",		vec3_add },
 	{ "clone",		vec3_clone },
 	{ "dot",		vec3_dot },
@@ -474,6 +502,7 @@ static const lua_reg _vec3_methods[] =
 	{ "dist",		vec3_dist },
 	{ "zero",		vec3_zero },
 	{ "move",		vec3_move },
+	{ "copy",		vec3_copy },
 	{ NULL,			NULL }
 };
 
@@ -481,6 +510,7 @@ static const lua_reg _mat4_methods[] =
 {
 	{ "new",					mat4_new },
 	{ "__gc", 					mat4_gc },
+	{ "__close", 				mat4_gc },
 	{ "__index",				mat4_index },
 	{ "__newindex",				mat4_newindex },
 	{ "m_x_v",					mat4_m_x_v },

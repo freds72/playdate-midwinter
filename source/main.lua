@@ -143,6 +143,7 @@ end
 -- vector tools
 local vec3 = lib3d.Vec3.new
 local v_clone = lib3d.Vec3.clone
+local v_copy = lib3d.Vec3.copy
 local v_dot = lib3d.Vec3.dot
 local v_scale = lib3d.Vec3.scale
 local v_add = lib3d.Vec3.add
@@ -214,8 +215,10 @@ function make_cam(pos)
 			m_inv_translate(m,pos)
 			self.m=m
 		end,
-		track=function(self,pos,a,u,power,snap)
-   		pos=v_clone(pos)
+		track=function(self,p,a,u,power,snap)
+   		local pos=self.pos
+			v_copy(p,pos)
+			pos[2]+=0.5
    		-- lerp angle
 			self.angle=lerp(self.angle,a,power or 0.8)
 			-- lerp orientation (or snap to angle)
@@ -271,7 +274,7 @@ function make_body(p,angle)
 			local u=v_lerp(v_up,up,scale)
 			local m=make_m_from_v_angle(u,angle)
 			
-			local right=m_right(m)
+			local right <close> = m_right(m)
 			v_add(u,right,sin(steering_angle)*scale/2)
 			v_normz(u)
 			return u,m
@@ -293,7 +296,7 @@ function make_body(p,angle)
 			self:apply_force_and_torque(g,0)
 			-- on ground?
 			if self.on_ground then
-				local n=v_clone(up)
+				local n <close> = v_clone(up)
 				v_scale(n,-v_dot(n,g))
 				-- slope pushing up
 				self:apply_force_and_torque(n,0)
@@ -331,14 +334,15 @@ function make_body(p,angle)
 			if self.on_ground and v_len(velocity)>0.001 then
 
 				-- desired ski direction
-				local m=make_m_from_v_angle(up,angle-steering_angle/16)
-				local right,fwd=m_right(m),m_fwd(m)
+				local m <close> = make_m_from_v_angle(up,angle-steering_angle/16)
+				local right <close> = m_right(m)
+				local fwd <close> = m_fwd(m)
 				
 				-- slip angle
 				local sa=-v_dot(velocity,right)
 				if abs(sa)>0.001 then
 					-- max grip
-					local vn=v_clone(velocity)
+					local vn <close> =v_clone(velocity)
 					v_normz(vn)
 					local grip=1-abs(v_dot(fwd,vn))
 					-- more turn: more grip
@@ -376,13 +380,13 @@ function make_body(p,angle)
 			-- find ground
 			local pos=self.pos
 
-			local newy,newn=_ground:find_face(pos)
+			local newy,newn <close> =_ground:find_face(pos)
 			-- stop at ground
 			self.on_ground=nil
 			self.on_cliff=newn[2]<0.5
 			local tgt_height=1
 			if pos[2]<=newy then
-				up=newn
+				v_copy(newn,up)
 				tgt_height=pos[2]-newy
 				pos[2]=newy			
 				self.on_ground=true
@@ -508,7 +512,7 @@ function make_plyr(p,on_trick)
 		self.on_track=pos[1]>=slice.xmin and pos[1]<=slice.xmax
 		
 		-- need to have some speed
-		if v_dot(velocity,vec3(-sin(angle),0,cos(angle)))<-0.2 then
+		if v_dot(velocity,-sin(angle),0,cos(angle))<-0.2 then
 			reverse_t+=1
 		else
 			reverse_t=0
@@ -557,7 +561,7 @@ function make_jinx(id,pos,velocity,params)
 			velocity[2]-=0.25
 			v_add(pos,velocity)
 			-- find ground
-			local newy=_ground:find_face(pos)
+			local newy, _ <close> =_ground:find_face(pos)
 			-- out of bound: kill actor
 			if not newy then return end
 
@@ -574,7 +578,10 @@ function make_jinx(id,pos,velocity,params)
 				local dist=v_dist(pos,_plyr.pos)
 				if dist<params.radius then
 					params.effect(self)
-					return
+					-- stay on game?
+					if not params.stay then
+						return
+					end
 				end
 			end
 
@@ -612,7 +619,7 @@ function make_npc(p,cam)
 					screen:shake()
 					_dynamite_sfx:play(1)
 					for i=1,5+rnd(3) do
-						add(_actors,make_smoke_trail(self.pos,vec3(0,0,0)))
+						add(_actors,make_smoke_trail(self.pos))
 					end
 					do_async(function()
 						-- spawn a rolling ball on player :)
@@ -625,7 +632,7 @@ function make_npc(p,cam)
 				effect=function(self)
 					_dynamite_sfx:play(1)
 					for i=1,5+rnd(3) do
-						add(_actors,make_smoke_trail(self.pos,vec3(0,0,0)))
+						add(_actors,make_smoke_trail(self.pos))
 					end
 					if _plyr then _plyr.dead=true end
 				end}
@@ -655,7 +662,11 @@ function make_npc(p,cam)
 		-- log!
 		function(pos)
 			add(_actors,make_jinx(models.PROP_LOG, pos, vec3(0,2,-0.1), {
-				radius=1.5}
+				radius=1.5,
+				stay=true,
+				effect=function()
+					if _plyr then _plyr.dead=true end
+				end}				
 			))
 		end,
 	}
@@ -716,7 +727,7 @@ function make_npc(p,cam)
 		body_update(self)
 
 		-- create orientation matrix
-		local newy,newn=_ground:find_face(pos)
+		local newy,newn <close> =_ground:find_face(pos)
 		v_move(up,newn,0.3)
 		local _,angle=self:get_pos()
 		local m=make_m_from_v_angle(up,angle)
@@ -747,7 +758,7 @@ function make_smoke_trail(pos, vel)
 	local angle=rnd()
 	local s,c=cos(angle),sin(angle)	
 	local velocity=vec3(8*c,16+rnd(8),8*s)
-	v_add(velocity,vel,0.5)
+	if vel then v_add(velocity,vel,0.5) end
 	local ttl=flr(rnd(5))
 	
 	return {
@@ -755,7 +766,7 @@ function make_smoke_trail(pos, vel)
 		update=function(self)
 			velocity[2]-=1
 			v_add(self.pos,velocity,0.5/30)
-			local y=_ground:find_face(self.pos)
+			local y, _ <close> =_ground:find_face(self.pos)
 			-- edge case - too close to map borders
 			if not y then return end
 			-- below ground?
@@ -780,7 +791,7 @@ function make_snowball(pos)
 	local n=vec3(cos(angle),0,sin(angle))
 	-- hp
 	local hp=3
-
+	local jump_force = vec3()
 	body.pre_update=function(self)		
 		-- physic update
 		self:integrate()
@@ -788,9 +799,11 @@ function make_snowball(pos)
 	end
 	body.hit=function(self,force)
 		angle=rnd()
-		n=vec3(cos(angle),0,sin(angle))
+		n[1] = cos(angle)
+		n[3] = sin(angle)
 		-- fly a bit :)
-		body:apply_force_and_torque(vec3(0,lerp(25,50,rnd()),0),0)
+		jump_force[2] = lerp(25,50,rnd())
+		body:apply_force_and_torque(jump_force,0)
 
 		hp-=1
 		if not self.dead and (hp<0 or force) then
@@ -805,7 +818,7 @@ function make_snowball(pos)
 		if self.dead then return end
 		local pos=self.pos
 		-- update
-		local newy,newn=_ground:find_face(pos)
+		local newy,newn <close> =_ground:find_face(pos)
 		-- out of bound: kill actor
 		if not newy then return end
 
@@ -1539,7 +1552,7 @@ function make_rolling_ball(lane)
 				-- y_force += 0.5
 			end
 			y_velocity+=y_force*0.5/30
-			prev_pos=v_clone(prev_pos)
+			v_copy(pos,prev_pos)
 			pos[2]+=y_velocity
 			pos[3]+=z_velocity
 			y_force=0
@@ -1555,12 +1568,12 @@ function make_rolling_ball(lane)
 					v2_sqrlen(plyr_x,plyr_z,prev_pos)<2.25 or 
 					(plyr_x<pos[1]+1.5 and plyr_x>pos[1]-1.5 
 					and plyr_z<pos[3] and plyr_z>prev_pos[3]) then
-					_plyr.dead = true
+						_plyr.dead = true
 				end
 			end
 			
 			-- update
-			local newy,newn=_ground:find_face(pos)
+			local newy,newn <close> =_ground:find_face(pos)
 			-- out of bound: kill actor
 			if not newy then return end
 
@@ -1904,7 +1917,7 @@ function play_state(params,help_ttl)
 			if _plyr then
 				local pos,a,steering=_plyr:get_pos()
 				local up=_plyr:get_up()
-				cam:track(vec3(pos[1],pos[2]+0.5,pos[3]),a,up)
+				cam:track(pos,a,up)
 
 				if _plyr.dead then
 					_ski_sfx:stop()

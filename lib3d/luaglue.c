@@ -31,7 +31,7 @@ void* getArgObject(int n, char* type)
 	void* obj = pd->lua->getArgObject(n, type, NULL);
 	
 	if ( obj == NULL )
-		pd->system->error("object of type %s not found at stack position %i", type, n);
+		pd->system->logToConsole("WARNING: object of type %s not found at stack position %i", type, n);
 	
 	return obj;
 }
@@ -162,7 +162,7 @@ static int lib3d_render_ground(lua_State* L)
 	// int vlen, vmax, mlen, mmax;
 	// userdata_stats(&vlen, &vmax, &mlen, &mmax);
 	// pd->system->logToConsole("vec pool: %i/%i matrix pool: %i/%i", vlen, vmax, mlen, mmax);
-
+	
     pd->graphics->markUpdatedRows(0, LCD_ROWS - 1);
 
 	return 0;

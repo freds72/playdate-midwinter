@@ -452,17 +452,20 @@ void get_track_info(const Point3d pos, float* xmin, float* xmax, float* z, int* 
 
 
     // find nearest checkpoint
-    float x = _ground.slices[j + 2]->center, y = 2;
-    for (int k = j + 2; k < j + 10 && k < GROUND_HEIGHT; ++k) {
-        GroundSlice* s = _ground.slices[k];
-        if (s->is_checkpoint) {
-            x = s->center;
-            y = (float)(k - j);
-            break;
+    *angleout = 0.f;
+    if (j + 2 < GROUND_HEIGHT) {
+        float x = _ground.slices[j + 2]->center, y = 2;
+        for (int k = j + 2; k < j + 10 && k < GROUND_HEIGHT; ++k) {
+            GroundSlice* s = _ground.slices[k];
+            if (s->is_checkpoint) {
+                x = s->center;
+                y = (float)(k - j);
+                break;
+            }
         }
+        // direction to track ahead (rebase to half circle)
+        *angleout = 0.5f * atan2f(y * GROUND_CELL_SIZE, x - pos.x) / PI - 0.25f;
     }
-    // direction to track ahead (rebase to half circle)
-    *angleout = 0.5f * atan2f(y * GROUND_CELL_SIZE, x - pos.x) / PI - 0.25f;
 }
 
 void get_props(Point3d pos, PropInfo** info, int* nout) {
@@ -854,8 +857,8 @@ int ground_load_assets_async() {
 
 // cache entry (transformed point in camera space)
 typedef struct {
-    Point3du p;
     int outcode;
+    Point3du p;
 } CameraPoint;
 
 typedef struct {
@@ -1064,9 +1067,11 @@ void add_render_prop(const int id, const Mat4 m) {
     memcpy(p->m, m, MAT4x4 * sizeof(float));
 }
 
-static void push_threeD_model(const int prop_id, const Point3d cv, const Mat4 m) {
+static void push_threeD_model(const int prop_id, const Point3d cv, const Mat4 cm) {
     Point3du tmp[4];
     ThreeDModel* model = _props_properties[prop_id - 1].model;
+    Mat4 m;
+    memcpy(m, cm, sizeof(Mat4));
     for (int j = 0; j < model->face_count; ++j) {
         ThreeDFace* f = &model->faces[j];
         // visible?
@@ -1244,18 +1249,22 @@ static void collect_tiles(uint32_t visible_tiles[GROUND_HEIGHT], const Point3d p
 
 // render ground
 
-void render_ground(const Point3d cam_pos, const float cam_tau_angle, const Mat4 m, uint32_t blink, uint8_t * bitmap) {
+void render_ground(const Point3d cam_pos, const float cam_tau_angle, const Mat4 cam_m, uint32_t blink, uint8_t * bitmap) {
     // cache lines
     CameraPoint c0[GROUND_WIDTH];
     CameraPoint c1[GROUND_WIDTH];
-
     CameraPoint* cache[2] = { c0, c1 };
     // reset cache
     for (int i = 0; i < GROUND_WIDTH; ++i) {
         c0[i].outcode = -1;
+    }
+    for (int i = 0; i < GROUND_WIDTH; ++i) {
         c1[i].outcode = -1;
     }
 
+    // store cam matrix on stack
+    Mat4 m;
+    memcpy(m, cam_m, MAT4x4 * sizeof(float));
     const float cam_angle = cam_tau_angle * 2.f * PI;
     render_sky(m, bitmap);
 
