@@ -821,6 +821,7 @@ void ground_init(PlaydateAPI* playdate) {
     _props_properties[PROP_JUMPPAD - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_JUMP | PROP_FLAG_Y_ROTATE | PROP_FLAG_COLLECT, .radius = 2.0f };
     // coin
     _props_properties[PROP_COIN - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_COLLECT | PROP_FLAG_COIN | PROP_FLAG_Y_ROTATE, .radius = 2.0f };
+    _props_properties[PROP_DYNAMITE - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_Y_ROTATE, .radius = 3.0f };
 
     _props_properties[PROP_INVERT - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_COLLECT | PROP_FLAG_Y_ROTATE, .radius = 2.0f };
 
@@ -1067,11 +1068,9 @@ void add_render_prop(const int id, const Mat4 m) {
     memcpy(p->m, m, MAT4x4 * sizeof(float));
 }
 
-static void push_threeD_model(const int prop_id, const Point3d cv, const Mat4 cm) {
+static void push_threeD_model(const int prop_id, const Point3d cv, const Mat4 m) {
     Point3du tmp[4];
     ThreeDModel* model = _props_properties[prop_id - 1].model;
-    Mat4 m;
-    memcpy(m, cm, sizeof(Mat4));
     for (int j = 0; j < model->face_count; ++j) {
         ThreeDFace* f = &model->faces[j];
         // visible?

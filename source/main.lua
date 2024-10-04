@@ -317,6 +317,7 @@ function make_body(p,angle)
 			
 			-- update pos & orientation
 			v_add(self.pos,velocity,1 + boost + perm_boost)
+			-- print("move len: "..v_len(velocity) * (1 + boost + perm_boost))
 
 			-- limit rotating velocity
 			angularv=mid(angularv,-1,1)
@@ -550,7 +551,7 @@ function make_jinx(id,pos,velocity,params)
 		id=id,
 		pos=pos,
 		-- random orientation
-		m=make_m_y_rot(time()),
+		m=make_m_y_rot(0),
 		-- blinking=true,
 		update=function(self)
 			if params.ttl and params.ttl<time() then
@@ -609,7 +610,7 @@ function make_npc(p,cam)
 
 	-- all jinxes
 	local jinxes={
-		-- dynamite
+		-- 1: dynamite
 		function(pos)
 			add(_actors,make_jinx(models.PROP_DYNAMITE, pos, vec3(0,2,-0.1), {
 				particle=1,
@@ -638,7 +639,7 @@ function make_npc(p,cam)
 				end}
 			))
 		end,
-		-- reverse!
+		-- 2: reverse!
 		function(pos)
 			add(_actors,make_jinx(models.PROP_INVERT, pos, vec3(0,2,-0.1), {
 				radius=2,
@@ -650,7 +651,7 @@ function make_npc(p,cam)
 				end}
 			))
 		end,
-		-- coin!
+		-- 3: coin!
 		function(pos)
 			add(_actors,make_jinx(models.PROP_COIN, pos, vec3(0,2,-0.1), {
 				radius=2,
@@ -659,7 +660,7 @@ function make_npc(p,cam)
 				end}
 			))
 		end,
-		-- log!
+		-- 4: log!
 		function(pos)
 			add(_actors,make_jinx(models.PROP_LOG, pos, vec3(0,2,-0.1), {
 				radius=1.5,
@@ -669,7 +670,21 @@ function make_npc(p,cam)
 				end}				
 			))
 		end,
+		-- 5: cone!
+		function(pos)
+			add(_actors,make_jinx(models.PROP_CONE, pos, vec3(0,2,-0.1), {
+				radius=1.25,
+				stay=true,
+				effect=function()
+					if _plyr then _plyr.dead=true end
+				end}				
+			))
+		end,
 	}
+	-- jinxes distribution over time
+	local jinxes_stats={3,3,2,3,5,2,5,5,3,3,4,2,4,2,2,1,1,1,1}
+	local start_t=time()
+
 	-- distance to player
 	body.dist = 0
 	body.update=function(self)
@@ -702,7 +717,9 @@ function make_npc(p,cam)
 			jinx_ttl-=1
 			if self.on_ground and dist>24 and jinx_ttl<0 then
 				do_async(function()
-					pick(jinxes)(v_clone(pos))
+					-- pick up jinxes according to time played
+					local id=jinxes_stats[flr(lerp(1,#jinxes_stats,min(1,(time()-start_t)/180)))]
+					jinxes[id](v_clone(pos))
 				end)
 				jinx_ttl = 90 + 90 * lib3d.seeded_rnd()
 			end
@@ -946,7 +963,7 @@ function menu_state(angle)
 			music="2-AlpineAirtime",
 			slope=1.5,
 			twist=2.5,
-			num_tracks=3,
+			num_tracks=2,
 			tight_mode=0,
 			props_rate=0.90,
 			track_type=0,
@@ -961,6 +978,9 @@ function menu_state(angle)
 			dslot=2,
 			slope=2,
 			twist=4,
+			min_boost=0,
+			max_boost=3,
+			boost_t=180,
 			num_tracks=1,
 			tight_mode=1,
 			props_rate=1,
@@ -969,7 +989,8 @@ function menu_state(angle)
 			max_cooldown=6}},
 		{state=race_state,loc=vgroups.MOUNTAIN_BLACK_TRACK,help=function()
 			return "Special Ski Course\nStay alert!\nBest: ".._save_state.best_3.."m"
-		end,params={
+		end,
+			daily=false,params={
 			hp=1,
 			name="Chamois",
 			music="3-BackcountryBombing",
@@ -984,7 +1005,7 @@ function menu_state(angle)
 			max_cooldown=12}},
 		{state=shop_state,loc=vgroups.MOUNTAIN_SHOP,help=function()
 			return "Buy gear!\n$".._save_state.coins
-		end ,params={name="Shop"},transition=false,daily=false}
+		end ,params={name="Shop"},transition=false,daily=false},		
 	}
 	local sel,blink=0,false
 	-- background actors
@@ -1080,6 +1101,12 @@ function menu_state(angle)
 			
 			-- daily mode?
 			if playdate.buttonJustReleased(playdate.kButtonRight) then daily=not daily _button_click:play(1) end
+
+			-- help?
+			if playdate.buttonIsPressed(_input.back.id) then
+				_music:setVolume(0,0,1)
+				next_state(help_state, angle)
+			end
 
 			if not starting and playdate.buttonJustReleased(playdate.kButtonA) then
 				-- sub-state
@@ -1232,9 +1259,130 @@ function menu_state(angle)
 					print_regular(name, panel.x, y, gfx.kColorBlack)
 				end
 				y += 28
-			end			
-
+			end						
 		end		
+end
+
+function help_state(angle)
+	local mute = gfx.image.new("images/help-mute")
+	local speak_a = gfx.image.new("images/help-a")
+	local speak_o = gfx.image.new("images/help-o")
+	local speak_a_sfx = playdate.sound.sampleplayer.new("sounds/speak-a")
+	local speak_o_sfx = speak_a_sfx:copy()
+
+	local vocalizer = {		
+		[' ']=mute,
+		b=speak_o,
+		d=speak_o,
+		e=speak_o,
+		o=speak_o,
+		k=speak_o,
+		u=speak_o,
+		r=speak_o,
+	}
+
+	local help_msgs={
+		{
+			title="How to play?",
+			text="⬅️ left - right ➡️\nⒶ jump\nⒷ restart (long press)\n..."
+		},
+		{
+			title="Cranked play",
+			text="🎣 direction\nⒷ jump\nⒶ restart (long press)\n..."
+		},
+		{
+			title="Credits",
+			text="Code:freds72\nMusic:Ridgekuhn\nFont:somepx.itch.io\nSfx:freesound:org (cc0)\nThanks:PANIC,Bob,James,...\n..."
+		},
+	}
+	local w,h=mute:getSize()
+	local y=400
+	-- active message
+	local help
+	local prompt=1
+	local box_h=0
+	-- capture screen
+	local screen=gfx.getDisplayImage()
+
+	do_async(function()
+		local i=1
+		while true do
+			box_h=0
+			help=nil
+			local tmp=help_msgs[i]
+			gfx.setFont(smallFont[gfx.kColorWhite])
+			local msg_w,msg_h=gfx.getTextSize(tmp.text)
+			msg_h += 40
+			wait_async(15)
+			for i=1,15 do
+				box_h=lerp(box_h,msg_h,0.7)
+				coroutine.yield()
+			end
+			box_h = msg_h
+			help = tmp
+			prompt = 1
+			-- reading time!
+			wait_async(180)	
+			help = nil
+			for i=1,15 do
+				box_h=lerp(box_h,0,0.7)
+				coroutine.yield()
+			end
+			box_h=0
+			i+=1			
+			if i>#help_msgs then i=1 end
+		end
+	end)
+	return
+		-- update
+		function()
+			-- release: go back
+			if not playdate.buttonIsPressed(_input.back.id) then
+				next_state(menu_state,angle)
+			end
+			y=lerp(y,240-h,0.8)
+			prompt+=1
+		end,
+		-- draw
+		function()
+			screen:draw(0,0)
+			gfx.setColor(gfx.kColorWhite)
+			gfx.setStencilPattern(_50pct_pattern)
+			gfx.fillRect(0,0,400,240)
+			gfx.clearStencil()
+					
+			local speak_img = mute
+			if help then
+				local ch=prompt<=#help.text and string.sub(help.text,prompt,prompt)
+				if ch then
+					speak_img=vocalizer[ch] or speak_a
+					if speak_img==speak_o then
+						if not speak_o_sfx:isPlaying() then
+							speak_o_sfx:play(1,0.9+0.5*rnd())
+						end
+					end
+				end
+			end
+			speak_img:draw(400-w,y)
+
+			if box_h>0 then
+				gfx.setColor(gfx.kColorBlack)
+				local box_t = 20
+				gfx.fillRect(48,box_t,300,box_h)
+				if box_h>8 then
+					gfx.setPattern(_50pct_pattern)
+					gfx.fillRect(48,box_t+box_h,200,2)
+					gfx.setColor(gfx.kColorBlack)
+					gfx.fillTriangle(295,184,241-16,box_t+box_h,241+16,box_t+box_h)
+				end
+				
+
+				if help then
+					print_regular(help.title, 58, box_t, gfx.kColorWhite)
+					print_small(string.sub(help.text,1,prompt), 58, box_t + 32, gfx.kColorWhite)
+				end
+			end
+		end
 end
 
 function menu_zoomout_state(cam_pos, look_at, scale, angle)
@@ -1549,7 +1697,7 @@ function make_rolling_ball(lane)
 			if on_ground then
 				-- todo: shake?
 				-- force += 4
-				-- y_force += 0.5
+				y_force = 0.5
 			end
 			y_velocity+=y_force*0.5/30
 			v_copy(pos,prev_pos)
@@ -1838,12 +1986,18 @@ function play_state(params,help_ttl)
 	local track_name_x = 399 - gfx.getTextSize(track_name)
 	local track_icon = params.daily and _calendar_icon or _mountain_icon
 
+	-- startup time
+	local start_t=time()
 	return
 		-- update
 		function()
 			cam:update()
 			-- 
 			if _plyr then
+				-- boost?
+				if params.boost_t then
+					_plyr:perma_boost(lerp(params.min_boost,params.max_boost,min((time()-start_t)/params.boost_t),1))
+				end
 				_plyr:control()	
 				_plyr:integrate()
 				_plyr:update()
@@ -1915,7 +2069,7 @@ function play_state(params,help_ttl)
 				end
 			end
 			if _plyr then
-				local pos,a,steering=_plyr:get_pos()
+				local pos <close>,a,steering=_plyr:get_pos()
 				local up=_plyr:get_up()
 				cam:track(pos,a,up)
 
@@ -2009,7 +2163,7 @@ function play_state(params,help_ttl)
 				-- chill mode?
 				if best_distance then
 					-- total distance
-					print_regular(flr(_plyr.distance).."m",nil,0,text_color)
+					print_regular(flr(_plyr.distance).."m",nil,-8,text_color)
 				end
 
 				local y_bonus = 28
@@ -2083,7 +2237,7 @@ function race_state(params)
 					-- avoid reentrancy
 					dropped=true
 					do_async(function()
-						npc=make_npc(v_clone(pos),cam)
+						npc=make_npc(pos,cam)
 						add(_actors,npc)
 					end)
 				end
@@ -2097,25 +2251,44 @@ function race_state(params)
 		}
 	end
 
+	-- 
+	local faster_messages={
+		"faster!",
+		"where are you?",
+		"that's skiing!",
+		"swwoooshh!"
+	}
+	local bye_messages={
+		"bye!",
+		"game over!",
+		"see you!"
+	}
+	-- active message (if any)
+	local message
+	do_async(function()
+		while _plyr do
+			-- wait for npc to be live
+			if npc then
+				if npc.dead then return end
+				if npc.dist>30 then	
+					local msgs=npc.dist>70 and bye_messages or faster_messages
+					message=pick(msgs)
+					wait_async(90)
+				end			
+				message=nil
+				wait_async(90+rnd(180))
+			end
+			coroutine.yield()
+		end
+	end)			
+
 	-- custom command handlers
 	params.commands = {
 		-- Nelicopter :)
 		n = function(lane,row,cam)
-			-- run helo sequence only once
-			if params.skip_helo then return end
-			params.skip_helo = true
 			if droping_in then return end
 			return make_helo(lane,row,cam)
 		end,
-		-- nPc
-		p = function(lane,row,cam)
-			if dropped then return end
-			dropped=true
-			local y=0
-			if _plyr then y=_plr.pos[2]+12 end
-			npc=make_npc(vec3((lane+0.5)*4,y,row*4-2),cam)
-			return npc
-		end
 	}
 	-- use main "play" state for core loop
 	params.cam = cam
@@ -2135,8 +2308,7 @@ function race_state(params)
 			if npc then
 				if npc.dead then
 					if _plyr then _plyr.dead = true end
-					npc = nil
-					return					
+					npc = nil				
 				end
 			end
 			frame_t+=1
@@ -2144,19 +2316,19 @@ function race_state(params)
 		-- draw
 		function()
 			play_draw()
-			if npc and npc.dist>30 and _plyr then	
-				local s=npc.dist>70 and "bye!" or "faster!"--flr(npc.dist).."m"
+			if message then	
 				gfx.setFont(smallFont[gfx.kColorWhite])
-				local sw,sh=gfx.getTextSize(s)
+				local sw,sh=gfx.getTextSize(message)
 				sw += 4
 				sh += 4
 				-- project npc pos
-				local x,y,w=cam:project2d(m_x_v(cam.m,npc.pos))
+				local p <close> = m_x_v(cam.m,npc.pos)
+				local x,y,w=cam:project2d(p)
 				x=mid(0,x - sw/2,399 - sw)
 				y=mid(48,y-7*w,240-sh)
 				gfx.setColor(gfx.kColorBlack)
 				gfx.fillRect(x,y,sw,sh)
-				print_small(s,x+2,y,gfx.kColorWhite)
+				print_small(message,x+2,y,gfx.kColorWhite)
 				if npc.dist>70 and frame_t%4<2 then
 					_warning_small:draw(x + sw/2 - 12,y - 28)
 				end
