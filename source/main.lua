@@ -1193,7 +1193,7 @@ function menu_state(angle)
 
 			if not starting then
 				_game_title_anim:drawImage((frame_t%#_game_title_anim)+1,10,6)
-				print_small("by Freds72&Ridgekhun",10,54)
+				print_small("by Freds72&Ridgek",10,54)
 			end
 
 			local sel_panel = panels[sel+1]
@@ -1292,7 +1292,7 @@ function help_state(angle)
 		},
 		{
 			title="Credits",
-			text="Code:freds72\nMusic:Ridgekuhn\nFont:somepx.itch.io\nSfx:freesound:org (cc0)\nThanks:PANIC,Bob,James,...\n..."
+			text="Code:freds72\nMusic:Ridgek\nFont:somepx.itch.io\nSfx:freesound:org (cc0)\nThanks:PANIC,Bob,James,...\n..."
 		},
 	}
 	local w,h=mute:getSize()
