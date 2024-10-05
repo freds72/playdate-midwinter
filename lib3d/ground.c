@@ -77,6 +77,7 @@ typedef struct {
 #define PROP_FLAG_Y_ROTATE  32
 #define PROP_FLAG_COIN      64
 #define PROP_FLAG_ROTATE_SLOW    128
+#define PROP_FLAG_JUMP_OVER      256
 
 typedef struct {
     int flags;
@@ -543,7 +544,11 @@ void collide(const Point3d pos, float radius, int* hit_type)
                             Point3d res;
                             v_lerp(v0, v2, t0->prop_t, &res);
                             make_v(pos, res, &res);
-                            if (res.x * res.x + res.z * res.z < radius + props->radius * props->radius) {
+                            if (props->flags & PROP_FLAG_JUMP_OVER) {
+                                pd->system->logToConsole("dist: %f/%f", sqrtf(res.x * res.x + res.y * res.y + res.z * res.z), radius + props->radius * props->radius);
+                            }
+                            if (((props->flags & PROP_FLAG_JUMP_OVER) && res.x * res.x + res.y * res.y + res.z * res.z < radius + props->radius * props->radius) ||
+                                res.x * res.x + res.z * res.z < radius + props->radius * props->radius) {
                                 if (props->flags & PROP_FLAG_COIN) {
                                     *hit_type = 3;
                                 }
@@ -804,13 +809,13 @@ void ground_init(PlaydateAPI* playdate) {
     _props_properties[PROP_TREE3 - 1] = (PropProperties){ .flags = 0, .radius = 1.8f };
     _props_properties[PROP_TREE4 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
     _props_properties[PROP_TREE5 - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
-    _props_properties[PROP_LOG - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.8f };
+    _props_properties[PROP_LOG - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_JUMP_OVER, .radius = 1.8f};
     // checkpoint flags
     _props_properties[PROP_CHECKPOINT_LEFT - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
     _props_properties[PROP_CHECKPOINT_RIGHT - 1] = (PropProperties){ .flags = 0, .radius = 0.f };
     _props_properties[PROP_START - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE, .radius = 1.f };
     // obstacles
-    _props_properties[PROP_ROCK - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_KILL, .radius = 3.f };
+    _props_properties[PROP_ROCK - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_KILL | PROP_FLAG_JUMP_OVER, .radius = 1.5f };
     _props_properties[PROP_COW - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_KILL, .radius = 2.5f };
     _props_properties[PROP_SNOWPLOW - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_KILL, .radius = 3.f };
 

@@ -1146,7 +1146,7 @@ function menu_state(angle)
 						-- keep date string
 						p.params.daily = date
 					else
-						p.params.r_seed = playdate.getSecondsSinceEpoch()
+						p.params.r_seed = nil
 						p.params.daily = nil
 					end
 
