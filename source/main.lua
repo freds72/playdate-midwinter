@@ -433,7 +433,7 @@ function make_plyr(p,on_trick)
 
 		if self.on_ground then
 			-- was flying?			
-			if air_t>30 then
+			if air_t>35 then
 				-- pro trick? :)
 				if reverse_t>0 then
 					on_trick(2,"reverse air!")
@@ -979,7 +979,7 @@ function menu_state(angle)
 			slope=2,
 			twist=4,
 			min_boost=0,
-			max_boost=3,
+			max_boost=1,
 			boost_t=180,
 			num_tracks=1,
 			tight_mode=1,
@@ -995,7 +995,7 @@ function menu_state(angle)
 			name="Chamois",
 			music="3-BackcountryBombing",
 			dslot=3,
-			slope=2.25,
+			slope=2,
 			twist=6,
 			num_tracks=1,
 			tight_mode=0,
@@ -1039,6 +1039,10 @@ function menu_state(angle)
 
 	local scale = 1
 	local angle = angle or 0
+
+	-- help text
+	local help_y = 300
+	local help_y_target = 220
 	add(actors,{
 		id=models.PROP_MOUNTAIN,
 		pos=vec3(0.5,0,1),
@@ -1108,12 +1112,13 @@ function menu_state(angle)
 				next_state(help_state, angle)
 			end
 
-			if not starting and playdate.buttonJustReleased(playdate.kButtonA) then
+			if not starting and playdate.buttonJustReleased(_input.action.id) then
 				-- sub-state
         starting=true
 				for _,p in pairs(panels) do
 					p.t = time()
 				end
+				help_y_target = 300
 
 				do_async(function()
 					-- fade out music
@@ -1178,6 +1183,7 @@ function menu_state(angle)
 				p.x = playdate.easingFunctions.inOutBack(t,p.x_start,x-p.x_start,dt)
 			end
 		
+			help_y = lerp(help_y,help_y_target,0.75)
 			--
 			cam:look(look_at)
 			frame_t+=1
@@ -1259,7 +1265,9 @@ function menu_state(angle)
 					print_regular(name, panel.x, y, gfx.kColorBlack)
 				end
 				y += 28
-			end						
+			end
+			
+			print_small("Directions".._input.back.glyph,8,help_y, gfx.kColorBlack)
 		end		
 end
 
@@ -1284,11 +1292,19 @@ function help_state(angle)
 	local help_msgs={
 		{
 			title="How to play?",
+			text="Enjoy endless skiing\nAvoid hazard and collect $\nEarn more $ with tricks\nDaily mode: use QR code to post score\n..."
+		},
+		{
+			title="D-pad mode",
 			text="⬅️ left - right ➡️\nⒶ jump\nⒷ restart (long press)\n..."
 		},
 		{
-			title="Cranked play",
+			title="Cranked mode",
 			text="🎣 direction\nⒷ jump\nⒶ restart (long press)\n..."
+		},
+		{
+			title="Menu button",
+			text="start menu: back to main menu\nflip crank: invert crank input\nmask: choose from your collection\n..."
 		},
 		{
 			title="Credits",
@@ -1301,6 +1317,8 @@ function help_state(angle)
 	local help
 	local prompt=1
 	local box_h=0
+	local box_w=300
+	local help_printed
 	-- capture screen
 	local screen=gfx.getDisplayImage()
 
@@ -1309,26 +1327,37 @@ function help_state(angle)
 		while true do
 			box_h=0
 			help=nil
+			help_printed=nil
 			local tmp=help_msgs[i]
+			gfx.setFont(largeFont[gfx.kColorWhite])
+			local title_w,title_h=gfx.getTextSize(tmp.title)
 			gfx.setFont(smallFont[gfx.kColorWhite])
 			local msg_w,msg_h=gfx.getTextSize(tmp.text)
 			msg_h += 40
+			msg_w = max(msg_w,title_w) + 16
 			wait_async(15)
 			for i=1,15 do
 				box_h=lerp(box_h,msg_h,0.7)
+				box_w=lerp(box_w,msg_w,0.7)
 				coroutine.yield()
 			end
 			box_h = msg_h
+			box_w = msg_w
 			help = tmp
 			prompt = 1
 			-- reading time!
-			wait_async(180)	
+			while not help_printed do
+				coroutine.yield()
+			end
+			wait_async(30)	
 			help = nil
 			for i=1,15 do
 				box_h=lerp(box_h,0,0.7)
+				box_w=lerp(box_w,0,0.7)
 				coroutine.yield()
 			end
 			box_h=0
+			box_w=0
 			i+=1			
 			if i>#help_msgs then i=1 end
 		end
@@ -1342,6 +1371,9 @@ function help_state(angle)
 			end
 			y=lerp(y,240-h,0.8)
 			prompt+=1
+			if help and prompt>#help.text then
+				help_printed = true
+			end
 		end,
 		-- draw
 		function()
@@ -1368,18 +1400,18 @@ function help_state(angle)
 			if box_h>0 then
 				gfx.setColor(gfx.kColorBlack)
 				local box_t = 20
-				gfx.fillRect(48,box_t,300,box_h)
-				if box_h>8 then
+				local box_l = 64
+				gfx.fillRect(box_l,box_t,box_w,box_h)
+				if box_h>8 and box_w>32 then
 					gfx.setPattern(_50pct_pattern)
-					gfx.fillRect(48,box_t+box_h,200,2)
+					gfx.fillRect(box_l,box_t+box_h,box_w,2)
 					gfx.setColor(gfx.kColorBlack)
-					gfx.fillTriangle(295,184,241-16,box_t+box_h,241+16,box_t+box_h)
+					gfx.fillTriangle(295,184,box_l+2*box_w/3-16,box_t+box_h,box_l+2*box_w/3+16,box_t+box_h)
 				end
-				
 
 				if help then
-					print_regular(help.title, 58, box_t, gfx.kColorWhite)
-					print_small(string.sub(help.text,1,prompt), 58, box_t + 32, gfx.kColorWhite)
+					print_regular(help.title, box_l+10, box_t, gfx.kColorWhite)
+					print_small(string.sub(help.text,1,prompt), box_l+10, box_t + 32, gfx.kColorWhite)
 				end
 			end
 		end
@@ -2069,7 +2101,7 @@ function play_state(params,help_ttl)
 				end
 			end
 			if _plyr then
-				local pos <close>,a,steering=_plyr:get_pos()
+				local pos,a,steering=_plyr:get_pos()
 				local up=_plyr:get_up()
 				cam:track(pos,a,up)
 
@@ -2372,7 +2404,7 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 	if params.daily then
 		local hash = lib3d.DEKHash(string.format("b437f227-eece-46b2-a81d-70a8c8224a0f-%s%i",params.daily,total_distance))
 		local url = string.format("https://freds72.github.io/snow-scores.html?h=%X&m=%i&d=%s&t=%i",hash,flr(total_distance),params.daily,params.track_type)
-		qrcode_timer = gfx.generateQRCode(url, nil, function(img, error)
+		qrcode_timer = gfx.generateQRCode(url, 70, function(img, error)
 			qrcode_img = img
 			if error then print("Unable to generate QR code: "..error) end
 		end)

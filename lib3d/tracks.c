@@ -119,12 +119,12 @@ static Section _chill_sections[] = {
         .random = 0,
         .seq = {.min = 0, .max = INT_MAX },
         .timelines = {
-            {.timeline = "W............" },
+            {.timeline = "W............"},
             {.timeline = "....12345...."},
-            {.timeline = "..J.12345...."},
-            {.timeline = "..J.12345...."},
+            {.timeline = "...J123453..."},
+            {.timeline = "...J123453..."},
             {.timeline = "....12345...."},
-            {.timeline = "W............" },
+            {.timeline = "W............"},
             {.timeline = NULL }
         }
     },
