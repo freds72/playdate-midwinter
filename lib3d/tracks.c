@@ -119,12 +119,12 @@ static Section _chill_sections[] = {
         .random = 0,
         .seq = {.min = 0, .max = INT_MAX },
         .timelines = {
-            {.timeline = "W............" },
+            {.timeline = "W............"},
             {.timeline = "....12345...."},
-            {.timeline = "..J.12345...."},
-            {.timeline = "..J.12345...."},
+            {.timeline = "...J123453..."},
+            {.timeline = "...J123453..."},
             {.timeline = "....12345...."},
-            {.timeline = "W............" },
+            {.timeline = "W............"},
             {.timeline = NULL }
         }
     },
@@ -226,6 +226,34 @@ static Section _endless_sections[] = {
             {.timeline = "...C.C..." },
             {.timeline = "C.C......" },
             {.timeline = "." },
+            {.timeline = "." },
+            {.timeline = NULL }
+        }
+    },
+    // coins + trees
+    {
+        .random = 0,
+        .seq = {.min = 5, .max = INT_MAX },
+        .timelines = {
+            {.timeline = "." },
+            {.timeline = "......C.C....TT" },
+            {.timeline = "...C.C...TT...." },
+            {.timeline = "C.C...TT......." },
+            {.timeline = "...TT.........." },
+            {.timeline = "TT............." },
+            {.timeline = NULL }
+        }
+    },
+    // coins + trees
+    {
+        .random = 0,
+        .seq = {.min = 5, .max = INT_MAX },
+        .timelines = {
+            {.timeline = "TT............" },
+            {.timeline = "...TT........." },
+            {.timeline = "C.C...TT......" },
+            {.timeline = "...C.C...TT..." },
+            {.timeline = "......C.C...TT" },
             {.timeline = "." },
             {.timeline = NULL }
         }

@@ -82,16 +82,11 @@ local function add(t,v)
   return v
 end
 local function mid(a,b,c)
-  return math.min(math.max(a,b),c)
+  return min(max(a,b),c)
 end
+-- returns time as a fraction of seconds
 local function time()
-  return playdate.getCurrentTimeMilliseconds()/1000
-end
-local function del(t,v)
-  local i = table.indexOfElement(t, v)
-  if i then 
-    table.remove(t, i)
-  end
+  return playdate.getElapsedTime()
 end
 
 -- registers a new coroutine
@@ -148,6 +143,7 @@ end
 -- vector tools
 local vec3 = lib3d.Vec3.new
 local v_clone = lib3d.Vec3.clone
+local v_copy = lib3d.Vec3.copy
 local v_dot = lib3d.Vec3.dot
 local v_scale = lib3d.Vec3.scale
 local v_add = lib3d.Vec3.add
@@ -219,8 +215,10 @@ function make_cam(pos)
 			m_inv_translate(m,pos)
 			self.m=m
 		end,
-		track=function(self,pos,a,u,power,snap)
-   		pos=v_clone(pos)
+		track=function(self,p,a,u,power,snap)
+   		local pos=self.pos
+			v_copy(p,pos)
+			pos[2]+=0.5
    		-- lerp angle
 			self.angle=lerp(self.angle,a,power or 0.8)
 			-- lerp orientation (or snap to angle)
@@ -276,7 +274,7 @@ function make_body(p,angle)
 			local u=v_lerp(v_up,up,scale)
 			local m=make_m_from_v_angle(u,angle)
 			
-			local right=m_right(m)
+			local right <close> = m_right(m)
 			v_add(u,right,sin(steering_angle)*scale/2)
 			v_normz(u)
 			return u,m
@@ -298,7 +296,7 @@ function make_body(p,angle)
 			self:apply_force_and_torque(g,0)
 			-- on ground?
 			if self.on_ground then
-				local n=v_clone(up)
+				local n <close> = v_clone(up)
 				v_scale(n,-v_dot(n,g))
 				-- slope pushing up
 				self:apply_force_and_torque(n,0)
@@ -319,6 +317,7 @@ function make_body(p,angle)
 			
 			-- update pos & orientation
 			v_add(self.pos,velocity,1 + boost + perm_boost)
+			-- print("move len: "..v_len(velocity) * (1 + boost + perm_boost))
 
 			-- limit rotating velocity
 			angularv=mid(angularv,-1,1)
@@ -336,14 +335,15 @@ function make_body(p,angle)
 			if self.on_ground and v_len(velocity)>0.001 then
 
 				-- desired ski direction
-				local m=make_m_from_v_angle(up,angle-steering_angle/16)
-				local right,fwd=m_right(m),m_fwd(m)
+				local m <close> = make_m_from_v_angle(up,angle-steering_angle/16)
+				local right <close> = m_right(m)
+				local fwd <close> = m_fwd(m)
 				
 				-- slip angle
 				local sa=-v_dot(velocity,right)
 				if abs(sa)>0.001 then
 					-- max grip
-					local vn=v_clone(velocity)
+					local vn <close> =v_clone(velocity)
 					v_normz(vn)
 					local grip=1-abs(v_dot(fwd,vn))
 					-- more turn: more grip
@@ -381,13 +381,13 @@ function make_body(p,angle)
 			-- find ground
 			local pos=self.pos
 
-			local newy,newn=_ground:find_face(pos)
+			local newy,newn <close> =_ground:find_face(pos)
 			-- stop at ground
 			self.on_ground=nil
 			self.on_cliff=newn[2]<0.5
 			local tgt_height=1
 			if pos[2]<=newy then
-				up=newn
+				v_copy(newn,up)
 				tgt_height=pos[2]-newy
 				pos[2]=newy			
 				self.on_ground=true
@@ -433,7 +433,7 @@ function make_plyr(p,on_trick)
 
 		if self.on_ground then
 			-- was flying?			
-			if air_t>30 then
+			if air_t>35 then
 				-- pro trick? :)
 				if reverse_t>0 then
 					on_trick(2,"reverse air!")
@@ -513,7 +513,7 @@ function make_plyr(p,on_trick)
 		self.on_track=pos[1]>=slice.xmin and pos[1]<=slice.xmax
 		
 		-- need to have some speed
-		if v_dot(velocity,vec3(-sin(angle),0,cos(angle)))<-0.2 then
+		if v_dot(velocity,-sin(angle),0,cos(angle))<-0.2 then
 			reverse_t+=1
 		else
 			reverse_t=0
@@ -550,14 +550,19 @@ function make_jinx(id,pos,velocity,params)
 	return {
 		id=id,
 		pos=pos,
-		m=make_m_y_rot(time()),
+		-- random orientation
+		m=make_m_y_rot(0),
 		-- blinking=true,
 		update=function(self)
+			if params.ttl and params.ttl<time() then
+				params.die(self)
+				return
+			end
 			-- gravity
 			velocity[2]-=0.25
 			v_add(pos,velocity)
 			-- find ground
-			local newy=_ground:find_face(pos)
+			local newy, _ <close> =_ground:find_face(pos)
 			-- out of bound: kill actor
 			if not newy then return end
 
@@ -574,7 +579,10 @@ function make_jinx(id,pos,velocity,params)
 				local dist=v_dist(pos,_plyr.pos)
 				if dist<params.radius then
 					params.effect(self)
-					return
+					-- stay on game?
+					if not params.stay then
+						return
+					end
 				end
 			end
 
@@ -602,22 +610,36 @@ function make_npc(p,cam)
 
 	-- all jinxes
 	local jinxes={
-		-- dynamite
+		-- 1: dynamite
 		function(pos)
 			add(_actors,make_jinx(models.PROP_DYNAMITE, pos, vec3(0,2,-0.1), {
 				particle=1,
 				radius=3,
+				ttl=time()+3,
+				die=function(self)
+					screen:shake()
+					_dynamite_sfx:play(1)
+					for i=1,5+rnd(3) do
+						add(_actors,make_smoke_trail(self.pos))
+					end
+					do_async(function()
+						-- spawn a rolling ball on player :)
+						if _plyr then
+							add(_actors,make_rolling_ball(_plyr.pos[1]/4))
+						end
+					end)
+				end,
 				-- self = jinx instance
 				effect=function(self)
 					_dynamite_sfx:play(1)
 					for i=1,5+rnd(3) do
-						add(_actors,make_smoke_trail(self.pos,vec3(0,0,0)))
-					end		
+						add(_actors,make_smoke_trail(self.pos))
+					end
 					if _plyr then _plyr.dead=true end
 				end}
 			))
 		end,
-		-- reverse!
+		-- 2: reverse!
 		function(pos)
 			add(_actors,make_jinx(models.PROP_INVERT, pos, vec3(0,2,-0.1), {
 				radius=2,
@@ -629,7 +651,7 @@ function make_npc(p,cam)
 				end}
 			))
 		end,
-		-- coin!
+		-- 3: coin!
 		function(pos)
 			add(_actors,make_jinx(models.PROP_COIN, pos, vec3(0,2,-0.1), {
 				radius=2,
@@ -638,7 +660,31 @@ function make_npc(p,cam)
 				end}
 			))
 		end,
+		-- 4: log!
+		function(pos)
+			add(_actors,make_jinx(models.PROP_LOG, pos, vec3(0,2,-0.1), {
+				radius=1.5,
+				stay=true,
+				effect=function()
+					if _plyr then _plyr.dead=true end
+				end}				
+			))
+		end,
+		-- 5: cone!
+		function(pos)
+			add(_actors,make_jinx(models.PROP_CONE, pos, vec3(0,2,-0.1), {
+				radius=1.25,
+				stay=true,
+				effect=function()
+					if _plyr then _plyr.dead=true end
+				end}				
+			))
+		end,
 	}
+	-- jinxes distribution over time
+	local jinxes_stats={3,2,3,2,3,5,2,5,5,3,3,4,2,4,2,2,1,1,1,1,1}
+	local start_t=time()
+
 	-- distance to player
 	body.dist = 0
 	body.update=function(self)
@@ -670,10 +716,15 @@ function make_npc(p,cam)
 
 			jinx_ttl-=1
 			if self.on_ground and dist>24 and jinx_ttl<0 then
+				local n=#jinxes_stats
+				-- 3 minutes of difficulty ramp up
+				local rating=min(1,(time()-start_t)/180)
 				do_async(function()
-					pick(jinxes)(v_clone(pos))
+					-- pick up jinxes according to time played
+					local id=jinxes_stats[flr(rnd(n * rating))+1]
+					jinxes[id](v_clone(pos))
 				end)
-				jinx_ttl = 90 + rnd(90)
+				jinx_ttl = 90 + lerp(90,45,rating) * lib3d.seeded_rnd()
 			end
 			self.dist = dist
 		end
@@ -696,7 +747,7 @@ function make_npc(p,cam)
 		body_update(self)
 
 		-- create orientation matrix
-		local newy,newn=_ground:find_face(pos)
+		local newy,newn <close> =_ground:find_face(pos)
 		v_move(up,newn,0.3)
 		local _,angle=self:get_pos()
 		local m=make_m_from_v_angle(up,angle)
@@ -727,7 +778,7 @@ function make_smoke_trail(pos, vel)
 	local angle=rnd()
 	local s,c=cos(angle),sin(angle)	
 	local velocity=vec3(8*c,16+rnd(8),8*s)
-	v_add(velocity,vel,0.5)
+	if vel then v_add(velocity,vel,0.5) end
 	local ttl=flr(rnd(5))
 	
 	return {
@@ -735,7 +786,7 @@ function make_smoke_trail(pos, vel)
 		update=function(self)
 			velocity[2]-=1
 			v_add(self.pos,velocity,0.5/30)
-			local y=_ground:find_face(self.pos)
+			local y, _ <close> =_ground:find_face(self.pos)
 			-- edge case - too close to map borders
 			if not y then return end
 			-- below ground?
@@ -760,7 +811,7 @@ function make_snowball(pos)
 	local n=vec3(cos(angle),0,sin(angle))
 	-- hp
 	local hp=3
-
+	local jump_force = vec3()
 	body.pre_update=function(self)		
 		-- physic update
 		self:integrate()
@@ -768,9 +819,11 @@ function make_snowball(pos)
 	end
 	body.hit=function(self,force)
 		angle=rnd()
-		n=vec3(cos(angle),0,sin(angle))
+		n[1] = cos(angle)
+		n[3] = sin(angle)
 		-- fly a bit :)
-		body:apply_force_and_torque(vec3(0,lerp(25,50,rnd()),0),0)
+		jump_force[2] = lerp(25,50,rnd())
+		body:apply_force_and_torque(jump_force,0)
 
 		hp-=1
 		if not self.dead and (hp<0 or force) then
@@ -785,7 +838,7 @@ function make_snowball(pos)
 		if self.dead then return end
 		local pos=self.pos
 		-- update
-		local newy,newn=_ground:find_face(pos)
+		local newy,newn <close> =_ground:find_face(pos)
 		-- out of bound: kill actor
 		if not newy then return end
 
@@ -913,7 +966,7 @@ function menu_state(angle)
 			music="2-AlpineAirtime",
 			slope=1.5,
 			twist=2.5,
-			num_tracks=3,
+			num_tracks=2,
 			tight_mode=0,
 			props_rate=0.90,
 			track_type=0,
@@ -928,6 +981,9 @@ function menu_state(angle)
 			dslot=2,
 			slope=2,
 			twist=4,
+			min_boost=0,
+			max_boost=1,
+			boost_t=180,
 			num_tracks=1,
 			tight_mode=1,
 			props_rate=1,
@@ -936,12 +992,13 @@ function menu_state(angle)
 			max_cooldown=6}},
 		{state=race_state,loc=vgroups.MOUNTAIN_BLACK_TRACK,help=function()
 			return "Special Ski Course\nStay alert!\nBest: ".._save_state.best_3.."m"
-		end,params={
+		end,
+			daily=false,params={
 			hp=1,
 			name="Chamois",
 			music="3-BackcountryBombing",
 			dslot=3,
-			slope=2.25,
+			slope=2,
 			twist=6,
 			num_tracks=1,
 			tight_mode=0,
@@ -951,7 +1008,7 @@ function menu_state(angle)
 			max_cooldown=12}},
 		{state=shop_state,loc=vgroups.MOUNTAIN_SHOP,help=function()
 			return "Buy gear!\n$".._save_state.coins
-		end ,params={name="Shop"},transition=false,daily=false}
+		end ,params={name="Shop"},transition=false,daily=false},		
 	}
 	local sel,blink=0,false
 	-- background actors
@@ -985,6 +1042,10 @@ function menu_state(angle)
 
 	local scale = 1
 	local angle = angle or 0
+
+	-- help text
+	local help_y = 300
+	local help_y_target = 220
 	add(actors,{
 		id=models.PROP_MOUNTAIN,
 		pos=vec3(0.5,0,1),
@@ -1048,12 +1109,19 @@ function menu_state(angle)
 			-- daily mode?
 			if playdate.buttonJustReleased(playdate.kButtonRight) then daily=not daily _button_click:play(1) end
 
-			if not starting and playdate.buttonJustReleased(playdate.kButtonA) then
+			-- help?
+			if playdate.buttonIsPressed(_input.back.id) then
+				_music:setVolume(0,0,1)
+				next_state(help_state, angle)
+			end
+
+			if not starting and playdate.buttonJustReleased(_input.action.id) then
 				-- sub-state
         starting=true
 				for _,p in pairs(panels) do
 					p.t = time()
 				end
+				help_y_target = 300
 
 				do_async(function()
 					-- fade out music
@@ -1081,7 +1149,7 @@ function menu_state(angle)
 						-- keep date string
 						p.params.daily = date
 					else
-						p.params.r_seed = playdate.getSecondsSinceEpoch()
+						p.params.r_seed = nil
 						p.params.daily = nil
 					end
 
@@ -1118,6 +1186,7 @@ function menu_state(angle)
 				p.x = playdate.easingFunctions.inOutBack(t,p.x_start,x-p.x_start,dt)
 			end
 		
+			help_y = lerp(help_y,help_y_target,0.75)
 			--
 			cam:look(look_at)
 			frame_t+=1
@@ -1133,7 +1202,7 @@ function menu_state(angle)
 
 			if not starting then
 				_game_title_anim:drawImage((frame_t%#_game_title_anim)+1,10,6)
-				print_small("by Freds72&Ridgekhun",10,54)
+				print_small("by Freds72&Ridgek",10,54)
 			end
 
 			local sel_panel = panels[sel+1]
@@ -1199,9 +1268,156 @@ function menu_state(angle)
 					print_regular(name, panel.x, y, gfx.kColorBlack)
 				end
 				y += 28
-			end			
-
+			end
+			
+			print_small("Directions".._input.back.glyph,8,help_y, gfx.kColorBlack)
 		end		
+end
+
+function help_state(angle)
+	local mute = gfx.image.new("images/help-mute")
+	local speak_a = gfx.image.new("images/help-a")
+	local speak_o = gfx.image.new("images/help-o")
+	local speak_a_sfx = playdate.sound.sampleplayer.new("sounds/speak-a")
+	local speak_o_sfx = speak_a_sfx:copy()
+
+	local vocalizer = {		
+		[' ']=mute,
+		b=speak_o,
+		d=speak_o,
+		e=speak_o,
+		o=speak_o,
+		k=speak_o,
+		u=speak_o,
+		r=speak_o,
+	}
+
+	local help_msgs={
+		{
+			title="How to play?",
+			text="Enjoy endless skiing\nAvoid hazard and collect $\nEarn more $ with tricks\nDaily mode: use QR code to post score\n..."
+		},
+		{
+			title="D-pad mode",
+			text="⬅️ left - right ➡️\nⒶ jump\nⒷ restart (long press)\n..."
+		},
+		{
+			title="Cranked mode",
+			text="🎣 direction\nⒷ jump\nⒶ restart (long press)\n..."
+		},
+		{
+			title="Menu button",
+			text="start menu: back to main menu\nflip crank: invert crank input\nmask: choose from your collection\n..."
+		},
+		{
+			title="Credits",
+			text="Code:freds72\nMusic:Ridgek\nFont:somepx.itch.io\nSfx:freesound:org (cc0)\nThanks:PANIC,Bob,James,...\n..."
+		},
+	}
+	local w,h=mute:getSize()
+	local y=400
+	-- active message
+	local help
+	local prompt=1
+	local box_h=0
+	local box_w=300
+	local help_printed
+	-- capture screen
+	local screen=gfx.getDisplayImage()
+
+	do_async(function()
+		local i=1
+		while true do
+			box_h=0
+			help=nil
+			help_printed=nil
+			local tmp=help_msgs[i]
+			gfx.setFont(largeFont[gfx.kColorWhite])
+			local title_w,title_h=gfx.getTextSize(tmp.title)
+			gfx.setFont(smallFont[gfx.kColorWhite])
+			local msg_w,msg_h=gfx.getTextSize(tmp.text)
+			msg_h += 40
+			msg_w = max(msg_w,title_w) + 16
+			wait_async(15)
+			for i=1,15 do
+				box_h=lerp(box_h,msg_h,0.7)
+				box_w=lerp(box_w,msg_w,0.7)
+				coroutine.yield()
+			end
+			box_h = msg_h
+			box_w = msg_w
+			help = tmp
+			prompt = 1
+			-- reading time!
+			while not help_printed do
+				coroutine.yield()
+			end
+			wait_async(30)	
+			help = nil
+			for i=1,15 do
+				box_h=lerp(box_h,0,0.7)
+				box_w=lerp(box_w,0,0.7)
+				coroutine.yield()
+			end
+			box_h=0
+			box_w=0
+			i+=1			
+			if i>#help_msgs then i=1 end
+		end
+	end)
+	return
+		-- update
+		function()
+			-- release: go back
+			if not playdate.buttonIsPressed(_input.back.id) then
+				next_state(menu_state,angle)
+			end
+			y=lerp(y,240-h,0.8)
+			prompt+=1
+			if help and prompt>#help.text then
+				help_printed = true
+			end
+		end,
+		-- draw
+		function()
+			screen:draw(0,0)
+			gfx.setColor(gfx.kColorWhite)
+			gfx.setStencilPattern(_50pct_pattern)
+			gfx.fillRect(0,0,400,240)
+			gfx.clearStencil()
+					
+			local speak_img = mute
+			if help then
+				local ch=prompt<=#help.text and string.sub(help.text,prompt,prompt)
+				if ch then
+					speak_img=vocalizer[ch] or speak_a
+					if speak_img==speak_o then
+						if not speak_o_sfx:isPlaying() then
+							speak_o_sfx:play(1,0.9+0.5*rnd())
+						end
+					end
+				end
+			end
+			speak_img:draw(400-w,y)
+
+			if box_h>0 then
+				gfx.setColor(gfx.kColorBlack)
+				local box_t = 20
+				local box_l = 64
+				gfx.fillRect(box_l,box_t,box_w,box_h)
+				if box_h>8 and box_w>32 then
+					gfx.setPattern(_50pct_pattern)
+					gfx.fillRect(box_l,box_t+box_h,box_w,2)
+					gfx.setColor(gfx.kColorBlack)
+					gfx.fillTriangle(295,184,box_l+2*box_w/3-16,box_t+box_h,box_l+2*box_w/3+16,box_t+box_h)
+				end
+
+				if help then
+					print_regular(help.title, box_l+10, box_t, gfx.kColorWhite)
+					print_small(string.sub(help.text,1,prompt), box_l+10, box_t + 32, gfx.kColorWhite)
+				end
+			end
+		end
 end
 
 function menu_zoomout_state(cam_pos, look_at, scale, angle)
@@ -1489,89 +1705,92 @@ function make_static_actor(id,x,sfx_name,update)
 	end	
 end
 
+-- 
+function make_rolling_ball(lane)
+	local y_velocity,z_velocity = 0,1.5
+	local y_force,on_ground = 0
+	local base_angle = rnd()
+	local pos=vec3((lane+0.5)*4,0,0.5)
+	local prev_pos=v_clone(pos)
+	-- helper
+	local function v2_sqrlen(x,z,b)
+		local dx,dz=b[1]-x,b[3]-z
+		return dx*dx+dz*dz
+	end
+	return {
+		id=models.PROP_SNOWBALL,
+		pos=pos,
+		warning=flr(lane),
+		shift=function(self,offset)
+			-- shift
+			v_add(pos,offset)
+			v_add(prev_pos,offset)
+		end,
+		update=function(self)
+			-- gravity
+			y_force = -4
+			if on_ground then
+				-- todo: shake?
+				-- force += 4
+				y_force = 0.5
+			end
+			y_velocity+=y_force*0.5/30
+			v_copy(pos,prev_pos)
+			pos[2]+=y_velocity
+			pos[3]+=z_velocity
+			y_force=0
+
+			-- capsule collision with player
+			if _plyr then
+				local plyr_x,plyr_z=_plyr.pos[1],_plyr.pos[3]
+				-- kill warning if past player
+				if pos[3]-plyr_z>4 then
+					self.warning = nil
+				end
+				if v2_sqrlen(plyr_x,plyr_z,pos)<2.25 or 
+					v2_sqrlen(plyr_x,plyr_z,prev_pos)<2.25 or 
+					(plyr_x<pos[1]+1.5 and plyr_x>pos[1]-1.5 
+					and plyr_z<pos[3] and plyr_z>prev_pos[3]) then
+						_plyr.dead = true
+				end
+			end
+			
+			-- update
+			local newy,newn <close> =_ground:find_face(pos)
+			-- out of bound: kill actor
+			if not newy then return end
+
+			on_ground = nil
+			if pos[2]<=newy then
+				pos[2]=newy
+				on_ground = true
+				y_velocity = 0
+			end
+			-- shadow plane projection matrix
+			local m = make_m_from_v(newn)
+			m[13]=pos[1]
+			-- avoid z-fighting
+			m[14]=newy+0.1
+			m[15]=pos[3]
+			self.m_shadow = m
+
+			-- roll!!!
+			local m = make_m_x_rot(base_angle-4*time())
+			m[13]=pos[1]
+			-- offset with ball radius
+			m[14]=pos[2]+1.25
+			m[15]=pos[3]
+			self.m = m
+			return true
+		end
+	}
+end
+
 -- custom provides additional commands (optional)
 function make_command_handlers(custom)
 	return setmetatable({
 		-- snowball!!
-		B=function(lane)
-			local y_velocity,z_velocity = 0,1.5
-			local y_force,on_ground = 0
-			local base_angle = rnd()
-			local pos=vec3((lane+0.5)*4,0,0.5)
-			local prev_pos=v_clone(pos)
-			-- helper
-			local function v2_sqrlen(x,z,b)
-				local dx,dz=b[1]-x,b[3]-z
-				return dx*dx+dz*dz
-			end
-			return {
-				id=models.PROP_SNOWBALL,
-				pos=pos,
-				warning=lane,
-				shift=function(self,offset)
-					-- shift
-					v_add(pos,offset)
-					v_add(prev_pos,offset)
-				end,
-				update=function(self)
-					-- gravity
-					y_force = -4
-					if on_ground then
-						-- todo: shake?
-						-- force += 4
-						-- y_force += 0.5
-					end
-					y_velocity+=y_force*0.5/30
-					prev_pos=v_clone(prev_pos)
-					pos[2]+=y_velocity
-					pos[3]+=z_velocity
-					y_force=0
-
-					-- capsule collision with player
-					if _plyr then
-						local plyr_x,plyr_z=_plyr.pos[1],_plyr.pos[3]
-						-- kill warning if past player
-						if pos[3]-plyr_z>4 then
-							self.warning = nil
-						end
-						if v2_sqrlen(plyr_x,plyr_z,pos)<2.25 or 
-							v2_sqrlen(plyr_x,plyr_z,prev_pos)<2.25 or 
-							(plyr_x<pos[1]+1.5 and plyr_x>pos[1]-1.5 
-							and plyr_z<pos[3] and plyr_z>prev_pos[3]) then
-							_plyr.dead = true
-						end
-					end
-					
-					-- update
-					local newy,newn=_ground:find_face(pos)
-					-- out of bound: kill actor
-					if not newy then return end
-
-					on_ground = nil
-					if pos[2]<=newy then
-						pos[2]=newy
-						on_ground = true
-						y_velocity = 0
-					end
-					-- shadow plane projection matrix
-					local m = make_m_from_v(newn)
-					m[13]=pos[1]
-					-- avoid z-fighting
-					m[14]=newy+0.1
-					m[15]=pos[3]
-					self.m_shadow = m
-
-					-- roll!!!
-					local m = make_m_x_rot(base_angle-4*time())
-					m[13]=pos[1]
-					-- offset with ball radius
-					m[14]=pos[2]+1.25
-					m[15]=pos[3]
-					self.m = m
-					return true
-				end
-			}
-		end,
+		B=make_rolling_ball,
 		-- skidoo
 		K=function(lane,_,cam)
 			local pos=vec3((lane+0.5)*4,-16,_ground_height-2)
@@ -1802,12 +2021,18 @@ function play_state(params,help_ttl)
 	local track_name_x = 399 - gfx.getTextSize(track_name)
 	local track_icon = params.daily and _calendar_icon or _mountain_icon
 
+	-- startup time
+	local start_t=time()
 	return
 		-- update
 		function()
 			cam:update()
 			-- 
 			if _plyr then
+				-- boost?
+				if params.boost_t then
+					_plyr:perma_boost(lerp(params.min_boost,params.max_boost,min((time()-start_t)/params.boost_t),1))
+				end
 				_plyr:control()	
 				_plyr:integrate()
 				_plyr:update()
@@ -1881,7 +2106,7 @@ function play_state(params,help_ttl)
 			if _plyr then
 				local pos,a,steering=_plyr:get_pos()
 				local up=_plyr:get_up()
-				cam:track(vec3(pos[1],pos[2]+0.5,pos[3]),a,up)
+				cam:track(pos,a,up)
 
 				if _plyr.dead then
 					_ski_sfx:stop()
@@ -1973,7 +2198,7 @@ function play_state(params,help_ttl)
 				-- chill mode?
 				if best_distance then
 					-- total distance
-					print_regular(flr(_plyr.distance).."m",nil,0,text_color)
+					print_regular(flr(_plyr.distance).."m",nil,-8,text_color)
 				end
 
 				local y_bonus = 28
@@ -2008,11 +2233,10 @@ end
 function race_state(params)
 	-- custom handling of 
 	local npc
-	local droping_in,dropped
 	local frame_t=0
 	local cam=make_cam()
 	local make_helo=function(lane,row,cam)
-		droping_in=true
+		local dropped
 		local pos=vec3((lane+0.5)*4,-16,row*4-2)
 		local y=_ground:find_face(pos)
 		pos[2]=y+24
@@ -2047,7 +2271,7 @@ function race_state(params)
 					-- avoid reentrancy
 					dropped=true
 					do_async(function()
-						npc=make_npc(v_clone(pos),cam)
+						npc=make_npc(pos,cam)
 						add(_actors,npc)
 					end)
 				end
@@ -2061,29 +2285,48 @@ function race_state(params)
 		}
 	end
 
+	-- 
+	local faster_messages={
+		"faster!",
+		"where are you?",
+		"that's skiing!",
+		"swwoooshh!",
+		"watch out!",
+		"oops!"
+	}
+	local bye_messages={
+		"bye!",
+		"game over!",
+		"see you!"
+	}	
+
 	-- custom command handlers
 	params.commands = {
 		-- Nelicopter :)
-		n = function(lane,row,cam)
-			-- run helo sequence only once
-			if params.skip_helo then return end
-			params.skip_helo = true
-			if droping_in then return end
-			return make_helo(lane,row,cam)
-		end,
-		-- nPc
-		p = function(lane,row,cam)
-			if dropped then return end
-			dropped=true
-			local y=0
-			if _plyr then y=_plr.pos[2]+12 end
-			npc=make_npc(vec3((lane+0.5)*4,y,row*4-2),cam)
-			return npc
-		end
+		n = make_helo
 	}
 	-- use main "play" state for core loop
 	params.cam = cam
 	local play_update,play_draw=play_state(params)
+
+	-- npc message loop
+	local message
+	do_async(function()
+		while _plyr do
+			-- wait for npc to be live
+			if npc then
+				if npc.dead then return end
+				if npc.dist>30 then	
+					local msgs=npc.dist>70 and bye_messages or faster_messages
+					message=pick(msgs)
+					wait_async(90)
+				end			
+				message=nil
+				wait_async(90+rnd(180))
+			end
+			coroutine.yield()
+		end
+	end)		
 
 	return
 		-- update
@@ -2099,8 +2342,7 @@ function race_state(params)
 			if npc then
 				if npc.dead then
 					if _plyr then _plyr.dead = true end
-					npc = nil
-					return					
+					npc = nil				
 				end
 			end
 			frame_t+=1
@@ -2108,19 +2350,19 @@ function race_state(params)
 		-- draw
 		function()
 			play_draw()
-			if npc and npc.dist>30 and _plyr then	
-				local s=npc.dist>70 and "bye!" or "faster!"--flr(npc.dist).."m"
+			if message then	
 				gfx.setFont(smallFont[gfx.kColorWhite])
-				local sw,sh=gfx.getTextSize(s)
+				local sw,sh=gfx.getTextSize(message)
 				sw += 4
 				sh += 4
 				-- project npc pos
-				local x,y,w=cam:project2d(m_x_v(cam.m,npc.pos))
+				local p <close> = m_x_v(cam.m,npc.pos)
+				local x,y,w=cam:project2d(p)
 				x=mid(0,x - sw/2,399 - sw)
 				y=mid(48,y-7*w,240-sh)
 				gfx.setColor(gfx.kColorBlack)
 				gfx.fillRect(x,y,sw,sh)
-				print_small(s,x+2,y,gfx.kColorWhite)
+				print_small(message,x+2,y,gfx.kColorWhite)
 				if npc.dist>70 and frame_t%4<2 then
 					_warning_small:draw(x + sw/2 - 12,y - 28)
 				end
@@ -2164,7 +2406,7 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 	if params.daily then
 		local hash = lib3d.DEKHash(string.format("b437f227-eece-46b2-a81d-70a8c8224a0f-%s%i",params.daily,total_distance))
 		local url = string.format("https://freds72.github.io/snow-scores.html?h=%X&m=%i&d=%s&t=%i",hash,flr(total_distance),params.daily,params.track_type)
-		qrcode_timer = gfx.generateQRCode(url, nil, function(img, error)
+		qrcode_timer = gfx.generateQRCode(url, 70, function(img, error)
 			qrcode_img = img
 			if error then print("Unable to generate QR code: "..error) end
 		end)
@@ -2261,7 +2503,7 @@ function restart_state(params)
 					_music = nil
 				end
 				-- reset game (without the zoom effect)
-				next_state(play_state,params,90)
+				next_state(params.state,params,90)
 			elseif not playdate.buttonIsPressed(_input.back.id) then
 				-- back to game ("unpause")
 				if _music then
