@@ -701,6 +701,11 @@ function make_npc(p,cam)
 		end
 
 		if _plyr then
+			if v_dist(pos,_plyr.pos)<1 then
+				_npc_hit:play(1)
+				_plyr.dead=true
+			end
+
 			-- distance to player?			
 			local dist=2*(pos[3]-_plyr.pos[3])
 			self.warning=nil
@@ -2451,10 +2456,12 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 			cam:look(p)
 
 			if playdate.buttonJustReleased(_input.back.id) then
+				_snowball_sfx:stop()
 				if qrcode_timer then qrcode_timer:remove() qrcode_timer = nil end
 				next_state(zoomin_state,menu_state)
 			end
 			if playdate.buttonJustReleased(_input.action.id) then
+				_snowball_sfx:stop()
 				if qrcode_timer then qrcode_timer:remove() qrcode_timer = nil end
 				next_state(zoomin_state,play_state,params,90)
 			end
@@ -2578,6 +2585,8 @@ function _init()
 	_dynamite_sfx = playdate.sound.sampleplayer.new("sounds/dynamite_jinx")
 	_skidoo_sfx = playdate.sound.sampleplayer.new("sounds/skidoo")
 	_snowball_sfx = playdate.sound.sampleplayer.new("sounds/snowball")
+
+	_npc_hit = playdate.sound.sampleplayer.new("sounds/npc_hit")
 
 	_game_over = gfx.image.new("images/game_over")
 	_dir_icon = gfx.image.new("images/checkpoint_lock")
