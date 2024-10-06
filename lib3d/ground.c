@@ -271,6 +271,12 @@ static void make_slice(GroundSlice* slice, float y) {
                 }
             }
             else {
+                if (randf_seeded() > 0.75f) {
+                    const i = (i0 + i1) / 2;
+                    slice->tiles[i].prop_id = PROP_COIN;
+                    slice->tiles[i].prop_t = 0.5f;
+                }
+
                 // side tracks are less obvious
                 for (int i = i0; i < i1; ++i) {
                     slice->tracks_mask |= 1 << i;

@@ -230,6 +230,34 @@ static Section _endless_sections[] = {
             {.timeline = NULL }
         }
     },
+    // coins + trees
+    {
+        .random = 0,
+        .seq = {.min = 5, .max = INT_MAX },
+        .timelines = {
+            {.timeline = "." },
+            {.timeline = "......C.C....TT" },
+            {.timeline = "...C.C...TT...." },
+            {.timeline = "C.C...TT......." },
+            {.timeline = "...TT.........." },
+            {.timeline = "TT............." },
+            {.timeline = NULL }
+        }
+    },
+    // coins + trees
+    {
+        .random = 0,
+        .seq = {.min = 5, .max = INT_MAX },
+        .timelines = {
+            {.timeline = "TT............" },
+            {.timeline = "...TT........." },
+            {.timeline = "C.C...TT......" },
+            {.timeline = "...C.C...TT..." },
+            {.timeline = "......C.C...TT" },
+            {.timeline = "." },
+            {.timeline = NULL }
+        }
+    },
     // 
     // 1 rock
     {

@@ -682,7 +682,7 @@ function make_npc(p,cam)
 		end,
 	}
 	-- jinxes distribution over time
-	local jinxes_stats={3,3,2,3,5,2,5,5,3,3,4,2,4,2,2,1,1,1,1}
+	local jinxes_stats={3,2,3,2,3,5,2,5,5,3,3,4,2,4,2,2,1,1,1,1,1}
 	local start_t=time()
 
 	-- distance to player
@@ -716,12 +716,15 @@ function make_npc(p,cam)
 
 			jinx_ttl-=1
 			if self.on_ground and dist>24 and jinx_ttl<0 then
+				local n=#jinxes_stats
+				-- 3 minutes of difficulty ramp up
+				local rating=min(1,(time()-start_t)/180)
 				do_async(function()
 					-- pick up jinxes according to time played
-					local id=jinxes_stats[flr(lerp(1,#jinxes_stats,min(1,(time()-start_t)/180)))]
+					local id=jinxes_stats[flr(rnd(n * rating))+1]
 					jinxes[id](v_clone(pos))
 				end)
-				jinx_ttl = 90 + 90 * lib3d.seeded_rnd()
+				jinx_ttl = 90 + lerp(90,45,rating) * lib3d.seeded_rnd()
 			end
 			self.dist = dist
 		end
@@ -2230,11 +2233,10 @@ end
 function race_state(params)
 	-- custom handling of 
 	local npc
-	local droping_in,dropped
 	local frame_t=0
 	local cam=make_cam()
 	local make_helo=function(lane,row,cam)
-		droping_in=true
+		local dropped
 		local pos=vec3((lane+0.5)*4,-16,row*4-2)
 		local y=_ground:find_face(pos)
 		pos[2]=y+24
@@ -2288,14 +2290,26 @@ function race_state(params)
 		"faster!",
 		"where are you?",
 		"that's skiing!",
-		"swwoooshh!"
+		"swwoooshh!",
+		"watch out!",
+		"oops!"
 	}
 	local bye_messages={
 		"bye!",
 		"game over!",
 		"see you!"
+	}	
+
+	-- custom command handlers
+	params.commands = {
+		-- Nelicopter :)
+		n = make_helo
 	}
-	-- active message (if any)
+	-- use main "play" state for core loop
+	params.cam = cam
+	local play_update,play_draw=play_state(params)
+
+	-- npc message loop
 	local message
 	do_async(function()
 		while _plyr do
@@ -2312,19 +2326,7 @@ function race_state(params)
 			end
 			coroutine.yield()
 		end
-	end)			
-
-	-- custom command handlers
-	params.commands = {
-		-- Nelicopter :)
-		n = function(lane,row,cam)
-			if droping_in then return end
-			return make_helo(lane,row,cam)
-		end,
-	}
-	-- use main "play" state for core loop
-	params.cam = cam
-	local play_update,play_draw=play_state(params)
+	end)		
 
 	return
 		-- update
@@ -2501,7 +2503,7 @@ function restart_state(params)
 					_music = nil
 				end
 				-- reset game (without the zoom effect)
-				next_state(play_state,params,90)
+				next_state(params.state,params,90)
 			elseif not playdate.buttonIsPressed(_input.back.id) then
 				-- back to game ("unpause")
 				if _music then
