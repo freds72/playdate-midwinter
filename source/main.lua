@@ -497,6 +497,12 @@ function make_plyr(p,on_trick)
 				_boost_sfx:play(1)
 				self:boost(1.5)
 			end
+		elseif hit_type==5 then
+			if reverse_t>0 then
+				on_trick(5,"reverse over!")
+			else
+				on_trick(4,"jump over")
+			end
 		elseif hit_ttl<0 and hit_type==1 then
 			-- props: 
 			pick(_treehit_sfxs):play()
@@ -597,14 +603,30 @@ function make_jinx(id,pos,velocity,params)
 	}
 end
 
+local surfer_model={
+	idle = models.PROP_SURFER,
+	left = models.PROP_SURFER_LEFT,
+	right = models.PROP_SURFER_RIGHT,
+	p0 = vgroups.SURFER_LEFT_SKI,
+	p1 = vgroups.SURFER_RIGHT_SKI
+}
+local skier_model={
+	idle = models.PROP_SKIER,
+	left = models.PROP_SKIER_LEFT,
+	right = models.PROP_SKIER_RIGHT,
+	p0 = vgroups.SKIER_LEFT_SKI,
+	p1 = vgroups.SKIER_RIGHT_SKI
+}
+
 function make_npc(p,cam)
 	local body=make_body(p,0)
 	local up=vec3(0,1,0)
 	local dir,boost=0,0
 	local boost_ttl=0
 	local jinx_ttl=90
+	local model = pick{surfer_model, skier_model}
 	local body_update=body.update
-	body.id = models.PROP_SKIER
+	body.id = model.idle
 	local sfx=_ski_sfx:copy()
 	sfx:play(0)
 
@@ -738,11 +760,11 @@ function make_npc(p,cam)
 		-- transition to "up" when going left/right
 		dir=lerp(dir,da+angle,0.6)
 		if dir<-0.02 then
-			self.id = models.PROP_SKIER_RIGHT
+			self.id = model.right
 		elseif dir>0.02 then
-			self.id = models.PROP_SKIER_LEFT
+			self.id = model.left
 		else
-			self.id = models.PROP_SKIER
+			self.id = model.idle
 		end
 		self:steer(da/2)
 
@@ -760,7 +782,7 @@ function make_npc(p,cam)
 
 		-- spawn particles
 		if self.on_ground and abs(dir)>0.04 and rnd()>0.1 then
-			lib3d.spawn_particle(0, m, vgroups.SKIER_LEFT_SKI,vgroups.SKIER_RIGHT_SKI)
+			lib3d.spawn_particle(0, m, model.p0, model.p1)
 		end
 
 		-- update sfx
@@ -1115,12 +1137,12 @@ function menu_state(angle)
 			if playdate.buttonJustReleased(playdate.kButtonRight) then daily=not daily _button_click:play(1) end
 
 			-- help?
-			if playdate.buttonIsPressed(_input.back.id) then
+			if playdate.buttonIsPressed(playdate.kButtonB) then
 				_music:setVolume(0,0,1)
 				next_state(help_state, angle)
 			end
 
-			if not starting and playdate.buttonJustReleased(_input.action.id) then
+			if not starting and playdate.buttonJustReleased(playdate.kButtonA) then
 				-- sub-state
         starting=true
 				for _,p in pairs(panels) do
@@ -1251,6 +1273,7 @@ function menu_state(angle)
 					if panel.daily~=false and daily then
 						name = name.."#"
 					end
+					
 					-- text length
 					gfx.setFont(largeFont[gfx.kColorBlack])
 					local sel_w = gfx.getTextSize(name)
@@ -1275,7 +1298,7 @@ function menu_state(angle)
 				y += 28
 			end
 			
-			print_small("Directions".._input.back.glyph,8,help_y, gfx.kColorBlack)
+			print_small("Ⓑ directions",10,help_y, gfx.kColorBlack)
 		end		
 end
 
@@ -1300,14 +1323,14 @@ function help_state(angle)
 	local help_msgs={
 		{
 			title="How to play?",
-			text="Enjoy endless skiing\nAvoid hazard and collect $\nEarn more $ with tricks\nDaily mode: use QR code to post score\n..."
+			text="⬆️⬇️ select level - Ⓐ start\nAvoid hazards and collect $\nGet more $ with tricks\nDaily mode: use QR code to post score\n..."
 		},
 		{
-			title="D-pad mode",
+			title="D-pad skiing",
 			text="⬅️ left - right ➡️\nⒶ jump\nⒷ restart (long press)\n..."
 		},
 		{
-			title="Cranked mode",
+			title="Cranked skiing",
 			text="🎣 direction\nⒷ jump\nⒶ restart (long press)\n..."
 		},
 		{
@@ -2203,7 +2226,7 @@ function play_state(params,help_ttl)
 				-- chill mode?
 				if best_distance then
 					-- total distance
-					print_regular(flr(_plyr.distance).."m",nil,-8,text_color)
+					print_regular(flr(_plyr.distance).."m",nil,-7,text_color)
 				end
 
 				local y_bonus = 28

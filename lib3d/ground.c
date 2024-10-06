@@ -451,28 +451,28 @@ void get_track_info(const Point3d pos, float* xmin, float* xmax, float* z, int* 
     }
 
     const GroundSlice* s0 = _ground.slices[j];
-    *xmin = (float)(s0->extents[0] * GROUND_CELL_SIZE);
-    *xmax = (float)(s0->extents[1] * GROUND_CELL_SIZE);
-    // activate checkpoint at middle of cell
-    *z = (j + 0.5f) * GROUND_CELL_SIZE;
-    *checkpoint = s0->is_checkpoint;
+* xmin = (float)(s0->extents[0] * GROUND_CELL_SIZE);
+*xmax = (float)(s0->extents[1] * GROUND_CELL_SIZE);
+// activate checkpoint at middle of cell
+*z = (j + 0.5f) * GROUND_CELL_SIZE;
+* checkpoint = s0->is_checkpoint;
 
 
-    // find nearest checkpoint
-    *angleout = 0.f;
-    if (j + 2 < GROUND_HEIGHT) {
-        float x = _ground.slices[j + 2]->center, y = 2;
-        for (int k = j + 2; k < j + 10 && k < GROUND_HEIGHT; ++k) {
-            GroundSlice* s = _ground.slices[k];
-            if (s->is_checkpoint) {
-                x = s->center;
-                y = (float)(k - j);
-                break;
-            }
+// find nearest checkpoint
+*angleout = 0.f;
+if (j + 2 < GROUND_HEIGHT) {
+    float x = _ground.slices[j + 2]->center, y = 2;
+    for (int k = j + 2; k < j + 10 && k < GROUND_HEIGHT; ++k) {
+        GroundSlice* s = _ground.slices[k];
+        if (s->is_checkpoint) {
+            x = s->center;
+            y = (float)(k - j);
+            break;
         }
-        // direction to track ahead (rebase to half circle)
-        *angleout = 0.5f * atan2f(y * GROUND_CELL_SIZE, x - pos.x) / PI - 0.25f;
     }
+    // direction to track ahead (rebase to half circle)
+    *angleout = 0.5f * atan2f(y * GROUND_CELL_SIZE, x - pos.x) / PI - 0.25f;
+}
 }
 
 void get_props(Point3d pos, PropInfo** info, int* nout) {
@@ -491,16 +491,20 @@ void get_props(Point3d pos, PropInfo** info, int* nout) {
             int prop_id = t0->prop_id;
             if (prop_id == PROP_COIN) {
                 PropInfo* info = &_props_info.props[_props_info.n++];
-                info->type = prop_id;                
+                info->type = prop_id;
                 v_lerp(
-                    (Point3d){ .v = {(float)i * GROUND_CELL_SIZE,         s0->heights[i] + s0->y,       (float)j * GROUND_CELL_SIZE} },
-                    (Point3d){ .v = {(float)(i + 1) * GROUND_CELL_SIZE,   s1->heights[i + 1] + s1->y,   (float)(j + 1) * GROUND_CELL_SIZE } },
-                    t0->prop_t,
-                    &info->pos);
+                    (Point3d) {
+                    .v = { (float)i * GROUND_CELL_SIZE,         s0->heights[i] + s0->y,       (float)j * GROUND_CELL_SIZE }
+                },
+                    (Point3d) {
+                    .v = { (float)(i + 1) * GROUND_CELL_SIZE,   s1->heights[i + 1] + s1->y,   (float)(j + 1) * GROUND_CELL_SIZE }
+                },
+                        t0->prop_t,
+                        & info->pos);
                 info->pos.z += 2.f;
             }
         }
-    }    
+    }
     *nout = _props_info.n;
     *info = _props_info.props;
 }
@@ -545,17 +549,18 @@ void collide(const Point3d pos, float radius, int* hit_type)
                         if (props->flags & PROP_FLAG_HITABLE) {
 
                             // generate vertex
-                            Point3d v0 = (Point3d){ .v = {(float)tilex,s0->heights[i] + s0->y,(float)tilez}};
+                            Point3d v0 = (Point3d){ .v = {(float)tilex,s0->heights[i] + s0->y,(float)tilez} };
                             Point3d v2 = (Point3d){ .v = {(float)(tilex + GROUND_CELL_SIZE),s0->heights[i + 1] + s0->y,(float)(tilez + GROUND_CELL_SIZE)} };
                             Point3d res;
                             v_lerp(v0, v2, t0->prop_t, &res);
                             make_v(pos, res, &res);
-                            if (props->flags & PROP_FLAG_JUMP_OVER) {
-                                pd->system->logToConsole("dist: %f/%f", sqrtf(res.x * res.x + res.y * res.y + res.z * res.z), radius + props->radius * props->radius);
-                            }
-                            if (((props->flags & PROP_FLAG_JUMP_OVER) && res.x * res.x + res.y * res.y + res.z * res.z < radius + props->radius * props->radius) ||
-                                res.x * res.x + res.z * res.z < radius + props->radius * props->radius) {
-                                if (props->flags & PROP_FLAG_COIN) {
+                            const float r = radius + props->radius * props->radius;
+                            if (res.x * res.x + res.z * res.z < r) {
+                                if ((props->flags & PROP_FLAG_JUMP_OVER) && res.y * res.y > r) {
+                                    // cleared!
+                                    *hit_type = 5;
+                                }
+                                else if (props->flags & PROP_FLAG_COIN) {
                                     *hit_type = 3;
                                 }
                                 else if (props->flags & PROP_FLAG_KILL) {
