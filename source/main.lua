@@ -11,10 +11,9 @@ import 'models.lua'
 import 'store.lua'
 
 local gfx <const> = playdate.graphics
-local font <const> = gfx.font.new('font/whiteglove-stroked')
 local smallFont <const> = {
-	[gfx.kColorBlack]=gfx.font.new('font/Memo-Black'),
-	[gfx.kColorWhite]=gfx.font.new('font/Memo-White')
+	[gfx.kColorBlack]=gfx.font.new('font/Roobert-10-Black'),
+	[gfx.kColorWhite]=gfx.font.new('font/Roobert-10-White')
 }
 local largeFont <const> = {
 	[gfx.kColorBlack]=gfx.font.new('font/More-15-Black'),
@@ -1137,7 +1136,7 @@ function menu_state(angle)
 			if playdate.buttonJustReleased(playdate.kButtonRight) then daily=not daily _button_click:play(1) end
 
 			-- help?
-			if playdate.buttonIsPressed(playdate.kButtonB) then
+			if playdate.buttonJustReleased(playdate.kButtonB) then
 				_music:setVolume(0,0,1)
 				next_state(help_state, angle)
 			end
@@ -1183,6 +1182,8 @@ function menu_state(angle)
 					if p.transition==false then
 						next_state(p.state,v_clone(cam.pos),v_clone(look_at),scale,angle)
 					else
+						--
+						p.params.state = p.state
 						next_state(p.transition or zoomin_state,p.state,p.params)
 					end
 				end)
@@ -1339,7 +1340,7 @@ function help_state(angle)
 		},
 		{
 			title="Credits",
-			text="Code:freds72\nMusic:Ridgek\nFont:somepx.itch.io\nSfx:freesound:org (cc0)\nThanks:PANIC,Bob,James,...\n..."
+			text="Code+gfx:freds72\nMusic:Ridgek\nFont:somepx.itch.io\nSfx:freesound:org (cc0)\nThanks:PANIC,Bob,James,...\n..."
 		},
 	}
 	local w,h=mute:getSize()
@@ -1396,8 +1397,8 @@ function help_state(angle)
 	return
 		-- update
 		function()
-			-- release: go back
-			if not playdate.buttonIsPressed(_input.back.id) then
+			-- press b again: back
+			if playdate.buttonJustReleased(playdate.kButtonB) then
 				next_state(menu_state,angle)
 			end
 			y=lerp(y,240-h,0.8)
@@ -2378,7 +2379,7 @@ function race_state(params)
 		-- draw
 		function()
 			play_draw()
-			if message then	
+			if message and npc then	
 				gfx.setFont(smallFont[gfx.kColorWhite])
 				local sw,sh=gfx.getTextSize(message)
 				sw += 4
@@ -2486,7 +2487,7 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 			if playdate.buttonJustReleased(_input.action.id) then
 				_snowball_sfx:stop()
 				if qrcode_timer then qrcode_timer:remove() qrcode_timer = nil end
-				next_state(zoomin_state,play_state,params,90)
+				next_state(zoomin_state,params.state,params,90)
 			end
 		end,
 		-- draw
