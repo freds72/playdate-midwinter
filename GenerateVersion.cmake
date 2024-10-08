@@ -1,7 +1,9 @@
 # Run this with CMake in "script mode" (-P flag) at build time
 
 # in case Git is not available, we default to "unknown"
-set(GIT_COUNT "unknown")
+set(GIT_COUNT "00")
+
+string(TIMESTAMP BUILD_DATE "%Y.%m.%d")
 
 # find Git and if available set GIT_HASH variable
 find_package(Git QUIET)
