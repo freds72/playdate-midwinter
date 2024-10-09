@@ -21,6 +21,30 @@ if (NOT EXISTS ${SDK})
 	return()
 endif()
 
+# https://gist.github.com/Tordan/c4d4d14aac0e85ebf7122ed2189ea387
+# Add command to generate version header...
+add_custom_command(
+    OUTPUT
+        ${CMAKE_CURRENT_SOURCE_DIR}/source/pdxinfo
+    COMMAND
+        ${CMAKE_COMMAND} -D PROJECT_VERSION=${PROJECT_VERSION} -D IN_FILE=${CMAKE_CURRENT_SOURCE_DIR}/pdxinfo.in -D OUT_FILE=${CMAKE_CURRENT_SOURCE_DIR}/source/pdxinfo -P ${CMAKE_CURRENT_SOURCE_DIR}/GenerateVersion.cmake
+    WORKING_DIRECTORY
+        ${CMAKE_SOURCE_DIR}
+)
+
+# ...make sure it exists in filesystem (configuration WILL fail if it's not)...
+file(TOUCH ${CMAKE_SOURCE_DIR}/source/pdxinfo)
+
+# ...add custom target to rebuild pdxinfo every time
+add_custom_target(
+    generate_pdxinfo
+        ALL
+    COMMAND
+        ${CMAKE_COMMAND} -D PROJECT_VERSION=${PROJECT_VERSION} -D IN_FILE=${CMAKE_CURRENT_SOURCE_DIR}/pdxinfo.in -D OUT_FILE=${CMAKE_CURRENT_SOURCE_DIR}/source/pdxinfo -P ${CMAKE_CURRENT_SOURCE_DIR}/GenerateVersion.cmake
+    WORKING_DIRECTORY
+        ${CMAKE_SOURCE_DIR}
+)
+
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release")
 set(CMAKE_XCODE_GENERATE_SCHEME TRUE)
 

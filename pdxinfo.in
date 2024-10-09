@@ -1,7 +1,7 @@
 name=snow!
-author=FreDs72
+author=Freds72&Ridgek
 description=Endless skiing, what else?
 bundleID=freds72.itch.io.snow
-version=1.0
-buildNumber=109
+version=@BUILD_DATE@
+buildNumber=@GIT_COUNT@
 imagePath=system
