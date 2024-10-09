@@ -1340,7 +1340,7 @@ function help_state(angle)
 		},
 		{
 			title="Credits",
-			text="Code+gfx:freds72\nMusic:Ridgek\nFont:somepx.itch.io\nSfx:freesound:org (cc0)\nThanks:PANIC,Bob,James,...\n..."
+			text="Code+gfx: freds72\nMusic: Ridgek\nFont: somepx.itch.io\nSfx: freesound:org (cc0)\nMany thanks to: Eli Piilonen, Scott Hall,\nJordan Carroll & all the discord folks."
 		},
 	}
 	local w,h=mute:getSize()
@@ -1381,7 +1381,7 @@ function help_state(angle)
 			while not help_printed do
 				coroutine.yield()
 			end
-			wait_async(30)	
+			wait_async(60)	
 			help = nil
 			for i=1,15 do
 				box_h=lerp(box_h,0,0.7)
