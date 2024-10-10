@@ -12,8 +12,8 @@ import 'store.lua'
 
 local gfx <const> = playdate.graphics
 local smallFont <const> = {
-	[gfx.kColorBlack]=gfx.font.new('font/Roobert-10-Black'),
-	[gfx.kColorWhite]=gfx.font.new('font/Roobert-10-White')
+	[gfx.kColorBlack]=gfx.font.new('font/Memo-Black'),
+	[gfx.kColorWhite]=gfx.font.new('font/Memo-White')
 }
 local largeFont <const> = {
 	[gfx.kColorBlack]=gfx.font.new('font/More-15-Black'),
@@ -443,7 +443,7 @@ function make_plyr(p,on_trick)
 			air_t=0
 
 			if jump_ttl>8 and playdate.buttonJustPressed(_input.action.id) then
-				self:apply_force_and_torque(vec3(0,63,0),0)
+				self:apply_force_and_torque(vec3(0,56,0),0)
 				jump_ttl=0
 			end
 		else
@@ -1230,7 +1230,7 @@ function menu_state(angle)
 
 			if not starting then
 				_game_title_anim:drawImage((frame_t%#_game_title_anim)+1,10,6)
-				print_small("by Freds72&Ridgek",10,54)
+				print_small("by Freds72&ridgek",10,54)
 			end
 
 			local sel_panel = panels[sel+1]
@@ -1340,7 +1340,7 @@ function help_state(angle)
 		},
 		{
 			title="Credits",
-			text="Code+gfx: freds72\nMusic: Ridgek\nFont: somepx.itch.io\nSfx: freesound:org (cc0)\nMany thanks to: Eli Piilonen, Scott Hall,\nJordan Carroll & all the discord folks."
+			text="Code+gfx: freds72\nMusic: ridgek\nFont: somepx.itch.io\nSfx: freesound:org (cc0)\nMany thanks to: Eli Piilonen, Scott Hall,\nJordan Carroll & all the discord folks."
 		},
 	}
 	local w,h=mute:getSize()
@@ -1366,7 +1366,7 @@ function help_state(angle)
 			gfx.setFont(smallFont[gfx.kColorWhite])
 			local msg_w,msg_h=gfx.getTextSize(tmp.text)
 			msg_h += 40
-			msg_w = max(msg_w,title_w) + 16
+			msg_w = max(msg_w,title_w) + 19
 			wait_async(15)
 			for i=1,15 do
 				box_h=lerp(box_h,msg_h,0.7)
@@ -1647,7 +1647,10 @@ function shop_state(...)
 					local can_buy = _save_state.coins >= item.price
 					local buy_text
 					if action_ttl>0 then
-						buy_text = "Keep pressing ("..30-action_ttl..")"
+						buy_text = "Keep pressing"
+						for i=1,flr(action_ttl/10) do
+							buy_text = buy_text .. "."
+						end
 					elseif can_buy then
 						buy_text = "Buy".._input.action.glyph
 					else
@@ -2086,8 +2089,8 @@ function play_state(params,help_ttl)
 						local tmp={table.unpack(bonus)}
 						-- add total line
 						do_async(function()
-							local multi=min(#tmp,4)
-							bonus_coins = 1<<multi
+							local multi=min(#tmp,5)
+							bonus_coins = 1<<(multi-1)
 							wait_async(30)
 							for i=1,bonus_coins do
 								_coin_sfx:play(1)
