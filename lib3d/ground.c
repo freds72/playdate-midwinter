@@ -310,14 +310,14 @@ static void make_slice(GroundSlice* slice, float y) {
     }
     else
     {
-        imin = 2;
+        imin = 1;
         imax = GROUND_WIDTH - 2;
     }
 
     // apply props shadows
     slice->tracks_mask |= shadow_mask;
     //  + nice transition
-    slice->heights[imin] = lerpf(slice->heights[imin - 1], slice->heights[imin], lerpf(0.666f,0.8f,randf_seeded()));
+    slice->heights[imin] = lerpf(slice->heights[imin - 1], slice->heights[imin], lerpf(0.8f,0.666f,randf_seeded()));
     slice->heights[imax] = lerpf(slice->heights[imax + 1], slice->heights[imax], lerpf(0.666f,0.8f,randf_seeded()));
 
     _ground.slice_id++;

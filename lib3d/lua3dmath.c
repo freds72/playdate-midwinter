@@ -11,8 +11,6 @@ Mat4* getArgMat4(int n) { return getArgObject(n, "lib3d.Mat4"); }
 void pushArgVec3(Point3d* p) { pd->lua->pushObject(p, "lib3d.Vec3", 0); }
 void pushArgMat4(Mat4* p) { pd->lua->pushObject(p, "lib3d.Mat4", 0); }
 
-static const Point3d v_up = { .v = { 0.f, 1.0f , 0.f } };
-
 /// allocation
 static int vec3_new(lua_State* L)
 {
@@ -379,6 +377,7 @@ static int mat4_lookat(lua_State* L) {
 		to->v[2] - from->v[2]} };
 	v_normz(&fwd);
 	Point3d right;
+	const Point3d v_up = { .v = { 0.f, 1.0f , 0.f } };
 	v_cross(v_up, fwd, &right);
 	v_normz(&right);
 	Point3d up;

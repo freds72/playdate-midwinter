@@ -102,6 +102,18 @@ function wait_async(t)
 	end
 end
 
+local _sounds={}
+
+function stop_sounds_state(state,...)
+	-- dispose all active sounds when moving to next state
+	for sfx in pairs(_sounds) do
+		sfx:stop()
+	end
+	_sounds = {}
+	
+	return state(...)
+end
+	
 -- install next state
 local _update_state,_draw_state
 -- note: won't be active before next frame
@@ -381,6 +393,12 @@ function make_body(p,angle)
 			local pos=self.pos
 
 			local newy,newn <close> =_ground:find_face(pos)
+			if not newy then
+				-- hum...
+				self.dead = true
+				return
+			end
+
 			-- stop at ground
 			self.on_ground=nil
 			self.on_cliff=newn[2]<0.5
@@ -627,6 +645,7 @@ function make_npc(p,cam)
 	local body_update=body.update
 	body.id = model.idle
 	local sfx=_ski_sfx:copy()
+	_sounds[sfx] = true
 	sfx:play(0)
 
 	-- all jinxes
@@ -715,6 +734,7 @@ function make_npc(p,cam)
 		local _,angle=self:get_pos()
 		local slice=_ground:get_track(pos)
 		if slice.z>38*4 or slice.z<4 then
+			_sounds[sfx] = nil
 			sfx:stop()
 			-- kill npc
 			self.dead=true
@@ -722,7 +742,7 @@ function make_npc(p,cam)
 		end
 
 		if _plyr then
-			if v_dist(pos,_plyr.pos)<1 then
+			if v_dist(pos,_plyr.pos)<1.5 then
 				_npc_hit:play(1)
 				_plyr.dead=true
 			end
@@ -741,10 +761,10 @@ function make_npc(p,cam)
 			end
 
 			jinx_ttl-=1
+			-- 3 minutes of difficulty ramp up
+			local rating=min(1,(time()-start_t)/180)
 			if self.on_ground and dist>24 and jinx_ttl<0 then
 				local n=#jinxes_stats
-				-- 3 minutes of difficulty ramp up
-				local rating=min(1,(time()-start_t)/180)
 				do_async(function()
 					-- pick up jinxes according to time played
 					local id=jinxes_stats[flr(rnd(n * rating))+1]
@@ -753,6 +773,9 @@ function make_npc(p,cam)
 				jinx_ttl = 90 + lerp(90,45,rating) * lib3d.seeded_rnd()
 			end
 			self.dist = dist
+	
+			-- make npc slightly faster than player
+			body:perma_boost(rating * 0.2)
 		end
 
 		local da=slice.angle+angle
@@ -1324,23 +1347,23 @@ function help_state(angle)
 	local help_msgs={
 		{
 			title="How to play?",
-			text="⬆️⬇️ select level - Ⓐ start\nAvoid hazards and collect $\nGet more $ with tricks\nDaily mode: use QR code to post score\n..."
+			text="⬆️⬇️ select level - Ⓐ start\nAvoid hazards and collect $\nGet more $ with tricks\nDaily mode: use QR code to post score"
 		},
 		{
 			title="D-pad skiing",
-			text="⬅️ left - right ➡️\nⒶ jump\nⒷ restart (long press)\n..."
+			text="⬅️ left - right ➡️\nⒶ jump\nⒷ restart (long press)"
 		},
 		{
 			title="Cranked skiing",
-			text="🎣 direction\nⒷ jump\nⒶ restart (long press)\n..."
+			text="🎣 direction\nⒷ jump\nⒶ restart (long press)"
 		},
 		{
 			title="Menu button",
-			text="start menu: back to main menu\nflip crank: invert crank input\nmask: choose from your collection\n..."
+			text="start menu: back to main menu\nflip crank: invert crank input\nmask: choose from your collection"
 		},
 		{
 			title="Credits",
-			text="Code+gfx: freds72\nMusic: ridgek\nFont: somepx.itch.io\nSfx: freesound:org (cc0)\nMany thanks to: Eli Piilonen, Scott Hall,\nJordan Carroll & all the discord folks."
+			text="Engine+Graphics: Freds72\nMusic: ridgek\nFont: somepx.itch.io\nSfx: freesound:org (cc0)\nMany thanks to: Eli Piilonen, Scott Hall,\nJordan Carroll + all the discord folks!"
 		},
 	}
 	local w,h=mute:getSize()
@@ -1350,7 +1373,6 @@ function help_state(angle)
 	local prompt=1
 	local box_h=0
 	local box_w=300
-	local help_printed
 	-- capture screen
 	local screen=gfx.getDisplayImage()
 
@@ -1359,13 +1381,13 @@ function help_state(angle)
 		while true do
 			box_h=0
 			help=nil
-			help_printed=nil
 			local tmp=help_msgs[i]
 			gfx.setFont(largeFont[gfx.kColorWhite])
 			local title_w,title_h=gfx.getTextSize(tmp.title)
 			gfx.setFont(smallFont[gfx.kColorWhite])
 			local msg_w,msg_h=gfx.getTextSize(tmp.text)
-			msg_h += 40
+			-- reserve space for next button
+			msg_h += 40 + 12
 			msg_w = max(msg_w,title_w) + 19
 			wait_async(15)
 			for i=1,15 do
@@ -1378,10 +1400,10 @@ function help_state(angle)
 			help = tmp
 			prompt = 1
 			-- reading time!
-			while not help_printed do
+			while not playdate.buttonJustReleased(playdate.kButtonA) do
 				coroutine.yield()
 			end
-			wait_async(60)	
+			_button_click:play(1)
 			help = nil
 			for i=1,15 do
 				box_h=lerp(box_h,0,0.7)
@@ -1403,9 +1425,6 @@ function help_state(angle)
 			end
 			y=lerp(y,240-h,0.8)
 			prompt+=1
-			if help and prompt>#help.text then
-				help_printed = true
-			end
 		end,
 		-- draw
 		function()
@@ -1433,12 +1452,15 @@ function help_state(angle)
 				gfx.setColor(gfx.kColorBlack)
 				local box_t = 20
 				local box_l = 64
+				local box_b = box_t+box_h
 				gfx.fillRect(box_l,box_t,box_w,box_h)
 				if box_h>8 and box_w>32 then
 					gfx.setPattern(_50pct_pattern)
-					gfx.fillRect(box_l,box_t+box_h,box_w,2)
+					gfx.fillRect(box_l,box_b,box_w,2)
 					gfx.setColor(gfx.kColorBlack)
-					gfx.fillTriangle(295,184,box_l+2*box_w/3-16,box_t+box_h,box_l+2*box_w/3+16,box_t+box_h)
+					gfx.fillTriangle(295,184,box_l+2*box_w/3-16,box_b,box_l+2*box_w/3+16,box_b)
+
+					if flr(time())%2==0 then print_small("Ⓐ next",box_l + box_w - 56,box_b - 20,gfx.kColorWhite) end
 				end
 
 				if help then
@@ -1698,11 +1720,13 @@ end
 function make_static_actor(id,x,sfx_name,update)
 	return function(lane,row,cam)
 		local pos=vec3(x or (lane+0.5)*4,-16,row*4 - 2)
-		local y=_ground:find_face(pos)
+		local y, _ <close> = _ground:find_face(pos)
 		pos[2]=y
 		-- sfx?
 		local sfx=_ENV[sfx_name]
 		if sfx then
+			sfx = sfx:copy()
+			_sounds[sfx] = true
 			sfx:play(0)
 			sfx:setVolume(0)
 		end	
@@ -1715,6 +1739,7 @@ function make_static_actor(id,x,sfx_name,update)
 				-- out of landscape?
 				if pos[3]<0.5 then
 					if sfx then
+						_sounds[sfx] = nil
 						sfx:stop()
 					end
 					return 
@@ -1828,6 +1853,7 @@ function make_command_handlers(custom)
 			local pos=vec3((lane+0.5)*4,-16,_ground_height-2)
 			-- sfx
 			local sfx = _skidoo_sfx:copy()
+			_sounds[sfx] = true
 			sfx:setOffset(rnd())
 			sfx:play(0)
 			return {
@@ -1839,9 +1865,10 @@ function make_command_handlers(custom)
 					pos[3]-=0.25
 
 					-- update
-					local newy,newn=_ground:find_face(pos)
+					local newy,newn <close> =_ground:find_face(pos)
 					-- out of bound: kill actor
 					if not newy then 
+						_sounds[sfx] = nil
 						sfx:stop()
 						return 
 					end
@@ -1881,7 +1908,7 @@ function make_command_handlers(custom)
 			-- move toward player
 			pos[3]-=1
 			-- get current height
-			local ny=_ground:find_face(pos)
+			local ny, _ <close> =_ground:find_face(pos)
 			-- wooble over ground
 			pos[2] = ny + 16 + 2*cos(time())
 		end)
@@ -2148,7 +2175,7 @@ function play_state(params,help_ttl)
 
 					if _music then _music:stop() _music=nil end
 					-- latest score
-					next_state(plyr_death_state,cam,pos,flr(_plyr.distance),total_tricks,params)
+					next_state(stop_sounds_state,plyr_death_state,cam,pos,flr(_plyr.distance),total_tricks,params)
 					-- not active
 					_plyr=nil
 				else	
@@ -2270,9 +2297,10 @@ function race_state(params)
 	local make_helo=function(lane,row,cam)
 		local dropped
 		local pos=vec3((lane+0.5)*4,-16,row*4-2)
-		local y=_ground:find_face(pos)
+		local y, _ <close> =_ground:find_face(pos)
 		pos[2]=y+24
 		-- sfx?
+		_sounds[_helo_sfx] = true
 		_helo_sfx:play(0)
 		_helo_sfx:setVolume(0)
 
@@ -2285,9 +2313,10 @@ function race_state(params)
 				-- update pos?
 				pos[3]+=0.9
 				-- get current height
-				local ny=_ground:find_face(pos)
+				local ny, _ <close> =_ground:find_face(pos)
 				-- out of landscape?
 				if not ny then
+					_sounds[_helo_sfx] = nil
 					_helo_sfx:stop()
 					return 
 				end
@@ -2430,6 +2459,7 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 	
 	-- stop ski sfx
 	_ski_sfx:stop()
+	_sounds[_snowball_sfx] = true
 	_snowball_sfx:play(0)
 
 	-- generate QR code if daily
@@ -2470,6 +2500,7 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 				snowball:hit(ttl<0)
 				pick(_treehit_sfxs):play()
 				if snowball.dead then
+					_sounds[_snowball_sfx] = nil
 					_snowball_sfx:stop()
 				end
 				active_text,text_ttl=pick(text),10
@@ -2483,14 +2514,12 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 			cam:look(p)
 
 			if playdate.buttonJustReleased(_input.back.id) then
-				_snowball_sfx:stop()
 				if qrcode_timer then qrcode_timer:remove() qrcode_timer = nil end
-				next_state(zoomin_state,menu_state)
+				next_state(stop_sounds_state, zoomin_state, menu_state)
 			end
 			if playdate.buttonJustReleased(_input.action.id) then
-				_snowball_sfx:stop()
 				if qrcode_timer then qrcode_timer:remove() qrcode_timer = nil end
-				next_state(zoomin_state,params.state,params,90)
+				next_state(stop_sounds_state, zoomin_state,params.state,params,90)
 			end
 		end,
 		-- draw
@@ -2536,8 +2565,8 @@ function restart_state(params)
 					_music:stop()
 					_music = nil
 				end
-				-- reset game (without the zoom effect)
-				next_state(params.state,params,90)
+				-- reset game + stop game sounds
+				next_state(stop_sounds_state,params.state,params,90)
 			elseif not playdate.buttonIsPressed(_input.back.id) then
 				-- back to game ("unpause")
 				if _music then
@@ -2568,7 +2597,8 @@ end
 function saveGameData()
 	-- Serialize game data table into the datastore
 	if _save_state then
-		playdate.datastore.write(_save_state)
+		-- demo: don't save!
+		-- playdate.datastore.write(_save_state)
 	end
 end
 
