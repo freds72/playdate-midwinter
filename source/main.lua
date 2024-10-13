@@ -2616,8 +2616,7 @@ end
 function saveGameData()
 	-- Serialize game data table into the datastore
 	if _save_state then
-		-- demo: don't save!
-		-- playdate.datastore.write(_save_state)
+		playdate.datastore.write(_save_state)
 	end
 end
 
