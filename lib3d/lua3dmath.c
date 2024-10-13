@@ -29,11 +29,7 @@ static int vec3_new(lua_State* L)
 int vec3_gc(lua_State* L)
 {
 	Point3d* p = getArgVec3(1);
-	// avoids double release
-	if (p->x != FLT_MAX) {
-		push_vec3(p);
-		p->x = FLT_MAX;
-	}
+	push_vec3(p);
 	return 0;
 }
 
@@ -69,7 +65,8 @@ static int vec3_newindex(lua_State* L)
 static int vec3_clone(lua_State* L) {
 	Point3d* self = getArgVec3(1);
 	Point3d* p = pop_vec3();
-	*p = *self;
+	for (int i = 0; i < VEC3; i++)
+		p->v[i] = self->v[i];
 
 	pushArgVec3(p);
 	return 1;
@@ -77,10 +74,11 @@ static int vec3_clone(lua_State* L) {
 
 static int vec3_copy(lua_State* L) {
 	int argc = 1;
-	Point3d* a = getArgVec3(argc++);
-	Point3d* b = getArgVec3(argc++);
+	Point3d* src = getArgVec3(argc++);
+	Point3d* dst = getArgVec3(argc++);
 
-	*b = *a;
+	for (int i = 0; i < VEC3; i++)
+		dst->v[i] = src->v[i];
 	return 0;
 }
 
@@ -230,10 +228,7 @@ static int mat4_new(lua_State* L)
 int mat4_gc(lua_State* L)
 {
 	Mat4* p = getArgMat4(1);
-	if ((*p)[0] != FLT_MAX) {
-		push_mat4(p);
-		(*p)[0] = FLT_MAX;
-	}
+	push_mat4(p);		
 	return 0;
 }
 
@@ -418,40 +413,37 @@ static int mat4_inv(lua_State* L) {
 static int mat4_right(lua_State* L) {
 	int argc = 1;
 	Mat4* m = getArgMat4(argc++);
+	Point3d* dst = getArgVec3(argc++);
 
-	Point3d* p = pop_vec3();
-	p->v[0] = (*m)[0];
-	p->v[1] = (*m)[1];
-	p->v[2] = (*m)[2];
+	dst->v[0] = (*m)[0];
+	dst->v[1] = (*m)[1];
+	dst->v[2] = (*m)[2];
 
-	pushArgVec3(p);
-	return 1;
+	return 0;
 }
 
 static int mat4_up(lua_State* L) {
 	int argc = 1;
 	Mat4* m = getArgMat4(argc++);
+	Point3d* dst = getArgVec3(argc++);
 
-	Point3d* p = pop_vec3();
-	p->v[0] = (*m)[4];
-	p->v[1] = (*m)[5];
-	p->v[2] = (*m)[6];
+	dst->v[0] = (*m)[4];
+	dst->v[1] = (*m)[5];
+	dst->v[2] = (*m)[6];
 
-	pushArgVec3(p);
-	return 1;
+	return 0;
 }
 
 static int mat4_fwd(lua_State* L) {
 	int argc = 1;
 	Mat4* m = getArgMat4(argc++);
+	Point3d* dst = getArgVec3(argc++);
 
-	Point3d* p = pop_vec3();
-	p->v[0] = (*m)[8];
-	p->v[1] = (*m)[9];
-	p->v[2] = (*m)[10];
+	dst->v[0] = (*m)[8];
+	dst->v[1] = (*m)[9];
+	dst->v[2] = (*m)[10];
 
-	pushArgVec3(p);
-	return 1;
+	return 0;
 }
 
 static int mat4_m_x_inv_translate(lua_State* L) {
@@ -490,7 +482,7 @@ static const lua_reg _vec3_methods[] =
 	{ "__gc", 		vec3_gc },
 	{ "__index",	vec3_index },
 	{ "__newindex",	vec3_newindex },
-	{ "__close",	vec3_gc },
+	// { "__close",	vec3_gc },
 	{ "add",		vec3_add },
 	{ "clone",		vec3_clone },
 	{ "dot",		vec3_dot },
@@ -509,7 +501,7 @@ static const lua_reg _mat4_methods[] =
 {
 	{ "new",					mat4_new },
 	{ "__gc", 					mat4_gc },
-	{ "__close", 				mat4_gc },
+	// { "__close", 				mat4_gc },
 	{ "__index",				mat4_index },
 	{ "__newindex",				mat4_newindex },
 	{ "m_x_v",					mat4_m_x_v },

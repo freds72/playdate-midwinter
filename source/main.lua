@@ -29,11 +29,13 @@ local _50pct_pattern <const> = { 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55 
 local _inputs={
 	-- crank docked
 	[true]={
+		crank_mode=false,
 		action={id=playdate.kButtonA,glyph="Ⓐ"},
 		back={id=playdate.kButtonB,glyph="Ⓑ"}
 	},
 	-- undocked
 	[false]={
+		crank_mode=true,
 		action={id=playdate.kButtonB,glyph="Ⓑ"},
 		back={id=playdate.kButtonA,glyph="Ⓐ"}
 	}
@@ -176,15 +178,27 @@ local make_m_from_v_angle = lib3d.Mat4.make_m_from_v_angle
 local make_m_from_v = lib3d.Mat4.make_m_from_v
 local make_m_lookat = lib3d.Mat4.make_m_lookat
 local m_inv = lib3d.Mat4.m_inv
-local m_right = lib3d.Mat4.m_right
-local m_up = lib3d.Mat4.m_up
-local m_fwd = lib3d.Mat4.m_fwd
+local _right_tmp = vec3()
+local _fwd_tmp = vec3()
+local _up_tmp = vec3()
+local m_right = function(m)
+	lib3d.Mat4.m_right(m,_right_tmp)
+	return _right_tmp
+end
+local m_up = function(m)
+	lib3d.Mat4.m_up(m, _up_tmp)
+	return _up_tmp
+end
+local m_fwd = function(m)
+	lib3d.Mat4.m_fwd(m, _fwd_tmp)
+	return _fwd_tmp
+end
 local m_inv_translate = lib3d.Mat4.m_inv_translate
 local m_translate = lib3d.Mat4.m_translate
 
 -- main engine
 -- global vars
-local _actors,_ground,_plyr,_tracked={}
+local _actors,_ground,_plyr={}
 
 -- screen efects
 local screen={}
@@ -266,8 +280,9 @@ function make_body(p,angle)
 	local steering_angle=0
 	angle=angle or 0
 	
-	local no_force=vec3(0,0,0)
+	local no_force=vec3()
 	local g=vec3(0,-3.5,0)
+	local up_force=vec3()
 	return {
 		pos=v_clone(p),
 		on_ground=nil,
@@ -285,7 +300,7 @@ function make_body(p,angle)
 			local u=v_lerp(v_up,up,scale)
 			local m=make_m_from_v_angle(u,angle)
 			
-			local right <close> = m_right(m)
+			local right = m_right(m)
 			v_add(u,right,sin(steering_angle)*scale/2)
 			v_normz(u)
 			return u,m
@@ -307,10 +322,10 @@ function make_body(p,angle)
 			self:apply_force_and_torque(g,0)
 			-- on ground?
 			if self.on_ground then
-				local n <close> = v_clone(up)
-				v_scale(n,-v_dot(n,g))
+				v_copy(up,up_force)
+				v_scale(up_force,-v_dot(up_force,g))
 				-- slope pushing up
-				self:apply_force_and_torque(n,0)
+				self:apply_force_and_torque(up_force,0)
 			end
 
 			-- update velocities
@@ -346,15 +361,15 @@ function make_body(p,angle)
 			if self.on_ground and v_len(velocity)>0.001 then
 
 				-- desired ski direction
-				local m <close> = make_m_from_v_angle(up,angle-steering_angle/16)
-				local right <close> = m_right(m)
-				local fwd <close> = m_fwd(m)
+				local m  = make_m_from_v_angle(up,angle-steering_angle/16)
+				local right  = m_right(m)
+				local fwd  = m_fwd(m)
 				
 				-- slip angle
 				local sa=-v_dot(velocity,right)
 				if abs(sa)>0.001 then
 					-- max grip
-					local vn <close> =v_clone(velocity)
+					local vn  = v_clone(velocity)
 					v_normz(vn)
 					local grip=1-abs(v_dot(fwd,vn))
 					-- more turn: more grip
@@ -392,12 +407,7 @@ function make_body(p,angle)
 			-- find ground
 			local pos=self.pos
 
-			local newy,newn <close> =_ground:find_face(pos)
-			if not newy then
-				-- hum...
-				self.dead = true
-				return
-			end
+			local newy,newn  =_ground:find_face(pos)
 
 			-- stop at ground
 			self.on_ground=nil
@@ -500,6 +510,7 @@ function make_plyr(p,on_trick)
 			spin_prev=nil
 		end
 
+		-- print("plyr: "..pos[1].." "..pos[2].." "..pos[3])
 		local hit_type=_ground:collide(pos,0.2)
 		if hit_type==2 then
 			-- walls: insta-death
@@ -585,7 +596,7 @@ function make_jinx(id,pos,velocity,params)
 			velocity[2]-=0.25
 			v_add(pos,velocity)
 			-- find ground
-			local newy, _ <close> =_ground:find_face(pos)
+			local newy, _  =_ground:find_face(pos)
 			-- out of bound: kill actor
 			if not newy then return end
 
@@ -796,7 +807,7 @@ function make_npc(p,cam)
 		body_update(self)
 
 		-- create orientation matrix
-		local newy,newn <close> =_ground:find_face(pos)
+		local newy,newn  =_ground:find_face(pos)
 		v_move(up,newn,0.3)
 		local _,angle=self:get_pos()
 		local m=make_m_from_v_angle(up,angle)
@@ -835,7 +846,7 @@ function make_smoke_trail(pos, vel)
 		update=function(self)
 			velocity[2]-=1
 			v_add(self.pos,velocity,0.5/30)
-			local y, _ <close> =_ground:find_face(self.pos)
+			local y, _  =_ground:find_face(self.pos)
 			-- edge case - too close to map borders
 			if not y then return end
 			-- below ground?
@@ -887,7 +898,7 @@ function make_snowball(pos)
 		if self.dead then return end
 		local pos=self.pos
 		-- update
-		local newy,newn <close> =_ground:find_face(pos)
+		local newy,newn  =_ground:find_face(pos)
 		-- out of bound: kill actor
 		if not newy then return end
 
@@ -1519,12 +1530,11 @@ function menu_zoomout_state(cam_pos, look_at, scale, angle)
 end
 
 function zoomin_state(go_state,...)
-	local ttl,dttl=30,0.01
-  local starting
-	local fade=0
+	local ttl=#_fadein_anim
+	local fade=1
 	local args={...}
 	do_async(function()
-		while fade<15 do
+		while fade<=ttl do
 			coroutine.yield()
 			fade+=1
 		end
@@ -1536,16 +1546,7 @@ function zoomin_state(go_state,...)
 		end,
 		-- draw
 		function()
-			local screen=gfx.getDisplayImage()
-			local screenWidth, screenHeight = screen:getSize()
-			gfx.lockFocus(screen)
-			for i=1,4 do
-				gfx.setColor(gfx.kColorWhite)
-				gfx.fillCircleAtPoint(rnd(screenWidth), rnd(screenHeight), 8 + rnd(32))
-			end
-			gfx.unlockFocus()
-
-			screen:drawBlurred(0,0,2,1,gfx.image.kDitherTypeScreen)
+			_fadein_anim:drawImage(fade,0,0)
 		end
 end
 
@@ -1720,7 +1721,7 @@ end
 function make_static_actor(id,x,sfx_name,update)
 	return function(lane,row,cam)
 		local pos=vec3(x or (lane+0.5)*4,-16,row*4 - 2)
-		local y, _ <close> = _ground:find_face(pos)
+		local y, _  = _ground:find_face(pos)
 		pos[2]=y
 		-- sfx?
 		local sfx=_ENV[sfx_name]
@@ -1813,7 +1814,7 @@ function make_rolling_ball(lane)
 			end
 			
 			-- update
-			local newy,newn <close> =_ground:find_face(pos)
+			local newy,newn  =_ground:find_face(pos)
 			-- out of bound: kill actor
 			if not newy then return end
 
@@ -1865,7 +1866,7 @@ function make_command_handlers(custom)
 					pos[3]-=0.25
 
 					-- update
-					local newy,newn <close> =_ground:find_face(pos)
+					local newy,newn  =_ground:find_face(pos)
 					-- out of bound: kill actor
 					if not newy then 
 						_sounds[sfx] = nil
@@ -1908,7 +1909,7 @@ function make_command_handlers(custom)
 			-- move toward player
 			pos[3]-=1
 			-- get current height
-			local ny, _ <close> =_ground:find_face(pos)
+			local ny, _  =_ground:find_face(pos)
 			-- wooble over ground
 			pos[2] = ny + 16 + 2*cos(time())
 		end)
@@ -2014,7 +2015,6 @@ function play_state(params,help_ttl)
 		_save_state.coins+=c
 	end
 	_plyr.hp = params.hp
-	_tracked = _plyr
 		
 	-- create cam (or grab from caller)
 	local cam=params.cam or make_cam()
@@ -2084,7 +2084,7 @@ function play_state(params,help_ttl)
 	local start_t=time()
 	return
 		-- update
-		function()
+		function(tracked_pos)
 			cam:update()
 			-- 
 			if _plyr then
@@ -2098,7 +2098,7 @@ function play_state(params,help_ttl)
 			end
 
 			-- adjust ground
-			local slice_id,commands,offset = _ground:update(_tracked.pos)
+			local slice_id,commands,offset = _ground:update(tracked_pos or _plyr.pos)
 
 			if _plyr then
 				v_add(_plyr.pos,offset)
@@ -2165,6 +2165,8 @@ function play_state(params,help_ttl)
 			if _plyr then
 				local pos,a,steering=_plyr:get_pos()
 				local up=_plyr:get_up()
+
+				-- print("cam: "..pos[1].." "..pos[2].." "..pos[3])
 				cam:track(pos,a,up)
 
 				if _plyr.dead then
@@ -2277,7 +2279,7 @@ function play_state(params,help_ttl)
 					-- help msg?
 					if help_ttl<80 or help_ttl%2==0 then
 						local text
-						if _input.flipped then
+						if _input.crank_mode then
 							text = "ⒷJump/RestartⒶ"
 						else
 							text = "ⒷRestart/JumpⒶ"
@@ -2289,7 +2291,7 @@ function play_state(params,help_ttl)
 		end		
 end
 
-function race_state(params)
+function race_state(params,...)
 	-- custom handling of 
 	local npc
 	local frame_t=0
@@ -2297,7 +2299,7 @@ function race_state(params)
 	local make_helo=function(lane,row,cam)
 		local dropped
 		local pos=vec3((lane+0.5)*4,-16,row*4-2)
-		local y, _ <close> =_ground:find_face(pos)
+		local y, _  =_ground:find_face(pos)
 		pos[2]=y+24
 		-- sfx?
 		_sounds[_helo_sfx] = true
@@ -2313,7 +2315,7 @@ function race_state(params)
 				-- update pos?
 				pos[3]+=0.9
 				-- get current height
-				local ny, _ <close> =_ground:find_face(pos)
+				local ny, _  =_ground:find_face(pos)
 				-- out of landscape?
 				if not ny then
 					_sounds[_helo_sfx] = nil
@@ -2368,7 +2370,8 @@ function race_state(params)
 	}
 	-- use main "play" state for core loop
 	params.cam = cam
-	local play_update,play_draw=play_state(params)
+	local play_update,play_draw=play_state(params,...)
+	params.cam = nil
 
 	-- npc message loop
 	local message
@@ -2391,8 +2394,8 @@ function race_state(params)
 
 	return
 		-- update
-		function()
-			play_update()
+		function(tracked_pos)
+			play_update(tracked_pos)
 			if _plyr then
 				if _plyr.on_track then
 					_plyr.drag = 0
@@ -2417,7 +2420,7 @@ function race_state(params)
 				sw += 4
 				sh += 4
 				-- project npc pos
-				local p <close> = m_x_v(cam.m,npc.pos)
+				local p  = m_x_v(cam.m,npc.pos)
 				local x,y,w=cam:project2d(p)
 				x=mid(0,x - sw/2,399 - sw)
 				y=mid(48,y-7*w,240-sh)
@@ -2444,8 +2447,6 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 	local snowball=add(_actors,make_snowball(pos))
 	-- hugh :/
 	snowball:update()
-
-	_tracked = snowball
 
 	local turn_side,tricks_rating=pick({-1,1}),{"meh","rookie","junior","master"}
 	local text_ttl,active_text,text=10,"yikes!",{"ouch!","aie!","pok!","weee!"}
@@ -2480,10 +2481,11 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 			-- for qr code generation
 			playdate.timer.updateTimers()
 
+			local p=snowball.pos			
 			if not snowball.dead then
 				snowball:pre_update()	
 			end
-			prev_update()
+			prev_update(p)
 
 			msg_y=lerp(msg_y,msg_tgt_y[msg_tgt_i+1],0.08)
 			gameover_y=lerp(gameover_y,48+8*sin(time()/4),0.06)
@@ -2494,7 +2496,6 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 			text_ttl-=1
 			hit_ttl-=1
 			ttl-=1
-			local p=snowball.pos			
 			if not snowball.dead and ((hit_ttl<0 and text_ttl<0 and _ground:collide(p,1)==1) or ttl<0) then
 				-- force kill?
 				snowball:hit(ttl<0)
@@ -2536,10 +2537,10 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 
 			if (time()%1)<0.5 then
 				local text
-				if _input.flipped then
-					text = "ⒷMenu/RestartⒶ"
-				else
+				if _input.crank_mode then
 					text = "ⒷRestart/MenuⒶ"
+				else
+					text = "ⒷMenu/RestartⒶ"
 				end				
 				print_regular(text,nil,162)
 			end
@@ -2553,14 +2554,12 @@ end
 
 function restart_state(params)
 	local prev_update,prev_draw = _update_state,_draw_state
-	local screen=gfx.getDisplayImage()
-	local screenWidth, screenHeight = screen:getSize()
 
-	local ttl,max_ttl=0,24
+	local fade,ttl=1,#_fadein_anim
 	return
 		-- update
 		function()
-			if ttl>max_ttl then
+			if fade>ttl then
 				if _music then
 					_music:stop()
 					_music = nil
@@ -2574,18 +2573,11 @@ function restart_state(params)
 				end
 				_update_state,_draw_state=prev_update,prev_draw
 			end
-			ttl+=1
+			fade+=1
 		end,
 		-- draw
 		function()
-			screen = screen:blurredImage(2,1,gfx.image.kDitherTypeScreen)
-			gfx.lockFocus(screen)
-			for i=1,4 do
-				gfx.setColor(gfx.kColorWhite)
-				gfx.fillCircleAtPoint(rnd(screenWidth), rnd(screenHeight), 8 + rnd(32))
-			end
-			gfx.unlockFocus()
-			screen:draw(0,0)
+			_fadein_anim:drawImage(fade,0,0)
 
 			print_bold("Reset?".._input.back.glyph,nil,162,gfx.kColorBlack)
 		end
@@ -2655,6 +2647,7 @@ function _init()
 	_warning_skiier = gfx.image.new("images/warning_skiier")
 
 	_game_title_anim = playdate.graphics.imagetable.new("images/generated/game_title")
+	_fadein_anim = playdate.graphics.imagetable.new("images/generated/fadein")
 
 	-- inverse lookup tables
 	_store_by_name = {}
@@ -2717,7 +2710,8 @@ function make_ground(params)
 		gp[k] = v
 	end
 	local patterns = lib3d.make_ground(gp)
-
+	local n = vec3()
+	local offset = vec3()
 	-- interface with C library
 	return {		
 		_gp = gp,
@@ -2725,7 +2719,7 @@ function make_ground(params)
 			return lib3d.get_start_pos()
 		end,
 		update=function(self,p)
-			return lib3d.update_ground(p)
+			return lib3d.update_ground(p,offset)
 		end,
 		draw=function(self,cam,blink_mask)
 			lib3d.render_ground(cam.pos,cam.angle%1,blink_mask,cam.m)
@@ -2734,7 +2728,7 @@ function make_ground(params)
 			lib3d.render_props(cam.pos,cam.m)
 		end,
 		find_face=function(self,p)
-			return lib3d.get_face(p)
+			return lib3d.get_face(p, n)
 		end,
 		get_track=function(self,p)
 			local xmin,xmax,z,checkpoint,angle = lib3d.get_track_info(p)
@@ -2806,7 +2800,6 @@ _init()
 
 function playdate.update()
 	-- switch input using crank state
-	_input.flipped = playdate.isCrankDocked()
 	_input = _inputs[playdate.isCrankDocked()]
   _update()
   if _draw_state then _draw_state() end

@@ -21,7 +21,7 @@
 #define REGISTER_LUA_FUNC(func) \
 	do {\
 		if (!pd->lua->addFunction(lib3d_##func,"lib3d." #func, &err)) \
-			pd->system->logToConsole("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err); \
+			pd->system->error("%s:%i: addFunction failed, %s", __FILE__, __LINE__, err); \
 	} while(0)
 
 static PlaydateAPI* pd = NULL;
@@ -205,17 +205,16 @@ static int lib3d_make_ground(lua_State* L) {
 }
 
 static int lib3d_get_face(lua_State* L) {
-	Point3d* pos = getArgVec3(1);
+	int argc = 1;
+	Point3d* pos = getArgVec3(argc++);
+	Point3d* n = getArgVec3(argc++);
 
-	Point3d *n = pop_vec3();
 	float y;
 	if (get_face(*pos, n, &y)) {
 
 		pd->lua->pushFloat(y);
-
 		pushArgVec3(n);
 
-		// arg count
 		return 2;
 	}
 	return 0;
@@ -246,11 +245,12 @@ static int lib3d_clear_checkpoint(lua_State* L) {
 }
 
 static int lib3d_update_ground(lua_State* L) {
-	Point3d* pos = getArgVec3(1);
+	int argc = 1;
+	Point3d* pos = getArgVec3(argc++);
+	Point3d* offset = getArgVec3(argc++);
 
 	int slice_id;
 	TrackPattern pattern;
-	Point3d* offset = pop_vec3();
 	update_ground(*pos, &slice_id, &pattern, offset);
 
 	pd->lua->pushInt(slice_id);

@@ -451,28 +451,28 @@ void get_track_info(const Point3d pos, float* xmin, float* xmax, float* z, int* 
     }
 
     const GroundSlice* s0 = _ground.slices[j];
-* xmin = (float)(s0->extents[0] * GROUND_CELL_SIZE);
-*xmax = (float)(s0->extents[1] * GROUND_CELL_SIZE);
-// activate checkpoint at middle of cell
-*z = (j + 0.5f) * GROUND_CELL_SIZE;
-* checkpoint = s0->is_checkpoint;
+    *xmin = (float)(s0->extents[0] * GROUND_CELL_SIZE);
+    *xmax = (float)(s0->extents[1] * GROUND_CELL_SIZE);
+    // activate checkpoint at middle of cell
+    *z = (j + 0.5f) * GROUND_CELL_SIZE;
+    *checkpoint = s0->is_checkpoint;
 
 
-// find nearest checkpoint
-*angleout = 0.f;
-if (j + 2 < GROUND_HEIGHT) {
-    float x = _ground.slices[j + 2]->center, y = 2;
-    for (int k = j + 2; k < j + 10 && k < GROUND_HEIGHT; ++k) {
-        GroundSlice* s = _ground.slices[k];
-        if (s->is_checkpoint) {
-            x = s->center;
-            y = (float)(k - j);
-            break;
+    // find nearest checkpoint
+    *angleout = 0.f;
+    if (j + 2 < GROUND_HEIGHT) {
+        float x = _ground.slices[j + 2]->center, y = 2;
+        for (int k = j + 2; k < j + 10 && k < GROUND_HEIGHT; ++k) {
+            GroundSlice* s = _ground.slices[k];
+            if (s->is_checkpoint) {
+                x = s->center;
+                y = (float)(k - j);
+                break;
+            }
         }
+        // direction to track ahead (rebase to half circle)
+        *angleout = 0.5f * atan2f(y * GROUND_CELL_SIZE, x - pos.x) / PI - 0.25f;
     }
-    // direction to track ahead (rebase to half circle)
-    *angleout = 0.5f * atan2f(y * GROUND_CELL_SIZE, x - pos.x) / PI - 0.25f;
-}
 }
 
 void get_props(Point3d pos, PropInfo** info, int* nout) {
@@ -518,11 +518,16 @@ void clear_checkpoint(const Point3d pos) {
 
 void collide(const Point3d pos, float radius, int* hit_type)
 {
-    // z slice
-    int i0 = (int)(pos.x / GROUND_CELL_SIZE), j0 = (int)(pos.z / GROUND_CELL_SIZE);
-
     // default
     *hit_type = 0;
+
+    // z slice
+    int i0 = (int)(pos.x / GROUND_CELL_SIZE), j0 = (int)(pos.z / GROUND_CELL_SIZE);
+    if (j0 < 0 || j0 >= GROUND_HEIGHT) {
+        pd->system->error("Invalid z position: %f", pos.z);
+        return;
+    }
+
 
     // out of track
     if (i0 <= 0 || i0 >= GROUND_WIDTH - 2) {
