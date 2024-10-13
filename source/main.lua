@@ -460,7 +460,7 @@ function make_plyr(p,on_trick)
 
 		if self.on_ground then
 			-- was flying?			
-			if air_t>35 then
+			if air_t>30 then
 				-- pro trick? :)
 				if reverse_t>0 then
 					on_trick(2,"reverse air!")
@@ -596,7 +596,7 @@ function make_jinx(id,pos,velocity,params)
 			velocity[2]-=0.25
 			v_add(pos,velocity)
 			-- find ground
-			local newy, _  =_ground:find_face(pos)
+			local newy =_ground:find_face(pos)
 			-- out of bound: kill actor
 			if not newy then return end
 
@@ -846,7 +846,7 @@ function make_smoke_trail(pos, vel)
 		update=function(self)
 			velocity[2]-=1
 			v_add(self.pos,velocity,0.5/30)
-			local y, _  =_ground:find_face(self.pos)
+			local y =_ground:find_face(self.pos)
 			-- edge case - too close to map borders
 			if not y then return end
 			-- below ground?
@@ -1721,7 +1721,7 @@ end
 function make_static_actor(id,x,sfx_name,update)
 	return function(lane,row,cam)
 		local pos=vec3(x or (lane+0.5)*4,-16,row*4 - 2)
-		local y, _  = _ground:find_face(pos)
+		local y = _ground:find_face(pos)
 		pos[2]=y
 		-- sfx?
 		local sfx=_ENV[sfx_name]
@@ -1909,7 +1909,7 @@ function make_command_handlers(custom)
 			-- move toward player
 			pos[3]-=1
 			-- get current height
-			local ny, _  =_ground:find_face(pos)
+			local ny =_ground:find_face(pos)
 			-- wooble over ground
 			pos[2] = ny + 16 + 2*cos(time())
 		end)
@@ -1986,15 +1986,17 @@ function play_state(params,help_ttl)
 	local best_distance = params.dslot and _save_state["best_"..params.dslot]	
 	local prev_slice_id
 	local frame_t=0
-	-- trick event
-	local combo_ttl,bonus,total_tricks,coins,bonus_coins=0,{},0,_save_state.coins
+	-- trick events
+	local boards={}
+	local combo_ttl,tricks,total_tricks,coins=0,{},0,_save_state.coins
 	local function register_trick(type,msg)
 		total_tricks+=1
-		local prev=bonus[#bonus]
+		-- pick last trick (if any)
+		local prev=tricks[#tricks]
 		-- add to combo only if different trick
 		if not prev or prev.msg~=msg then
 			_trick_sfx:play(1)
-			add(bonus,{x=-60,t=0,msg=msg})
+			add(tricks,{t=time(),msg=msg})
 			-- 3s to get another trick
 			combo_ttl=90
 		end
@@ -2105,28 +2107,38 @@ function play_state(params,help_ttl)
 			end
 
 			if _plyr then
-				for _,b in pairs(bonus) do
-					b.t+=1
-					b.x=lerp(b.x,4,0.25)
-				end
 				combo_ttl-=1
-				if combo_ttl<=0 then
+				if combo_ttl<0 or #tricks>9 then
 					combo_ttl=0
-					if #bonus>0 then
-						local tmp={table.unpack(bonus)}
+					if #tricks>0 then
+						local tmp={table.unpack(tricks)}						
+						local total = #tmp * #tmp
+						-- clear current trick list
+						tricks={}
+						local board={
+							t=time(),
+							tricks=tmp,
+							multiplier = #tmp						
+						}
+						add(boards,board)
+						-- immediately register gains
+						_save_state.coins += total
 						-- add total line
 						do_async(function()
-							local multi=min(#tmp,5)
-							bonus_coins = 1<<(multi-1)
-							wait_async(30)
-							for i=1,bonus_coins do
+							for i=1,#tmp do
 								_coin_sfx:play(1)
-								coins += 1
-								wait_async(3)
+								coins += #tmp
+								tmp[i].msg = tmp[i].msg.."/"
+								wait_async(10)
 							end
-							_save_state.coins = coins
-							bonus_coins = nil							
-							bonus={}
+							wait_async(30)
+							-- clean up
+							for i=1,#boards do
+								if boards[i]==board then
+									table.remove(boards, i)
+									break
+								end
+							end
 						end)
 					end
 				end
@@ -2263,17 +2275,29 @@ function play_state(params,help_ttl)
 				end
 
 				local y_bonus = 28
-				local t=30*time()
-				for i=1,#bonus do
-					local b=bonus[i]										
-					if b.t>15 or t%4<2 then
-						print_small(b.msg,b.x,y_bonus,text_color)
+				local t=time()
+				for i=1,#tricks do
+					local b=tricks[i]								
+					local t=min(1,(t-b.t)*3)
+					print_small(b.msg,playdate.easingFunctions.outElastic(t,-24,28,1),y_bonus,text_color)
+					y_bonus += 12
+				end
+				-- any boards being calculated?
+				for i=1,#boards do
+					local board = boards[i]					
+					local tricks = board.tricks
+					for i=1,#tricks do
+						local b=tricks[i]								
+						local t=min(1,(t-b.t)*2)
+						print_small(b.msg,4,y_bonus,text_color)
 						y_bonus += 12
 					end
-				end
-				if bonus_coins and t%4<2 then
-					print_bold("="..bonus_coins.."x",4,y_bonus,gfx.kColorWhite)
-				end
+					-- no need to display 1x!
+					if board.multiplier>1 and (30*t)%4<2 then
+						print_bold("="..board.multiplier.."x",4,y_bonus,gfx.kColorWhite)
+						y_bonus += 24
+					end
+			end
 
 				if help_ttl<90 then
 					-- help msg?
@@ -2299,7 +2323,7 @@ function race_state(params,...)
 	local make_helo=function(lane,row,cam)
 		local dropped
 		local pos=vec3((lane+0.5)*4,-16,row*4-2)
-		local y, _  =_ground:find_face(pos)
+		local y =_ground:find_face(pos)
 		pos[2]=y+24
 		-- sfx?
 		_sounds[_helo_sfx] = true
@@ -2315,7 +2339,7 @@ function race_state(params,...)
 				-- update pos?
 				pos[3]+=0.9
 				-- get current height
-				local ny, _  =_ground:find_face(pos)
+				local ny =_ground:find_face(pos)
 				-- out of landscape?
 				if not ny then
 					_sounds[_helo_sfx] = nil

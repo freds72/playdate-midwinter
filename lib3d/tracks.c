@@ -505,7 +505,7 @@ static Section _race_sections[] = {
     // 2x accel pad
     {
         .random = 0,
-        .seq = {.min = 1, .max = 12 },
+        .seq = {.min = 8, .max = INT_MAX },
         .timelines = {
             {.timeline = "." },
             {.timeline = "." },
@@ -537,24 +537,13 @@ static Section _race_sections[] = {
         .random = 0,
         .seq = {.min = 4, .max = 12 },
         .timelines = {
-            {.timeline = "C..." },
-            {.timeline = "...." },
-            {.timeline = "...." },
-            {.timeline = "..C." },
-            {.timeline = "...." },
-            {.timeline = "...." },
-            {.timeline = "...C" },
-            {.timeline = NULL }
-        }
-    },
-    // nothing
-    {
-        .random = 0,
-        .seq = {.min = 8, .max = INT_MAX },
-        .timelines = {
-            {.timeline = "...." },
-            {.timeline = "...." },
-            {.timeline = "...." },
+            {.timeline = "....." },
+            {.timeline = "C...." },
+            {.timeline = "....." },
+            {.timeline = "..J.." },
+            {.timeline = "....." },
+            {.timeline = "....C" },
+            {.timeline = "....." },
             {.timeline = NULL }
         }
     }
@@ -567,7 +556,7 @@ static Section _endless_section_start = {
         {.timeline = "........................................" },
         {.timeline = "....................S..................." },
         {.timeline = "........................................" },
-        {.timeline = "......................................C." },
+        {.timeline = "......................................CC" },
         {.timeline = "........................................" },
         {.timeline = "....................S..................." },
         {.timeline = "........................................" },
@@ -579,13 +568,13 @@ static Section _race_section_start = {
     .random = 0,
     .seq = {.min = 0, .max = 0 },
     .timelines = {
-        {.timeline = "....................W........" },
-        {.timeline = "....................S........" },
+        {.timeline = "............................." },
+        {.timeline = "....................S....W..." },
         {.timeline = "............................." },
         {.timeline = "..........n.................." },
         {.timeline = "............................." },
-        {.timeline = "....................S........" },
-        {.timeline = "....................W........" },
+        {.timeline = "....................S....W..." },
+        {.timeline = "............................." },
         {.timeline = NULL }
     }
 };
