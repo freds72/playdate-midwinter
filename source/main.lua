@@ -1333,7 +1333,7 @@ function menu_state(angle)
 				y += 28
 			end
 			
-			print_small("Ⓑ directions",10,help_y, gfx.kColorBlack)
+			print_small("directionsⒷ",10,help_y, gfx.kColorBlack)
 		end		
 end
 
@@ -1471,7 +1471,10 @@ function help_state(angle)
 					gfx.setColor(gfx.kColorBlack)
 					gfx.fillTriangle(295,184,box_l+2*box_w/3-16,box_b,box_l+2*box_w/3+16,box_b)
 
-					if flr(time())%2==0 then print_small("Ⓐ next",box_l + box_w - 56,box_b - 20,gfx.kColorWhite) end
+					if flr(time())%2==0 then 
+						local s = "exitⒷ nextⒶ"
+						local w = gfx.getTextSize(s)
+						print_small(s,box_l + box_w - w - 4,box_b - 20,gfx.kColorWhite) end
 				end
 
 				if help then
