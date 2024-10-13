@@ -5,6 +5,7 @@ _label.png
 *.blend1
 /.env/
 *.pdx
+*.zip
 pdex.*
 /source/images/generated/*
 /source/system/card-highlighted/*
