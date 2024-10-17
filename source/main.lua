@@ -2482,6 +2482,10 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 	local ttl = 10*30
 	-- save records (if any)
 	if params.dslot and total_distance>_save_state["best_"..params.dslot] then
+		msgs = {			
+			"Distance: "..total_distance.."m",
+			"**New Best**",
+			"Total Tricks: "..total_tricks}	
 		_save_state["best_"..params.dslot] = flr(total_distance)
 	end
 	
@@ -2518,7 +2522,7 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 			gameover_y=lerp(gameover_y,48+8*sin(time()/4),0.06)
 
 			if abs(msg_y-msg_tgt_y[msg_tgt_i+1])<1 then msg_tgt_i+=1 end
-			if msg_tgt_i>#msg_tgt_y-1 then msg_tgt_i=0 active_msg=(active_msg+1)%2 end
+			if msg_tgt_i>#msg_tgt_y-1 then msg_tgt_i=0 active_msg=(active_msg+1)%#msgs end
 
 			text_ttl-=1
 			hit_ttl-=1
