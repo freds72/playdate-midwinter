@@ -1369,8 +1369,8 @@ function help_state(angle)
 			text="🎣 direction\nⒷ jump\nⒶ restart (long press)"
 		},
 		{
-			title="Menu button",
-			text="start menu: back to main menu\nflip crank: invert crank input\nmask: choose from your collection"
+			title="⊙menu",
+			text="start menu: back to main menu\nflip crank: invert crank input\nmask: choose from your collection\n(in-game only)"
 		},
 		{
 			title="Credits",
