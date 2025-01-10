@@ -43,24 +43,24 @@ static Section _chill_sections[] = {
         .random = 1,
         .seq = {.min = 0, .max = INT_MAX },
         .timelines = {
+            {.timeline = "." },
+            {.timeline = "." },
             {.timeline = "h" },
-            {.timeline = "." },
-            {.timeline = "." },
             {.timeline = "." },
             {.timeline = "." },
             {.timeline = NULL }
         }
     },
-    // hot air balloon
+    // hot air balloon x 2
     {
-        .random = 0,
+        .random = 1,
         .seq = {.min = 0, .max = INT_MAX },
         .timelines = {
             {.timeline = "h.." },
             {.timeline = "..." },
-            {.timeline = "..h." },
-            {.timeline = "...." },
-            {.timeline = "...." },
+            {.timeline = "..h" },
+            {.timeline = "..." },
+            {.timeline = "..." },
             {.timeline = NULL }
         }
     },
@@ -79,7 +79,7 @@ static Section _chill_sections[] = {
     // helo
     {
         .random = 1,
-        .seq = {.min = 0, .max = INT_MAX },
+        .seq = {.min = 5, .max = INT_MAX },
         .timelines = {
             {.timeline = "." },
             {.timeline = "." },
@@ -103,7 +103,7 @@ static Section _chill_sections[] = {
     // cows
     {
         .random = 1,
-        .seq = {.min = 0, .max = INT_MAX },
+        .seq = {.min = 5, .max = INT_MAX },
         .timelines = {
             {.timeline = "M........." },
             {.timeline = "...M......" },
@@ -139,6 +139,57 @@ static Section _chill_sections[] = {
                 {.timeline = "." },
                 {.timeline = "." },
                 {.timeline = NULL }
+        }
+    },
+    // misc track sections
+    {
+        .random = 0,
+        .seq = {.min = 2, .max = INT_MAX },
+        .timelines = {
+            {.timeline = ".T..T" },
+            {.timeline = "D..T." },
+            {.timeline = "....." },
+            {.timeline = "....." },
+            {.timeline = "....." },
+            {.timeline = NULL }
+        }
+    },
+    {
+        .random = 0,
+        .seq = {.min = 2, .max = INT_MAX },
+        .timelines = {
+            {.timeline = "...." },
+            {.timeline = "...." },
+            {.timeline = "...." },
+            {.timeline = "G..T" },
+            {.timeline = "..T." },
+            {.timeline = NULL }
+        }
+    },
+    // playdate sign
+    {
+        .random = 0,
+        .seq = {.min = 5, .max = 24 },
+        .timelines = {
+            {.timeline = "...." },
+            {.timeline = "...." },
+            {.timeline = "...." },
+            {.timeline = ".A.." },
+            {.timeline = "...." },
+            {.timeline = NULL }
+        }
+    },
+    // bear
+    {
+        .random = 1,
+        .seq = {.min = 10, .max = INT_MAX },
+        .timelines = {
+            {.timeline = "..." },
+            {.timeline = "..." },
+            {.timeline = "..." },
+            {.timeline = ".E." },
+            {.timeline = "..." },
+            {.timeline = NULL }
         }
     },
 };

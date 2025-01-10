@@ -237,6 +237,10 @@ static void make_slice(GroundSlice* slice, float y) {
                     int prop_id = 0;
                     float prop_t = 0.5f;
                     switch (_ground.tracks->pattern[i]) {
+                        // B: balloon (lua)
+                        // K: skidoo (lua)
+                    case 'A': prop_id = PROP_PLAYDATE; break;
+                    case 'E': prop_id = PROP_BEAR; break;
                     case 'W': prop_id = PROP_WARNING; break;
                     case 'R': prop_id = PROP_ROCK; break;
                     case 'P': prop_id = PROP_SNOWPLOW; break;
@@ -833,6 +837,7 @@ void ground_init(PlaydateAPI* playdate) {
     // obstacles
     _props_properties[PROP_ROCK - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_KILL | PROP_FLAG_JUMP_OVER, .radius = 1.5f };
     _props_properties[PROP_COW - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_KILL, .radius = 2.5f };
+    _props_properties[PROP_BEAR - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_KILL, .radius = 2.5f };
     _props_properties[PROP_SNOWPLOW - 1] = (PropProperties){ .flags = PROP_FLAG_HITABLE | PROP_FLAG_KILL, .radius = 3.f };
 
     // snowball

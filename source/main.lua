@@ -525,7 +525,7 @@ function make_plyr(p,on_trick)
 				_boost_sfx:play(1)
 				self:boost(1.5)
 			end
-		elseif hit_type==5 then
+		elseif hit_type==5 and not self.on_ground then
 			if reverse_t>0 then
 				on_trick(5,"reverse over!")
 			else
@@ -1030,8 +1030,8 @@ function menu_state(angle)
 			tight_mode=0,
 			props_rate=0.90,
 			track_type=0,
-			min_cooldown=30*2,
-			max_cooldown=30*4}},
+			min_cooldown=30,
+			max_cooldown=30*2}},
 		{state=play_state,loc=vgroups.MOUNTAIN_RED_TRACK,help=function()
 			return "Death Canyon\nHow far can you go?\nBest: ".._save_state.best_2.."m"
 		end,params={
@@ -1094,6 +1094,12 @@ function menu_state(angle)
 				_music:stop()
 				_music = nil
 			end
+			-- stop any running sounds
+			for sfx in pairs(_sounds) do
+				sfx:stop()
+			end
+			_sounds = {}
+
 			next_state(menu_state)
 	end)	
 	local menuItem, error = menu:addCheckmarkMenuItem("flip crank", _save_state.flip_crank, function(value)
@@ -1370,7 +1376,7 @@ function help_state(angle)
 		},
 		{
 			title="⊙menu",
-			text="start menu: back to main menu\nflip crank: invert crank input\nmask: choose from your collection\n(in-game only)"
+			text="start menu: back to main menu\nflip crank: invert crank input\ngoggles: choose from your collection\n(in-game only)"
 		},
 		{
 			title="Credits",
@@ -2069,7 +2075,7 @@ function play_state(params,help_ttl)
 	-- active mask (if any)
 	local selected_mask = _store_by_uuid[_save_state.mask_uuid or -1]
 	local mask=selected_mask and selected_mask.image
-	local menuItem, error = menu:addOptionsMenuItem("mask", masks, selected_mask and selected_mask.title or "none", function(value)
+	local menuItem, error = menu:addOptionsMenuItem("goggles", masks, selected_mask and selected_mask.title or "none", function(value)
 		mask = nil
 		_save_state.mask_uuid = nil
 		-- 
