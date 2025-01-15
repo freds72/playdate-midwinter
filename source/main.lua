@@ -200,6 +200,9 @@ local m_translate = lib3d.Mat4.m_translate
 -- global vars
 local _actors,_ground,_plyr={}
 
+-- scoreboard (if any)
+local _scoreboard,_scoreboard_my_rank
+
 -- screen efects
 local screen={}
 -- screen shake
@@ -1079,32 +1082,14 @@ function menu_state(angle)
 	local cam=make_cam(vec3(0,0.8,-0.5))
 
 	-- background music
+	if _music then		
+		_music:stop()
+	end
 	_music = playdate.sound.fileplayer.new("sounds/1-PowderyPolka")
 	_music:play(0)
 
 	_ski_sfx:stop()
 	lib3d.clear_particles()
-
-	-- menu to get back to selection menu
-	local menu = playdate.getSystemMenu()
-	menu:removeAllMenuItems()
-	local menuItem, error = menu:addMenuItem("start menu", function()
-			_futures={}
-			if _music then
-				_music:stop()
-				_music = nil
-			end
-			-- stop any running sounds
-			for sfx in pairs(_sounds) do
-				sfx:stop()
-			end
-			_sounds = {}
-
-			next_state(menu_state)
-	end)	
-	local menuItem, error = menu:addCheckmarkMenuItem("flip crank", _save_state.flip_crank, function(value)
-		_save_state.flip_crank = value
-	end)	
 
 	local scale = 1
 	local angle = angle or 0
@@ -1112,6 +1097,17 @@ function menu_state(angle)
 	-- help text
 	local help_y = 300
 	local help_y_target = 220
+
+	-- scoreboard handling
+	local pending_scores
+
+	-- menu to get back to selection menu
+	local menu = playdate.getSystemMenu()
+	menu:removeAllMenuItems()
+	local menuItem, error = menu:addMenuItem("scoreboard", function()
+			next_state(scoreboard_state)
+	end)
+
 	add(actors,{
 		id=models.PROP_MOUNTAIN,
 		pos=vec3(0.5,0,1),
@@ -1173,7 +1169,28 @@ function menu_state(angle)
 			sel=mid(sel,0,#panels-1)
 			
 			-- daily mode?
-			if playdate.buttonJustReleased(playdate.kButtonRight) then daily=not daily _button_click:play(1) end
+			if playdate.buttonJustReleased(playdate.kButtonRight) then 
+				daily=not daily 
+				_button_click:play(1)
+				if daily and not pending_scores then
+					-- safeguard
+					pending_scores=true
+					-- pull scores
+					playdate.scoreboards.getScores("biquettes", function(status, result)						
+						pending_scores=nil
+						if status.code=="OK" then
+							_scoreboard = result
+						else
+							print("scoreboard error:"..status.message)
+						end
+					end)
+					playdate.scoreboards.getPersonalBest("biquettes", function(status, result)
+						if status.code=="OK" then
+							_scoreboard_my_rank = result.rank
+						end
+					end)					
+				end
+			end
 
 			-- help?
 			if playdate.buttonJustReleased(playdate.kButtonB) then
@@ -1364,7 +1381,7 @@ function help_state(angle)
 	local help_msgs={
 		{
 			title="How to play?",
-			text="⬆️⬇️ select level - Ⓐ start\nAvoid hazards and collect $\nGet more $ with tricks\nDaily mode: use QR code to post score"
+			text="⬆️⬇️ select level - Ⓐ start\nAvoid hazards and collect $\nGet more $ with tricks\nDaily mode: same track for all"
 		},
 		{
 			title="D-pad skiing",
@@ -1376,7 +1393,7 @@ function help_state(angle)
 		},
 		{
 			title="⊙menu",
-			text="start menu: back to main menu\nflip crank: invert crank input\ngoggles: choose from your collection\n(in-game only)"
+			text="intro\n- scoreboard: world daily scores\nin-game\n- start menu: back to main menu\n- flip crank: invert crank input\n- goggles: choose style"
 		},
 		{
 			title="Credits",
@@ -1480,13 +1497,117 @@ function help_state(angle)
 					if flr(time())%2==0 then 
 						local s = "exitⒷ nextⒶ"
 						local w = gfx.getTextSize(s)
-						print_small(s,box_l + box_w - w - 4,box_b - 20,gfx.kColorWhite) end
+						print_small(s,box_l + box_w - w - 4,box_b - 20,gfx.kColorWhite) 
+					end
 				end
 
 				if help then
 					print_regular(help.title, box_l+10, box_t, gfx.kColorWhite)
 					print_small(string.sub(help.text,1,prompt), box_l+10, box_t + 32, gfx.kColorWhite)
 				end
+			end
+		end
+end
+
+function scoreboard_state()
+	local ttl=0
+	local pending
+	-- capture screen
+	local screen=gfx.getDisplayImage()
+	local modem_onoff=1
+	local modem_ttl=5+rnd(#_modem_anim)
+	
+	_modem_sfx:stop()
+	if _music then
+		_music:stop()
+		_music = nil
+	end
+
+	return
+		-- update
+		function()
+			ttl-=1
+			modem_ttl-=1
+			if modem_ttl<0 then
+				modem_onoff=1+flr(rnd(#_modem_anim))
+				modem_ttl=5+rnd(4)
+			end
+			-- press b: back
+			if playdate.buttonJustReleased(playdate.kButtonB) then
+				_modem_sfx:stop()
+				next_state(menu_state,angle)
+			end
+
+			if ttl<0 and not pending then
+				pending = true
+				ttl=300*30 -- next refresh in 5 minutes
+				modem_ttl = 0
+				_modem_sfx:play(0)
+				playdate.scoreboards.getScores("biquettes", function(status, result)											
+					pending = nil
+					-- turn off modem
+					modem_ttl = 90000
+					modem_onoff = 1
+					_modem_sfx:stop()
+					if status.code=="OK" then
+						_scoreboard = result
+					else						
+						print("scoreboard error:"..status.message)
+					end
+				end)
+			end
+		end,
+		-- draw
+		function()
+			screen:draw(0,0)
+			gfx.setColor(gfx.kColorWhite)
+			gfx.setStencilPattern(_50pct_pattern)
+			gfx.fillRect(0,0,400,240)
+			gfx.clearStencil()
+
+			local box_t = 20
+			local box_l = 28
+			local box_w = 260
+			local box_h = 200
+			local box_b = box_t+box_h
+			gfx.setColor(gfx.kColorBlack)
+			gfx.fillRect(box_l,box_t,box_w,box_h)
+
+			-- shadow
+			gfx.setColor(gfx.kColorBlack)
+			gfx.setPattern(_50pct_pattern)
+			gfx.fillRect(box_l,box_b,box_w,2)
+
+			box_t += 4
+			box_l += 4
+			box_w -= 4
+			box_h -= 8
+			
+			print_regular("Biquettes🏆", box_l+10, box_t, gfx.kColorWhite)
+			local y=box_t + 32
+			if false then --_scoreboard then
+				if #_scoreboard.scores==0 then
+					print_small("no daily records\nhead to the track!",box_l + 10, y,gfx.kColorWhite) 
+				else
+					for i=1,#_scoreboard.scores do
+						local score = _scoreboard.scores[i]
+						print_small(score.rank..".\t"..score.player.."\t\t"..score.value.."m",box_l + 10, y,gfx.kColorWhite)
+						y += 12
+					end
+				end
+			else
+				print_small("pending refresh"..string.sub("...",1,flr(time())%4),box_l + 10, y,gfx.kColorWhite) 
+			end
+
+			gfx.setColor(gfx.kColorBlack)
+			gfx.fillTriangle(box_l+box_w,127,333,195,box_l+box_w,169)
+
+			_modem_anim:drawImage(modem_onoff,308,190)
+
+			if flr(time())%2==0 then 
+				local s = "exitⒷ"
+				local w = gfx.getTextSize(s)
+				print_small(s,box_l + box_w - w - 4,box_b - 20,gfx.kColorWhite) 
 			end
 		end
 end
@@ -2056,13 +2177,26 @@ function play_state(params,help_ttl)
 
 	_ski_sfx:play(0)
 
-	-- init goggle selection menu
+	-- menu selection entries
 	local menu = playdate.getSystemMenu()
-	local menu_options = menu:getMenuItems()[3]
-	if menu_options then
-		-- clear previous entries
-		menu:removeMenuItem(menu_options)
-	end
+	menu:removeAllMenuItems()
+	local menuItem, error = menu:addMenuItem("start menu", function()
+		_futures={}
+		if _music then
+			_music:stop()
+			_music = nil
+		end
+		-- stop any running sounds
+		for sfx in pairs(_sounds) do
+			sfx:stop()
+		end
+		_sounds = {}
+
+		next_state(menu_state)
+	end)	
+	local menuItem, error = menu:addCheckmarkMenuItem("flip crank", _save_state.flip_crank, function(value)
+		_save_state.flip_crank = value
+	end)
 
 	local masks={"none"}
 	for i=1,#_store_items do
@@ -2467,6 +2601,7 @@ function race_state(params,...)
 		end
 end
 
+local _plyr_death_state_pending_scoreboard
 function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 	-- convert to string
 	local active_msg,msgs=0,{
@@ -2500,24 +2635,38 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 	_sounds[_snowball_sfx] = true
 	_snowball_sfx:play(0)
 
-	-- generate QR code if daily
-	local qrcode_timer
-	local qrcode_img
+	-- post to board if daily
 	if params.daily then
-		local hash = lib3d.DEKHash(string.format("b437f227-eece-46b2-a81d-70a8c8224a0f-%s%i",params.daily,total_distance))
-		local url = string.format("https://freds72.github.io/snow-scores.html?h=%X&m=%i&d=%s&t=%i",hash,flr(total_distance),params.daily,params.track_type)
-		qrcode_timer = gfx.generateQRCode(url, 70, function(img, error)
-			qrcode_img = img
-			if error then print("Unable to generate QR code: "..error) end
+		playdate.scoreboards.addScore("biquettes", total_distance, function(status,result)
+			if result.rank then
+				local ths={"st","nd","rd"}
+				add(msgs,"World Ranking: "..result.rank..(ths[result.rank%10] or "th"))
+				if result.rank==1 then
+					msgs[2] = "**World's Best**"
+				end
+				-- better than previous?
+				if _scoreboard_my_rank and result.rank>_scoreboard_my_rank then
+					_scoreboard_my_rank = result.rank
+				end
+			end
 		end)
+		-- refresh score (avoid burst of queries)
+		if not _plyr_death_state_pending_scoreboard then
+			_plyr_death_state_pending_scoreboard = true
+			playdate.scoreboards.getScores("biquettes", function(status, result)						
+				_plyr_death_state_pending_scoreboard = nil
+				if status.code=="OK" then
+					_scoreboard = result
+				else
+					print("scoreboard error:"..status.message)
+				end
+			end)
+		end
 	end
 
 	return
 		-- update
 		function()	
-			-- for qr code generation
-			playdate.timer.updateTimers()
-
 			local p=snowball.pos			
 			if not snowball.dead then
 				snowball:pre_update()	
@@ -2552,11 +2701,9 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 			cam:look(p)
 
 			if playdate.buttonJustReleased(_input.back.id) then
-				if qrcode_timer then qrcode_timer:remove() qrcode_timer = nil end
 				next_state(stop_sounds_state, zoomin_state, menu_state)
 			end
 			if playdate.buttonJustReleased(_input.action.id) then
-				if qrcode_timer then qrcode_timer:remove() qrcode_timer = nil end
 				next_state(stop_sounds_state, zoomin_state,params.state,params,90)
 			end
 		end,
@@ -2580,11 +2727,6 @@ function plyr_death_state(cam,pos,total_distance,total_tricks,params)
 					text = "ⒷMenu/RestartⒶ"
 				end				
 				print_regular(text,nil,162)
-			end
-
-			if qrcode_img then
-				local w,h = qrcode_img:getSize()
-				qrcode_img:draw(400-w,240-h)
 			end
 		end
 end
@@ -2684,6 +2826,9 @@ function _init()
 
 	_game_title_anim = playdate.graphics.imagetable.new("images/generated/game_title")
 	_fadein_anim = playdate.graphics.imagetable.new("images/generated/fadein")
+
+	_modem_anim = playdate.graphics.imagetable.new("images/modem")
+	_modem_sfx = playdate.sound.sampleplayer.new("sounds/modem")
 
 	-- inverse lookup tables
 	_store_by_name = {}
