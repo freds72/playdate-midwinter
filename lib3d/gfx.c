@@ -14,7 +14,7 @@ void gfx_init(PlaydateAPI* playdate) {
 
 
 #if TARGET_PLAYDATE
-static __attribute__((always_inline))
+static inline __attribute__((always_inline))
 #else
 static __forceinline
 #endif
@@ -24,7 +24,7 @@ void _drawMaskPattern(uint32_t* p, uint32_t mask, uint32_t color)
 }
 
 #if TARGET_PLAYDATE
-static __attribute__((always_inline))
+static inline __attribute__((always_inline))
 #else
 static __forceinline
 #endif

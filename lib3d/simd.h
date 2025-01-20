@@ -7,7 +7,7 @@
 typedef int32_t q31_t;
 
 #if TARGET_PLAYDATE
-static __attribute__((always_inline))
+static inline __attribute__((always_inline))
 #else
 static __forceinline
 #endif
@@ -25,7 +25,7 @@ uint32_t swap(uint32_t n)
 }
 
 #if TARGET_PLAYDATE
-static __attribute__((always_inline))
+static inline __attribute__((always_inline))
 #else
 static __forceinline
 #endif
@@ -44,7 +44,7 @@ uint32_t __SADD16(uint32_t op1, uint32_t op2)
 }
 
 #if TARGET_PLAYDATE
-static __attribute__((always_inline))
+static inline __attribute__((always_inline))
 #else
 static __forceinline
 #endif
@@ -64,7 +64,7 @@ uint32_t __SMLAD(uint32_t x, uint32_t y, uint32_t sum)
 
 // convert the given float into a 16:16 fixed point
 #if TARGET_PLAYDATE
-static __attribute__((always_inline))
+static inline __attribute__((always_inline))
 #else
 static __forceinline
 #endif

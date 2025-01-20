@@ -1540,7 +1540,7 @@ function scoreboard_state()
 
 			if ttl<0 and not pending then
 				pending = true
-				ttl=300*30 -- next refresh in 5 minutes
+				ttl=60*30 -- next refresh in 1 minute
 				modem_ttl = 0
 				_modem_sfx:play(0)
 				playdate.scoreboards.getScores("biquettes", function(status, result)											
@@ -1551,6 +1551,22 @@ function scoreboard_state()
 					_modem_sfx:stop()
 					if status.code=="OK" then
 						_scoreboard = result
+						--[[
+						_scoreboard = {
+							scores = {
+								{ rank = "1", player="bob the poulpe 95", value=15050},
+								{ rank = "2", player="skiman", value=8484},
+								{ rank = "3", player="world of ski", value=8484},
+								{ rank = "4", player="bob the poulpe 95", value=8484},
+								{ rank = "5", player="bob 95", value=8484},
+								{ rank = "6", player="bob the poulpe 95", value=8484},
+								{ rank = "7", player="pilou pilou", value=780},
+								{ rank = "8", player="john smith 1895", value=520},
+								{ rank = "9", player="heysuperlongnamehey", value=503},
+								{ rank = "10", player="choubidou whaaa", value=15},
+							}
+						}
+						]]
 					else						
 						print("scoreboard error:"..status.message)
 					end
@@ -1565,10 +1581,10 @@ function scoreboard_state()
 			gfx.fillRect(0,0,400,240)
 			gfx.clearStencil()
 
-			local box_t = 20
-			local box_l = 28
+			local box_t = 12
+			local box_l = 20
 			local box_w = 260
-			local box_h = 200
+			local box_h = 218
 			local box_b = box_t+box_h
 			gfx.setColor(gfx.kColorBlack)
 			gfx.fillRect(box_l,box_t,box_w,box_h)
@@ -1585,15 +1601,22 @@ function scoreboard_state()
 			
 			print_regular("Biquettes🏆", box_l+10, box_t, gfx.kColorWhite)
 			local y=box_t + 32
-			if false then --_scoreboard then
+			if _scoreboard then
 				if #_scoreboard.scores==0 then
-					print_small("no daily records\nhead to the track!",box_l + 10, y,gfx.kColorWhite) 
+					print_small("no records today\nbe the first!",box_l + 10, y,gfx.kColorWhite) 
 				else
+					-- collect each segment separatly
+					local columns={"","",""}
 					for i=1,#_scoreboard.scores do
 						local score = _scoreboard.scores[i]
-						print_small(score.rank..".\t"..score.player.."\t\t"..score.value.."m",box_l + 10, y,gfx.kColorWhite)
-						y += 12
+						columns[1] = columns[1]..score.rank..".".."\n"
+						columns[2] = columns[2]..score.player.."\n"
+						columns[3] = columns[3]..score.value.."m".."\n"
 					end
+					-- print with alignment
+					print_small(columns[1],box_l + 24, y, gfx.kColorWhite,  kTextAlignment.right)
+					print_small(columns[2],box_l + 40, y, gfx.kColorWhite,  kTextAlignment.left)
+					print_small(columns[3],box_l + box_w - 10, y, gfx.kColorWhite, kTextAlignment.right)
 				end
 			else
 				print_small("pending refresh"..string.sub("...",1,flr(time())%4),box_l + 10, y,gfx.kColorWhite) 
@@ -2951,11 +2974,11 @@ function time_tostr(t,sep)
 	return padding(flr(t/30)%60)..sep..padding(flr(10*t/3)%100)
 end
 
-function print_text(s,x,y)
+function print_text(s,x,y,align)
 	if not x then
 		x=200 - gfx.getTextSize(s) / 2
 	end
-  gfx.drawTextAligned(s,x,y,kTextAlignment.left)
+  gfx.drawTextAligned(s,x,y,align or kTextAlignment.left)
 end
 
 function print_bold(s,x,y,c)  
@@ -2970,7 +2993,7 @@ end
 
 function print_small(s,x,y,c,align)
 	gfx.setFont(smallFont[c or gfx.kColorBlack])
-	print_text(s,x,y)
+	print_text(s,x,y,align)
 end
 
 -- *********************
